@@ -25,7 +25,7 @@ export function VehicleColumn({ column }: VehicleColumnProps) {
       data-capacity={column.capacity}
       data-count={column.children.length}
       className={cn(
-        "vehicle-column flex flex-col w-64 shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid",
+        "flex flex-col w-64 shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200",
         isOverCapacity
           ? "border-red-400 bg-red-50 shadow-lg shadow-red-200"
           : isOver

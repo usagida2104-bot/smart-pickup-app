@@ -9,6 +9,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   School,
+  Smartphone,
   Users,
   UserSquare2,
 } from "lucide-react";
@@ -29,6 +30,11 @@ const navItems = [
     label: "日別設定",
     href: "/daily-setup",
     icon: Calendar,
+  },
+  {
+    label: "ドライバービュー",
+    href: "/driver",
+    icon: Smartphone,
   },
   {
     label: "─── マスター管理",

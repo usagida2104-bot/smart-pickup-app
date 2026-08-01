@@ -71,20 +71,3 @@
 .dnd-over {
   background-color: hsl(221.2 83.2% 53.3% / 0.1);
 }
-
-@media print {
-  @page {
-    size: A4 landscape;
-    margin: 1cm;
-  }
-
-  body {
-    background-color: white !important;
-  }
-
-  /* Prevent page breaks inside vehicle columns */
-  .vehicle-column {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-}

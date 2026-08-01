@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Sparkles, RotateCcw, Save, Printer } from "lucide-react";
+import { Sparkles, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VehicleColumn } from "@/components/board/VehicleColumn";
 import { ChildCard, ChildCardOverlay } from "@/components/board/ChildCard";
@@ -225,28 +225,20 @@ export default function BoardPage() {
     (col) => col.children.length > col.capacity
   );
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
-    <div className="p-6 h-[calc(100vh-4rem)] flex flex-col print:h-auto print:p-0 print:block">
+    <div className="p-6 h-[calc(100vh-4rem)] flex flex-col">
       {/* Page header */}
-      <div className="flex items-center justify-between mb-4 print:mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
-          <p className="text-sm text-gray-500 print:text-base">{today} — 出席 {totalPresent}名</p>
+          <h1 className="text-2xl font-bold text-gray-800">送迎ボード</h1>
+          <p className="text-sm text-gray-500">{today} — 出席 {totalPresent}名</p>
         </div>
-        <div className="flex items-center gap-3 print:hidden">
+        <div className="flex items-center gap-3">
           {overCapacityCols.length > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
               ⚠️ {overCapacityCols.length}台が定員超過
             </div>
           )}
-          <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
-            <Printer className="w-4 h-4" />
-            A4印刷
-          </Button>
           <Button variant="outline" size="sm" onClick={handleReset} className="gap-2">
             <RotateCcw className="w-4 h-4" />
             リセット
@@ -264,24 +256,22 @@ export default function BoardPage() {
 
       {/* Auto-assign banner */}
       {isAutoAssigned && (
-        <div className="mb-4 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700 print:hidden">
+        <div className="mb-4 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
           ✨ 自動配車が完了しました。マグネットをドラッグして手動調整できます。
         </div>
       )}
 
       {/* Board */}
-      <div className="flex-1 overflow-x-auto print:overflow-visible">
+      <div className="flex-1 overflow-x-auto">
         <DndContext
           sensors={sensors}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-4 h-full pb-4 print:flex-wrap print:gap-6 print:pb-0">
+          <div className="flex gap-4 h-full pb-4">
             {/* Unassigned pool */}
-            <div className="print:hidden">
-              <UnassignedPool children={board.unassigned.children} />
-            </div>
+            <UnassignedPool children={board.unassigned.children} />
 
             {/* Vehicle columns */}
             {displayColumns.map((col) => (

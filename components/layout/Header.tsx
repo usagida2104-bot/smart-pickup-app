@@ -6,6 +6,7 @@ const pageNames: Record<string, string> = {
   "/": "ダッシュボード",
   "/board": "送迎ボード",
   "/daily-setup": "日別設定",
+  "/driver": "ドライバービュー",
   "/admin/children": "児童管理",
   "/admin/schools": "学校管理",
   "/admin/vehicles": "車両管理",
