@@ -41,3 +41,4 @@ next-env.d.ts
 
 # Playwright verify scripts (not for production)
 verify.mjs
+dev.log

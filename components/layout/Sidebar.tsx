@@ -58,11 +58,11 @@ const navItems = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white flex flex-col z-40 shadow-2xl">
+    <aside className={cn("fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white flex flex-col z-40 shadow-2xl", className)}>
       {/* Logo */}
       <div className="px-6 py-5 border-b border-gray-700">
         <div className="flex items-center gap-3">
