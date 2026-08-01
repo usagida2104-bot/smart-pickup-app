@@ -22,9 +22,9 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased bg-gray-50">
-        <Sidebar />
-        <Header />
-        <main className="ml-64 pt-16 min-h-screen">
+        <Sidebar className="hidden md:flex print:hidden" />
+        <Header className="hidden md:flex print:hidden" />
+        <main className="md:ml-64 md:pt-16 min-h-screen print:ml-0 print:pt-0">
           {children}
         </main>
       </body>

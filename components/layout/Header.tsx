@@ -12,7 +12,9 @@ const pageNames: Record<string, string> = {
   "/admin/staff": "スタッフ管理",
 };
 
-export function Header() {
+import { cn } from "@/lib/utils";
+
+export function Header({ className }: { className?: string }) {
   const pathname = usePathname();
   const title = pageNames[pathname] ?? "管理画面";
   const today = new Date().toLocaleDateString("ja-JP", {
@@ -23,7 +25,7 @@ export function Header() {
   });
 
   return (
-    <header className="fixed top-0 left-64 right-0 h-16 bg-white/80 backdrop-blur-sm border-b border-gray-200 z-30 flex items-center justify-between px-6">
+    <header className={cn("fixed top-0 left-64 right-0 h-16 bg-white/80 backdrop-blur-sm border-b border-gray-200 z-30 flex items-center justify-between px-6", className)}>
       <h2 className="text-xl font-bold text-gray-800">{title}</h2>
       <div className="flex items-center gap-4">
         <span className="text-sm text-gray-500">{today}</span>

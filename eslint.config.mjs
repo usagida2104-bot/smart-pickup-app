@@ -1,5 +1,7 @@
-{
-  "plugins": [
-    "next"
-  ]
-}
+export default [
+  {
+    plugins: {
+      next: {}
+    }
+  }
+];
