@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock } from "lucide-react";
+import { Clock, ChevronUp, ChevronDown } from "lucide-react";
 import { ChildMagnet } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -8,9 +8,13 @@ interface ChildCardProps {
   magnet: ChildMagnet;
   mode: "inbound" | "outbound";
   onClick?: (magnet: ChildMagnet) => void;
+  onMoveUp?: (e: React.MouseEvent) => void;
+  onMoveDown?: (e: React.MouseEvent) => void;
+  showMoveUp?: boolean;
+  showMoveDown?: boolean;
 }
 
-export function ChildCard({ magnet, mode, onClick }: ChildCardProps) {
+export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMoveUp, showMoveDown }: ChildCardProps) {
   return (
     <button
       type="button"
@@ -60,6 +64,26 @@ export function ChildCard({ magnet, mode, onClick }: ChildCardProps) {
         <div className="flex items-center gap-1 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
           <Clock className="w-3 h-3 text-gray-400" />
           <span className="text-xs font-bold font-mono text-gray-600">{magnet.pickup_time || "未定"}</span>
+        </div>
+      )}
+
+      {/* Action buttons (Move up/down) */}
+      {(showMoveUp || showMoveDown) && (
+        <div className="flex flex-col gap-0.5 shrink-0 ml-1 border-l pl-1">
+          <button 
+            type="button"
+            className={cn("p-1 rounded hover:bg-gray-200 transition-colors bg-gray-100", !showMoveUp && "invisible")}
+            onClick={onMoveUp}
+          >
+            <ChevronUp className="w-4 h-4 text-gray-600" />
+          </button>
+          <button 
+            type="button"
+            className={cn("p-1 rounded hover:bg-gray-200 transition-colors bg-gray-100", !showMoveDown && "invisible")}
+            onClick={onMoveDown}
+          >
+            <ChevronDown className="w-4 h-4 text-gray-600" />
+          </button>
         </div>
       )}
     </button>

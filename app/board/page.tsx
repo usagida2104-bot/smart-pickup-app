@@ -462,6 +462,17 @@ export default function BoardPage() {
     window.print();
   };
 
+  const handleDirectReorder = async (columnId: string, childId: string, direction: -1 | 1) => {
+    try {
+      reorderChild(activeTab, columnId, childId, direction);
+      const state = useBoardStore.getState();
+      const todayStr = new Date().toISOString().split("T")[0];
+      await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
+    } catch (err) {
+      console.error("Failed to reorder directly", err);
+    }
+  };
+
   return (
     <>
       <div className="p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col print:hidden">
@@ -556,7 +567,7 @@ export default function BoardPage() {
 
           {/* Vehicle columns */}
           {displayColumns.map((col) => (
-            <VehicleColumn key={col.id} column={col} mode={activeTab} onChildClick={handleChildClick} />
+            <VehicleColumn key={col.id} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} />
           ))}
         </div>
       </div>

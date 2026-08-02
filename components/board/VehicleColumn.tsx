@@ -11,9 +11,10 @@ interface VehicleColumnProps {
   column: VehicleColumnType;
   mode: "inbound" | "outbound";
   onChildClick?: (magnet: ChildMagnet, columnId: string) => void;
+  onReorderChild?: (columnId: string, childId: string, direction: -1 | 1) => void;
 }
 
-export function VehicleColumn({ column, mode, onChildClick }: VehicleColumnProps) {
+export function VehicleColumn({ column, mode, onChildClick, onReorderChild }: VehicleColumnProps) {
   const isOverCapacity = column.children.length > column.capacity;
   const isFull = column.children.length >= column.capacity;
   const fillPct = Math.min((column.children.length / column.capacity) * 100, 100);
@@ -146,8 +147,23 @@ export function VehicleColumn({ column, mode, onChildClick }: VehicleColumnProps
           "flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors duration-150 print:max-h-none print:overflow-visible"
         )}
       >
-        {column.children.map((magnet) => (
-          <ChildCard key={magnet.id} magnet={magnet} mode={mode} onClick={(m) => onChildClick && onChildClick(m, column.id)} />
+        {column.children.map((magnet, idx) => (
+          <ChildCard 
+            key={magnet.id} 
+            magnet={magnet} 
+            mode={mode} 
+            onClick={(m) => onChildClick && onChildClick(m, column.id)} 
+            showMoveUp={idx > 0}
+            showMoveDown={idx < column.children.length - 1}
+            onMoveUp={(e) => {
+              e.stopPropagation();
+              onReorderChild && onReorderChild(column.id, magnet.id, -1);
+            }}
+            onMoveDown={(e) => {
+              e.stopPropagation();
+              onReorderChild && onReorderChild(column.id, magnet.id, 1);
+            }}
+          />
         ))}
 
         {column.children.length === 0 && (
