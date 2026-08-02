@@ -24,10 +24,15 @@ export async function fetchMasterData() {
   if (errChildren) console.error("Error fetching children", errChildren);
 
   // 子供にschool情報を結合
+  const schoolsFormatted = (schools || []).map((s: any) => ({
+    ...s,
+    default_dismissal_time: s.default_dismissal_time,
+  }));
+
   const childrenWithSchool = (children || []).map((c: any) => ({
     ...c,
     homeAddress: c.home_address, // snake to camel
-    school: (schools || []).find((s: any) => s.id === c.school_id) || null,
+    school: schoolsFormatted.find((s: any) => s.id === c.school_id) || null,
   }));
 
   const staffFormatted = (staff || []).map((s: any) => ({
@@ -37,7 +42,7 @@ export async function fetchMasterData() {
   }));
 
   return {
-    schools: schools || [],
+    schools: schoolsFormatted as School[],
     vehicles: vehicles || [],
     staff: staffFormatted as Staff[],
     children: childrenWithSchool as Child[],
@@ -77,6 +82,7 @@ export async function upsertSchool(school: School) {
     color_code: school.color_code,
     area: school.area,
     address: school.address,
+    default_dismissal_time: school.default_dismissal_time,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

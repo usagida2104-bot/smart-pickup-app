@@ -3,10 +3,10 @@ import { Child, DailyAttendance, DailyShift, School, Staff, Vehicle, BoardState,
 export const TODAY = new Date().toISOString().split("T")[0];
 
 export const MOCK_SCHOOLS: School[] = [
-  { id: "school-1", name: "ぽっけ", color_code: "#F87171", area: "北エリア", address: "宮城県仙台市青葉区" }, // Red
-  { id: "school-2", name: "ぽっけ2", color_code: "#60A5FA", area: "南エリア", address: "宮城県仙台市太白区" }, // Blue
-  { id: "school-3", name: "日中一時", color_code: "#34D399", area: "北エリア", address: "宮城県仙台市青葉区" }, // Green
-  { id: "school-4", name: "自宅/その他", color_code: "#FBBF24", area: "その他", address: "未設定" }, // Yellow
+  { id: "school-1", name: "ぽっけ", color_code: "#F87171", area: "北エリア", address: "宮城県仙台市青葉区", default_dismissal_time: "14:30" }, // Red
+  { id: "school-2", name: "ぽっけ2", color_code: "#60A5FA", area: "南エリア", address: "宮城県仙台市太白区", default_dismissal_time: "15:00" }, // Blue
+  { id: "school-3", name: "日中一時", color_code: "#34D399", area: "北エリア", address: "宮城県仙台市青葉区", default_dismissal_time: "14:45" }, // Green
+  { id: "school-4", name: "自宅/その他", color_code: "#FBBF24", area: "その他", address: "未設定", default_dismissal_time: "15:30" }, // Yellow
 ];
 
 export const MOCK_VEHICLES: Vehicle[] = [
@@ -149,7 +149,7 @@ export function toMagnet(childId: string, allChildren?: Child[] | any, allAttend
     name: child.name,
     color: child.school?.color_code ?? "#ccc",
     has_caution: child.has_caution,
-    pickup_time: att?.pickup_time ?? null,
+    pickup_time: att?.pickup_time ?? child.school?.default_dismissal_time ?? null,
     school_name: child.school?.name ?? "",
     school_area: child.school?.area ?? null,
     unit_name: child.unit_name,

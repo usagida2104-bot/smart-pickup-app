@@ -8,6 +8,7 @@ export interface School {
   color_code: string | null;
   area?: string | null;
   address?: string | null;
+  default_dismissal_time?: string | null;
 }
 
 export interface Vehicle {

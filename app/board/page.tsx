@@ -377,7 +377,14 @@ export default function BoardPage() {
               })
               .map(m => {
                 const child = children.find(c => c.id === m.id);
-                return { ...m, status: child?.status, status_time: child?.status_time, has_caution: child?.has_caution ?? false };
+                const att = attendances.find(a => a.child_id === m.id);
+                return { 
+                  ...m, 
+                  status: child?.status, 
+                  status_time: child?.status_time, 
+                  has_caution: child?.has_caution ?? false,
+                  pickup_time: att?.pickup_time ?? child?.school?.default_dismissal_time ?? null
+                };
               })
           };
         });
@@ -389,7 +396,14 @@ export default function BoardPage() {
         })
         .map(m => {
           const child = children.find(c => c.id === m.id);
-          return { ...m, status: child?.status, status_time: child?.status_time, has_caution: child?.has_caution ?? false };
+          const att = attendances.find(a => a.child_id === m.id);
+          return { 
+            ...m, 
+            status: child?.status, 
+            status_time: child?.status_time, 
+            has_caution: child?.has_caution ?? false,
+            pickup_time: att?.pickup_time ?? child?.school?.default_dismissal_time ?? null
+          };
         });
 
       // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して未割り当てに追加
