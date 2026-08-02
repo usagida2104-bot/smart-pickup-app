@@ -56,10 +56,10 @@ export function ChildCard({ magnet, mode, onClick }: ChildCardProps) {
       </div>
 
       {/* Pickup time badge */}
-      {mode === "inbound" && magnet.pickup_time && (
-        <div className="flex items-center gap-0.5 shrink-0">
+      {mode === "inbound" && (
+        <div className="flex items-center gap-1 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
           <Clock className="w-3 h-3 text-gray-400" />
-          <span className="text-xs font-mono text-gray-600">{magnet.pickup_time}</span>
+          <span className="text-xs font-bold font-mono text-gray-600">{magnet.pickup_time || "未定"}</span>
         </div>
       )}
     </button>
