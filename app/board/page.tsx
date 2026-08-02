@@ -245,17 +245,30 @@ export default function BoardPage() {
   };
 
   const handleReset = (overrideAtts?: DailyAttendance[]) => {
+    const state = useBoardStore.getState();
     const attsToUse = overrideAtts || attendances;
     
-    const inboundChildren = attsToUse
-      .filter(a => ["both", "pickup_only"].includes(a.status))
-      .filter(a => children.some(c => c.id === a.child_id && c.status !== "absent"))
-      .map(a => toMagnet(a.child_id, children, attsToUse));
+    const currentInboundIds = new Set([
+      ...state.inboundBoard.columns.flatMap(c => c.children.map(ch => ch.id)),
+      ...state.inboundBoard.unassigned.children.map(ch => ch.id)
+    ]);
+    const currentOutboundIds = new Set([
+      ...state.outboundBoard.columns.flatMap(c => c.children.map(ch => ch.id)),
+      ...state.outboundBoard.unassigned.children.map(ch => ch.id)
+    ]);
+
+    attsToUse.forEach(a => {
+      if (["both", "pickup_only"].includes(a.status)) currentInboundIds.add(a.child_id);
+      if (["both", "dropoff_only"].includes(a.status)) currentOutboundIds.add(a.child_id);
+    });
+
+    const inboundChildren = Array.from(currentInboundIds)
+      .filter(id => children.some(c => c.id === id && c.status !== "absent"))
+      .map(id => toMagnet(id, children, attsToUse));
       
-    const outboundChildren = attsToUse
-      .filter(a => ["both", "dropoff_only"].includes(a.status))
-      .filter(a => children.some(c => c.id === a.child_id && c.status !== "absent"))
-      .map(a => toMagnet(a.child_id, children, attsToUse));
+    const outboundChildren = Array.from(currentOutboundIds)
+      .filter(id => children.some(c => c.id === id && c.status !== "absent"))
+      .map(id => toMagnet(id, children, attsToUse));
 
     setBoard("inbound", {
       columns: dynamicShifts.map((shift) => ({
