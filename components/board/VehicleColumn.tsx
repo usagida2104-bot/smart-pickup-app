@@ -1,9 +1,8 @@
 "use client";
 
-import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
 import { AlertTriangle, Car, Users } from "lucide-react";
-import { VehicleColumn as VehicleColumnType } from "@/types";
+import { VehicleColumn as VehicleColumnType, ChildMagnet } from "@/types";
 import { ChildCard } from "./ChildCard";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/lib/store/boardStore";
@@ -11,15 +10,14 @@ import { useBoardStore } from "@/lib/store/boardStore";
 interface VehicleColumnProps {
   column: VehicleColumnType;
   mode: "inbound" | "outbound";
+  onChildClick?: (magnet: ChildMagnet, columnId: string) => void;
 }
 
-export function VehicleColumn({ column, mode }: VehicleColumnProps) {
+export function VehicleColumn({ column, mode, onChildClick }: VehicleColumnProps) {
   const isOverCapacity = column.children.length > column.capacity;
   const isFull = column.children.length >= column.capacity;
   const fillPct = Math.min((column.children.length / column.capacity) * 100, 100);
   const updateColumnLocation = useBoardStore((state) => state.updateColumnLocation);
-
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   const renderRouteInfo = () => {
     let route = column.routeInfo || "未設定";
@@ -41,8 +39,6 @@ export function VehicleColumn({ column, mode }: VehicleColumnProps) {
         "vehicle-column flex flex-col w-64 shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid",
         isOverCapacity
           ? "border-red-400 bg-red-50 shadow-lg shadow-red-200"
-          : isOver
-          ? "border-blue-400 bg-blue-50 shadow-lg shadow-blue-200"
           : "border-gray-200 bg-white shadow-sm"
       )}
     >
@@ -144,27 +140,19 @@ export function VehicleColumn({ column, mode }: VehicleColumnProps) {
         </div>
       </div>
 
-      {/* Drop zone */}
+      {/* Drop zone / List */}
       <div
-        ref={setNodeRef}
-        data-testid={`drop-zone-${column.vehicleId}`}
         className={cn(
-          "flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors duration-150 print:max-h-none print:overflow-visible",
-          isOver && "bg-blue-50/60"
+          "flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors duration-150 print:max-h-none print:overflow-visible"
         )}
       >
-        <SortableContext
-          items={column.children.map((c) => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {column.children.map((magnet) => (
-            <ChildCard key={magnet.id} magnet={magnet} />
-          ))}
-        </SortableContext>
+        {column.children.map((magnet) => (
+          <ChildCard key={magnet.id} magnet={magnet} onClick={(m) => onChildClick && onChildClick(m, column.id)} />
+        ))}
 
         {column.children.length === 0 && (
           <div className="flex items-center justify-center h-24 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-sm">
-            ここにドロップ
+            （未割り当て）
           </div>
         )}
       </div>

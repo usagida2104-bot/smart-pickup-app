@@ -14,6 +14,7 @@ interface BoardStore {
   ) => void;
   isOverCapacity: (mode: "inbound" | "outbound", columnId: string) => boolean;
   updateColumnLocation: (mode: "inbound" | "outbound", columnId: string, locationType: "start" | "end", location: "office" | "home") => void;
+  reorderChild: (mode: "inbound" | "outbound", columnId: string, childId: string, direction: -1 | 1) => void;
 }
 
 const emptyBoard: BoardState = {
@@ -100,5 +101,30 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       return col;
     });
     set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: newColumns } });
+  },
+
+  reorderChild: (mode, columnId, childId, direction) => {
+    const state = get();
+    const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
+    const newColumns = board.columns.map((col) => ({ ...col, children: [...col.children] }));
+    const col = newColumns.find(c => c.id === columnId);
+    if (!col) return;
+    
+    const idx = col.children.findIndex(c => c.id === childId);
+    if (idx === -1) return;
+    
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= col.children.length) return;
+    
+    const temp = col.children[idx];
+    col.children[idx] = col.children[newIdx];
+    col.children[newIdx] = temp;
+    
+    set({
+      [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: {
+        ...board,
+        columns: newColumns,
+      }
+    });
   },
 }));

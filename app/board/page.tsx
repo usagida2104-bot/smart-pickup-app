@@ -1,22 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowUp, ArrowDown } from "lucide-react";
 import { Sparkles, RotateCcw, Save, Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VehicleColumn } from "@/components/board/VehicleColumn";
-import { ChildCard, ChildCardOverlay } from "@/components/board/ChildCard";
+import { ChildCard } from "@/components/board/ChildCard";
 import { useBoardStore } from "@/lib/store/boardStore";
 import { autoAssignVehicles } from "@/lib/autoAssignVehicles";
 import { MOCK_WHITEBOARD_STATE, toMagnet, MOCK_STAFF, OFFICE_ADDRESS } from "@/lib/mockData";
@@ -26,9 +16,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState } from "@/lib/supabase/service";
 
-function UnassignedPool({ children }: { children: ChildMagnet[] }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "unassigned" });
-
+function UnassignedPool({ children, onChildClick }: { children: ChildMagnet[], onChildClick: (magnet: ChildMagnet, columnId: string) => void }) {
   return (
     <div
       data-testid="unassigned-column"
@@ -39,20 +27,12 @@ function UnassignedPool({ children }: { children: ChildMagnet[] }) {
         <p className="text-xs text-gray-400 mt-0.5">{children.length}名</p>
       </div>
       <div
-        ref={setNodeRef}
         data-testid="unassigned-pool"
-        className={`flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors ${
-          isOver ? "bg-gray-100" : ""
-        }`}
+        className="flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors"
       >
-        <SortableContext
-          items={children.map((c) => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {children.map((magnet) => (
-            <ChildCard key={magnet.id} magnet={magnet} />
-          ))}
-        </SortableContext>
+        {children.map((magnet) => (
+          <ChildCard key={magnet.id} magnet={magnet} onClick={(m) => onChildClick(m, "unassigned")} />
+        ))}
         {children.length === 0 && (
           <div className="flex items-center justify-center h-24 text-gray-400 text-sm">
             全員が配車済みです 🎉
@@ -64,11 +44,10 @@ function UnassignedPool({ children }: { children: ChildMagnet[] }) {
 }
 
 export default function BoardPage() {
-  const { inboundBoard, outboundBoard, setBoard, moveChild } = useBoardStore();
+  const { inboundBoard, outboundBoard, setBoard, moveChild, reorderChild } = useBoardStore();
   const { staff, vehicles, children, attendances } = useMasterStore();
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound">("inbound");
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeMagnet, setActiveMagnet] = useState<ChildMagnet | null>(null);
+  const [selectedChild, setSelectedChild] = useState<{ magnet: ChildMagnet, columnId: string } | null>(null);
   const [isAutoAssigned, setIsAutoAssigned] = useState(false);
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -91,29 +70,22 @@ export default function BoardPage() {
       };
     });
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    })
-  );
-
-  // Find which column contains a child
-  const findColumnId = (childId: string): string => {
-    if (board.unassigned.children.some((c) => c.id === childId)) {
-      return "unassigned";
-    }
-    const col = board.columns.find((c) => c.children.some((ch) => ch.id === childId));
-    return col?.id ?? "unassigned";
+  const handleChildClick = (magnet: ChildMagnet, columnId: string) => {
+    setSelectedChild({ magnet, columnId });
   };
 
-  const findMagnet = (id: string): ChildMagnet | undefined => {
-    const fromUnassigned = board.unassigned.children.find((c) => c.id === id);
-    if (fromUnassigned) return fromUnassigned;
-    for (const col of board.columns) {
-      const found = col.children.find((c) => c.id === id);
-      if (found) return found;
+  const handleAssignTo = (targetColumnId: string) => {
+    if (!selectedChild) return;
+    if (selectedChild.columnId !== targetColumnId) {
+      moveChild(activeTab, selectedChild.magnet.id, selectedChild.columnId, targetColumnId);
     }
-    return undefined;
+    setSelectedChild(null);
+  };
+
+  const handleReorder = (direction: -1 | 1) => {
+    if (!selectedChild) return;
+    if (selectedChild.columnId === "unassigned") return;
+    reorderChild(activeTab, selectedChild.columnId, selectedChild.magnet.id, direction);
   };
 
   const handleAutoAssign = async () => {
@@ -446,73 +418,7 @@ export default function BoardPage() {
   }, [children, staff]);
 
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(active.id as string);
-    setActiveMagnet(findMagnet(active.id as string) ?? null);
-  };
 
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    const fromColumnId = findColumnId(activeId);
-    let toColumnId = overId;
-
-    // If dropping over a child card, find its column
-    const overMagnet = findMagnet(overId);
-    if (overMagnet) {
-      toColumnId = findColumnId(overId);
-    }
-
-    if (fromColumnId === toColumnId) return;
-
-    moveChild(activeTab, activeId, fromColumnId, toColumnId);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-    setActiveMagnet(null);
-
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    const fromColumnId = findColumnId(activeId);
-
-    // Check if dropped on a child in the same column for reordering
-    const overMagnet = findMagnet(overId);
-    if (overMagnet) {
-      const toColumnId = findColumnId(overId);
-      if (fromColumnId === toColumnId) {
-        // Reorder within same column
-        const newBoard = { ...board };
-        if (fromColumnId === "unassigned") {
-          const items = [...board.unassigned.children];
-          const fromIdx = items.findIndex((c) => c.id === activeId);
-          const toIdx = items.findIndex((c) => c.id === overId);
-          newBoard.unassigned = {
-            ...board.unassigned,
-            children: arrayMove(items, fromIdx, toIdx),
-          };
-        } else {
-          newBoard.columns = board.columns.map((col) => {
-            if (col.id !== fromColumnId) return col;
-            const items = [...col.children];
-            const fromIdx = items.findIndex((c) => c.id === activeId);
-            const toIdx = items.findIndex((c) => c.id === overId);
-            return { ...col, children: arrayMove(items, fromIdx, toIdx) };
-          });
-        }
-        setBoard(activeTab, newBoard);
-      }
-    }
-  };
 
   const today = new Date().toLocaleDateString("ja-JP", {
     year: "numeric",
@@ -620,29 +526,17 @@ export default function BoardPage() {
 
       {/* Board */}
       <div className="flex-1 overflow-x-auto print:overflow-visible">
-        <DndContext
-          sensors={sensors}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-4 h-full pb-4 print:flex-wrap print:gap-6 print:pb-0">
-            {/* Unassigned pool */}
-            <div className="print:hidden">
-              <UnassignedPool children={board.unassigned.children} />
-            </div>
-
-            {/* Vehicle columns */}
-            {displayColumns.map((col) => (
-              <VehicleColumn key={col.id} column={col} mode={activeTab} />
-            ))}
+        <div className="flex gap-4 h-full pb-4 print:flex-wrap print:gap-6 print:pb-0">
+          {/* Unassigned pool */}
+          <div className="print:hidden">
+            <UnassignedPool children={board.unassigned.children} onChildClick={handleChildClick} />
           </div>
 
-          {/* Drag overlay */}
-          <DragOverlay>
-            {activeMagnet ? <ChildCardOverlay magnet={activeMagnet} /> : null}
-          </DragOverlay>
-        </DndContext>
+          {/* Vehicle columns */}
+          {displayColumns.map((col) => (
+            <VehicleColumn key={col.id} column={col} mode={activeTab} onChildClick={handleChildClick} />
+          ))}
+        </div>
       </div>
 
       {/* Legend */}
@@ -727,6 +621,75 @@ export default function BoardPage() {
             })}
         </div>
       </div>
+      {/* Assignment Modal */}
+      <Dialog open={!!selectedChild} onOpenChange={(open) => !open && setSelectedChild(null)}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto print:hidden">
+          <DialogHeader>
+            <DialogTitle>{selectedChild?.magnet.name} の配車・順番変更</DialogTitle>
+          </DialogHeader>
+
+          {selectedChild && (
+            <div className="space-y-6 pt-4">
+              {/* 並び順変更セクション（既に車両にいる場合のみ表示） */}
+              {selectedChild.columnId !== "unassigned" && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-500">同じ車両内での順番移動</h3>
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 gap-2" onClick={() => handleReorder(-1)}>
+                      <ArrowUp className="w-4 h-4" /> 前へ
+                    </Button>
+                    <Button variant="outline" className="flex-1 gap-2" onClick={() => handleReorder(1)}>
+                      <ArrowDown className="w-4 h-4" /> 後ろへ
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* 配車先変更セクション */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-500">別の車両へ移動 (最後尾に追加)</h3>
+                <div className="flex flex-col gap-2">
+                  {displayColumns.map((col) => {
+                    const isCurrent = col.id === selectedChild.columnId;
+                    const isFull = col.children.length >= col.capacity;
+                    return (
+                      <Button
+                        key={col.id}
+                        variant="outline"
+                        className={cn(
+                          "justify-start text-left h-auto py-3",
+                          isCurrent && "border-blue-500 bg-blue-50 cursor-default hover:bg-blue-50",
+                          !isCurrent && isFull && "opacity-75"
+                        )}
+                        onClick={() => !isCurrent && handleAssignTo(col.id)}
+                      >
+                        <div className="flex flex-col items-start gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold">{col.vehicleName}</span>
+                            {isCurrent && <span className="text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">現在</span>}
+                            {!isCurrent && isFull && <span className="text-xs text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded">満員</span>}
+                          </div>
+                          <span className="text-xs text-gray-500">{col.driverName}運転手</span>
+                        </div>
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left h-auto py-3 mt-2",
+                      selectedChild.columnId === "unassigned" && "border-blue-500 bg-blue-50 cursor-default hover:bg-blue-50"
+                    )}
+                    onClick={() => selectedChild.columnId !== "unassigned" && handleAssignTo("unassigned")}
+                  >
+                    <div className="font-bold">📋 未割り当てに戻す</div>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
