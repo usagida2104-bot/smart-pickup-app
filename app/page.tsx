@@ -108,12 +108,6 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Info banner */}
-      <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
-        <strong>ℹ️ デモモードで動作中</strong> —
-        Supabaseに接続するには <code className="bg-amber-100 px-1 rounded">.env.local</code> に接続情報を設定してください。
-        現在はモックデータを使用しています。
-      </div>
     </div>
   );
 }
