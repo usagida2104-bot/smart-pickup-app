@@ -185,8 +185,8 @@ export default function DailySetupPage() {
           <ChevronLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1 text-center flex justify-center items-center">
-          <div className="relative group">
-            <div className="flex items-center gap-2 group-hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
+          <div className="relative group flex items-center justify-center cursor-pointer">
+            <div className="flex items-center gap-2 group-hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors pointer-events-none">
               <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
               <p className="text-base md:text-lg font-semibold text-gray-800 whitespace-nowrap">{displayDate}</p>
             </div>
@@ -197,6 +197,15 @@ export default function DailySetupPage() {
                 if (e.target.value) {
                   const d = new Date(e.target.value);
                   setSelectedDate(d);
+                }
+              }}
+              onClick={(e) => {
+                try {
+                  if (typeof (e.currentTarget as any).showPicker === 'function') {
+                    (e.currentTarget as any).showPicker();
+                  }
+                } catch (err) {
+                  console.error(err);
                 }
               }}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
