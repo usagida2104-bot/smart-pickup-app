@@ -437,7 +437,7 @@ export default function BoardPage() {
     state.setBoard("inbound", syncBoard(state.inboundBoard, "inbound"));
     state.setBoard("outbound", syncBoard(state.outboundBoard, "outbound"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, staff]);
+  }, [children, staff, attendances]);
 
 
 
