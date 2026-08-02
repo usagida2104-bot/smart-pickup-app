@@ -691,7 +691,7 @@ export default function BoardPage() {
                             {isCurrent && <span className="text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">現在</span>}
                             {!isCurrent && isFull && <span className="text-xs text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded">満員</span>}
                           </div>
-                          <span className="text-xs text-gray-500">{col.driverName}運転手</span>
+                          <span className="text-xs text-gray-500">{col.driverName}</span>
                         </div>
                       </Button>
                     );
