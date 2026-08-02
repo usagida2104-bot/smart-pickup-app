@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState } from "@/lib/supabase/service";
 
-function UnassignedPool({ children, onChildClick }: { children: ChildMagnet[], onChildClick: (magnet: ChildMagnet, columnId: string) => void }) {
+function UnassignedPool({ children, mode, onChildClick }: { children: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void }) {
   return (
     <div
       data-testid="unassigned-column"
@@ -31,7 +31,7 @@ function UnassignedPool({ children, onChildClick }: { children: ChildMagnet[], o
         className="flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors"
       >
         {children.map((magnet) => (
-          <ChildCard key={magnet.id} magnet={magnet} onClick={(m) => onChildClick(m, "unassigned")} />
+          <ChildCard key={magnet.id} magnet={magnet} mode={mode} onClick={(m) => onChildClick(m, "unassigned")} />
         ))}
         {children.length === 0 && (
           <div className="flex items-center justify-center h-24 text-gray-400 text-sm">
@@ -529,7 +529,7 @@ export default function BoardPage() {
         <div className="flex gap-4 h-full pb-4 print:flex-wrap print:gap-6 print:pb-0">
           {/* Unassigned pool */}
           <div className="print:hidden">
-            <UnassignedPool children={board.unassigned.children} onChildClick={handleChildClick} />
+            <UnassignedPool children={board.unassigned.children} mode={activeTab} onChildClick={handleChildClick} />
           </div>
 
           {/* Vehicle columns */}

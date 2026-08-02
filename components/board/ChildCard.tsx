@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils";
 
 interface ChildCardProps {
   magnet: ChildMagnet;
+  mode: "inbound" | "outbound";
   onClick?: (magnet: ChildMagnet) => void;
 }
 
-export function ChildCard({ magnet, onClick }: ChildCardProps) {
+export function ChildCard({ magnet, mode, onClick }: ChildCardProps) {
   return (
     <button
       type="button"
@@ -55,7 +56,7 @@ export function ChildCard({ magnet, onClick }: ChildCardProps) {
       </div>
 
       {/* Pickup time badge */}
-      {magnet.pickup_time && (
+      {mode === "inbound" && magnet.pickup_time && (
         <div className="flex items-center gap-0.5 shrink-0">
           <Clock className="w-3 h-3 text-gray-400" />
           <span className="text-xs font-mono text-gray-600">{magnet.pickup_time}</span>

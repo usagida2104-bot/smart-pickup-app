@@ -147,7 +147,7 @@ export function VehicleColumn({ column, mode, onChildClick }: VehicleColumnProps
         )}
       >
         {column.children.map((magnet) => (
-          <ChildCard key={magnet.id} magnet={magnet} onClick={(m) => onChildClick && onChildClick(m, column.id)} />
+          <ChildCard key={magnet.id} magnet={magnet} mode={mode} onClick={(m) => onChildClick && onChildClick(m, column.id)} />
         ))}
 
         {column.children.length === 0 && (
