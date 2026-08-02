@@ -373,7 +373,11 @@ export default function BoardPage() {
             children: col.children
               .filter(m => {
                 const child = children.find(c => c.id === m.id);
-                return child && child.status !== "absent";
+                const att = attendances.find(a => a.child_id === m.id);
+                const isValidForMode = mode === "inbound" 
+                  ? ["both", "pickup_only"].includes(att?.status || "")
+                  : ["both", "dropoff_only"].includes(att?.status || "");
+                return child && child.status !== "absent" && isValidForMode;
               })
               .map(m => {
                 const child = children.find(c => c.id === m.id);
@@ -392,7 +396,11 @@ export default function BoardPage() {
       const newUnassignedChildren = boardState.unassigned.children
         .filter(m => {
           const child = children.find(c => c.id === m.id);
-          return child && child.status !== "absent";
+          const att = attendances.find(a => a.child_id === m.id);
+          const isValidForMode = mode === "inbound" 
+            ? ["both", "pickup_only"].includes(att?.status || "")
+            : ["both", "dropoff_only"].includes(att?.status || "");
+          return child && child.status !== "absent" && isValidForMode;
         })
         .map(m => {
           const child = children.find(c => c.id === m.id);
