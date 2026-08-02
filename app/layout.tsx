@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
   title: "放デイ 送迎表システム",
@@ -22,11 +23,13 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased bg-gray-50">
-        <Sidebar />
-        <Header />
-        <main className="ml-64 pt-16 min-h-screen">
-          {children}
-        </main>
+        <AuthProvider>
+          <Sidebar className="hidden md:flex print:hidden" />
+          <Header className="hidden md:flex print:hidden" />
+          <main className="md:ml-64 md:pt-16 min-h-screen print:ml-0 print:pt-0">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

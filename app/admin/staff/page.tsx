@@ -13,35 +13,53 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MOCK_STAFF } from "@/lib/mockData";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { useMasterStore } from "@/lib/store/masterStore";
 import { Staff } from "@/types";
+import { cn } from "@/lib/utils";
+
+const TIME_OPTIONS = Array.from({ length: 13 * 12 + 1 }).map((_, i) => {
+  const h = Math.floor(i / 12) + 8;
+  const m = (i % 12) * 5;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+});
+
+const getStatusColor = (status?: string) => {
+  switch (status) {
+    case "absent": return "text-slate-600 bg-slate-100 border-slate-300";
+    case "late": return "text-amber-700 bg-amber-50 border-amber-200";
+    case "early_leave": return "text-purple-700 bg-purple-50 border-purple-200";
+    case "present":
+    default: return "text-pink-700 bg-pink-50 border-pink-200";
+  }
+};
 
 export default function StaffPage() {
-  const [staff, setStaff] = useState<Staff[]>(MOCK_STAFF);
+  const { staff, vehicles, addStaff, updateStaff, deleteStaff } = useMasterStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
-  const [form, setForm] = useState({ name: "", is_driver: true });
+  const [form, setForm] = useState({ name: "", is_driver: true, homeAddress: "", assignedVehicleId: "" as string | null });
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", is_driver: true });
+    setForm({ name: "", is_driver: true, homeAddress: "", assignedVehicleId: null });
     setDialogOpen(true);
   };
 
   const openEdit = (s: Staff) => {
     setEditing(s);
-    setForm({ name: s.name, is_driver: s.is_driver });
+    setForm({ name: s.name, is_driver: s.is_driver, homeAddress: s.homeAddress || "", assignedVehicleId: s.assignedVehicleId || null });
     setDialogOpen(true);
   };
 
   const handleSave = () => {
     if (editing) {
-      setStaff((prev) =>
-        prev.map((s) => s.id === editing.id ? { ...s, ...form } : s)
-      );
+      updateStaff(editing.id, form);
     } else {
-      setStaff((prev) => [...prev, { id: `staff-${Date.now()}`, ...form }]);
+      addStaff({ id: `staff-${Date.now()}`, ...form });
     }
     setDialogOpen(false);
   };
@@ -60,28 +78,73 @@ export default function StaffPage() {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-gray-50">
-              <TableHead>名前</TableHead>
-              <TableHead>ドライバー</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50">
+                <TableHead className="whitespace-nowrap">名前</TableHead>
+                <TableHead className="whitespace-nowrap min-w-[220px]">ステータス</TableHead>
+                <TableHead className="whitespace-nowrap">ドライバー</TableHead>
+                <TableHead className="text-right whitespace-nowrap">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
             {staff.map((s) => (
               <TableRow key={s.id}>
-                <TableCell className="font-medium">{s.name}</TableCell>
-                <TableCell>
+                <TableCell className="font-medium whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    {s.name}
+                  </div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <Select 
+                      value={s.status || "present"}
+                      onValueChange={(v: "present" | "absent" | "late" | "early_leave") => {
+                        updateStaff(s.id, { 
+                          status: v, 
+                          status_time: (v === "late" || v === "early_leave") ? (s.status_time || "09:00") : null 
+                        });
+                      }}
+                    >
+                      <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(s.status))}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="present"><span className="text-pink-700 font-bold">出勤</span></SelectItem>
+                        <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
+                        <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
+                        <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {(s.status === "late" || s.status === "early_leave") && (
+                      <Select
+                        value={s.status_time || "09:00"}
+                        onValueChange={(v) => updateStaff(s.id, { status_time: v })}
+                      >
+                        <SelectTrigger className="w-[80px] h-8 text-xs bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIME_OPTIONS.map((time) => (
+                            <SelectItem key={time} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
                   {s.is_driver ? (
                     <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
-                      🚗 ドライバー
+                      🚗 {s.assignedVehicleId ? (vehicles.find(v => v.id === s.assignedVehicleId)?.name || "ドライバー") : "ドライバー"}
                     </Badge>
                   ) : (
                     <Badge variant="secondary">アシスタント</Badge>
                   )}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-2">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                       <Pencil className="w-4 h-4 text-gray-500" />
@@ -93,8 +156,9 @@ export default function StaffPage() {
                 </TableCell>
               </TableRow>
             ))}
-          </TableBody>
-        </Table>
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Create/Edit Dialog */}
@@ -114,18 +178,63 @@ export default function StaffPage() {
                 className="mt-1.5"
               />
             </div>
-            <div className="flex items-center gap-3">
+            <div>
+              <Label htmlFor="staff-address">自宅住所</Label>
+              <Input
+                id="staff-address"
+                value={form.homeAddress}
+                onChange={(e) => setForm({ ...form, homeAddress: e.target.value })}
+                placeholder="福島県郡山市..."
+                className="mt-1.5"
+              />
+            </div>
+            <div 
+              className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
+                form.is_driver 
+                  ? "bg-blue-50 border-blue-300 shadow-sm" 
+                  : "bg-gray-50 border-gray-200"
+              }`}
+            >
               <Switch
                 id="is-driver"
                 checked={form.is_driver}
                 onCheckedChange={(v) => setForm({ ...form, is_driver: v })}
+                className={form.is_driver ? "data-[state=checked]:bg-blue-600" : ""}
               />
-              <Label htmlFor="is-driver">ドライバー権限あり</Label>
+              <Label 
+                htmlFor="is-driver" 
+                className={form.is_driver ? "text-blue-700 font-bold" : "text-gray-900"}
+              >
+                ドライバー権限あり
+              </Label>
             </div>
+            {form.is_driver && (
+              <div>
+                <Label>担当車両</Label>
+                <Select
+                  value={form.assignedVehicleId || "none"}
+                  onValueChange={(v) => setForm({ ...form, assignedVehicleId: v === "none" ? null : v })}
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="担当車両を選択..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">指定なし</SelectItem>
+                    {vehicles.map(v => (
+                      <SelectItem key={v.id} value={v.id}>{v.name}（定員: {v.capacity}名）</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
-            <Button onClick={handleSave} disabled={!form.name.trim()}>
+            <Button 
+              onClick={handleSave} 
+              disabled={!form.name.trim()}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 transition-colors shadow-sm"
+            >
               {editing ? "更新" : "追加"}
             </Button>
           </DialogFooter>
@@ -142,7 +251,7 @@ export default function StaffPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>キャンセル</Button>
             <Button variant="destructive" onClick={() => {
-              setStaff((prev) => prev.filter((s) => s.id !== deleteTarget?.id));
+              if (deleteTarget) deleteStaff(deleteTarget.id);
               setDeleteTarget(null);
             }}>削除</Button>
           </DialogFooter>

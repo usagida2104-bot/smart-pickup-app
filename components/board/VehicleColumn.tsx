@@ -6,17 +6,30 @@ import { AlertTriangle, Car, Users } from "lucide-react";
 import { VehicleColumn as VehicleColumnType } from "@/types";
 import { ChildCard } from "./ChildCard";
 import { cn } from "@/lib/utils";
+import { useBoardStore } from "@/lib/store/boardStore";
 
 interface VehicleColumnProps {
   column: VehicleColumnType;
+  mode: "inbound" | "outbound";
 }
 
-export function VehicleColumn({ column }: VehicleColumnProps) {
+export function VehicleColumn({ column, mode }: VehicleColumnProps) {
   const isOverCapacity = column.children.length > column.capacity;
   const isFull = column.children.length >= column.capacity;
   const fillPct = Math.min((column.children.length / column.capacity) * 100, 100);
+  const updateColumnLocation = useBoardStore((state) => state.updateColumnLocation);
 
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
+
+  const renderRouteInfo = () => {
+    let route = column.routeInfo || "未設定";
+    if (column.endLocation === "home" && mode === "outbound") {
+      if (!route.includes("🏁")) {
+        route += " → 🏁 ドライバー自宅（直帰）";
+      }
+    }
+    return route;
+  };
 
   return (
     <div
@@ -25,7 +38,7 @@ export function VehicleColumn({ column }: VehicleColumnProps) {
       data-capacity={column.capacity}
       data-count={column.children.length}
       className={cn(
-        "flex flex-col w-64 shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200",
+        "vehicle-column flex flex-col w-64 shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid",
         isOverCapacity
           ? "border-red-400 bg-red-50 shadow-lg shadow-red-200"
           : isOver
@@ -52,7 +65,59 @@ export function VehicleColumn({ column }: VehicleColumnProps) {
             </div>
           )}
         </div>
-        <p className="text-xs text-gray-500 mb-2">🚗 {column.driverName}</p>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1">
+            <p className="text-xs text-gray-500 font-medium">🚗 {column.driverName}</p>
+            {column.driverStatus === "late" && (
+              <span className="text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded">
+                遅刻 {column.driverStatusTime}
+              </span>
+            )}
+            {column.driverStatus === "early_leave" && (
+              <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-1 py-0.5 rounded border border-purple-200">
+                早退 {column.driverStatusTime}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1">
+            <label className="text-[10px] text-gray-500 block mb-0.5">出発地</label>
+            <select 
+              value={column.startLocation || "office"} 
+              onChange={(e) => updateColumnLocation(mode, column.id, "start", e.target.value as "office" | "home")}
+              className="w-full text-xs border-gray-200 rounded px-1 py-0.5 bg-white"
+            >
+              <option value="office">事業所</option>
+              <option value="home">自宅</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="text-[10px] text-gray-500 block mb-0.5">到着地</label>
+            <select 
+              value={column.endLocation || "office"} 
+              onChange={(e) => updateColumnLocation(mode, column.id, "end", e.target.value as "office" | "home")}
+              className="w-full text-xs border-gray-200 rounded px-1 py-0.5 bg-white"
+            >
+              <option value="office">事業所</option>
+              <option value="home">自宅</option>
+            </select>
+          </div>
+        </div>
+        
+        {(column.routeInfo || column.estimatedTime) && (
+          <div className="mb-3 px-2 py-1.5 bg-indigo-50 border border-indigo-100 rounded text-[11px] text-indigo-700 leading-tight">
+            <div className="font-semibold mb-0.5">📍 想定ルート:</div>
+            <div className="mb-1">{renderRouteInfo()}</div>
+            {column.estimatedTime && (
+              <div className="flex items-center gap-1 font-semibold">
+                <span>⏱️ 見込み:</span>
+                <span>約 {column.estimatedTime} 分</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Capacity bar */}
         <div className="flex items-center gap-2">
@@ -84,7 +149,7 @@ export function VehicleColumn({ column }: VehicleColumnProps) {
         ref={setNodeRef}
         data-testid={`drop-zone-${column.vehicleId}`}
         className={cn(
-          "flex-1 p-3 min-h-[160px] space-y-2 transition-colors duration-150",
+          "flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors duration-150 print:max-h-none print:overflow-visible",
           isOver && "bg-blue-50/60"
         )}
       >

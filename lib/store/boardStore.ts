@@ -2,15 +2,18 @@ import { create } from "zustand";
 import { BoardState, ChildMagnet, VehicleColumn } from "@/types";
 
 interface BoardStore {
-  board: BoardState;
-  setBoard: (board: BoardState) => void;
+  inboundBoard: BoardState;
+  outboundBoard: BoardState;
+  setBoard: (mode: "inbound" | "outbound", board: BoardState) => void;
   moveChild: (
+    mode: "inbound" | "outbound",
     childId: string,
     fromColumnId: string,
     toColumnId: string,
     toIndex?: number
   ) => void;
-  isOverCapacity: (columnId: string) => boolean;
+  isOverCapacity: (mode: "inbound" | "outbound", columnId: string) => boolean;
+  updateColumnLocation: (mode: "inbound" | "outbound", columnId: string, locationType: "start" | "end", location: "office" | "home") => void;
 }
 
 const emptyBoard: BoardState = {
@@ -19,12 +22,14 @@ const emptyBoard: BoardState = {
 };
 
 export const useBoardStore = create<BoardStore>((set, get) => ({
-  board: emptyBoard,
+  inboundBoard: { ...emptyBoard },
+  outboundBoard: { ...emptyBoard },
 
-  setBoard: (board) => set({ board }),
+  setBoard: (mode, board) => set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: board }),
 
-  moveChild: (childId, fromColumnId, toColumnId, toIndex) => {
-    const { board } = get();
+  moveChild: (mode, childId, fromColumnId, toColumnId, toIndex) => {
+    const state = get();
+    const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
 
     // Find and remove child from source
     let movedChild: ChildMagnet | undefined;
@@ -67,17 +72,33 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     }
 
     set({
-      board: {
+      [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: {
         columns: newColumns,
         unassigned: { id: "unassigned", children: newUnassigned },
       },
     });
   },
 
-  isOverCapacity: (columnId) => {
-    const { board } = get();
+  isOverCapacity: (mode, columnId) => {
+    const state = get();
+    const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
     const col = board.columns.find((c) => c.id === columnId);
     if (!col) return false;
     return col.children.length > col.capacity;
+  },
+
+  updateColumnLocation: (mode, columnId, locationType, location) => {
+    const state = get();
+    const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
+    const newColumns = board.columns.map((col) => {
+      if (col.id === columnId) {
+        return {
+          ...col,
+          ...(locationType === "start" ? { startLocation: location } : { endLocation: location })
+        };
+      }
+      return col;
+    });
+    set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: newColumns } });
   },
 }));

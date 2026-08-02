@@ -12,8 +12,10 @@ import {
   Smartphone,
   Users,
   UserSquare2,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 const navItems = [
   {
@@ -31,11 +33,7 @@ const navItems = [
     href: "/daily-setup",
     icon: Calendar,
   },
-  {
-    label: "ドライバービュー",
-    href: "/driver",
-    icon: Smartphone,
-  },
+
   {
     label: "─── マスター管理",
     href: "#",
@@ -48,6 +46,11 @@ const navItems = [
     icon: Users,
   },
   {
+    label: "スタッフ管理",
+    href: "/admin/staff",
+    icon: UserSquare2,
+  },
+  {
     label: "学校管理",
     href: "/admin/schools",
     icon: GraduationCap,
@@ -57,15 +60,11 @@ const navItems = [
     href: "/admin/vehicles",
     icon: Car,
   },
-  {
-    label: "スタッフ管理",
-    href: "/admin/staff",
-    icon: UserSquare2,
-  },
 ];
 
 export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   return (
     <aside className={cn("fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white flex flex-col z-40 shadow-2xl", className)}>
@@ -121,7 +120,14 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* Footer */}
       <div className="px-6 py-4 border-t border-gray-700">
-        <p className="text-xs text-gray-500">ver 1.0.0 — Demo Mode</p>
+        <button 
+          onClick={logout}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-3 w-full text-left"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>ログアウト</span>
+        </button>
+        <p className="text-xs text-gray-600">ver 1.0.0 — Demo Mode</p>
       </div>
     </aside>
   );

@@ -15,7 +15,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { MOCK_VEHICLES } from "@/lib/mockData";
+import { useMasterStore } from "@/lib/store/masterStore";
 import { Vehicle } from "@/types";
 
 const vehicleTypeLabels: Record<string, string> = {
@@ -25,7 +25,7 @@ const vehicleTypeLabels: Record<string, string> = {
 };
 
 export default function VehiclesPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
+  const { vehicles, addVehicle, updateVehicle, deleteVehicle } = useMasterStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
@@ -46,11 +46,9 @@ export default function VehiclesPage() {
 
   const handleSave = () => {
     if (editing) {
-      setVehicles((prev) =>
-        prev.map((v) => v.id === editing.id ? { ...v, ...form } : v)
-      );
+      updateVehicle(editing.id, form);
     } else {
-      setVehicles((prev) => [...prev, { id: `vehicle-${Date.now()}`, ...form }]);
+      addVehicle({ id: `vehicle-${Date.now()}`, ...form });
     }
     setDialogOpen(false);
   };
@@ -161,7 +159,11 @@ export default function VehiclesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
-            <Button onClick={handleSave} disabled={!form.name.trim()}>
+            <Button 
+              onClick={handleSave} 
+              disabled={!form.name.trim()}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 transition-colors shadow-sm"
+            >
               {editing ? "更新" : "追加"}
             </Button>
           </DialogFooter>
@@ -178,7 +180,7 @@ export default function VehiclesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>キャンセル</Button>
             <Button variant="destructive" onClick={() => {
-              setVehicles((prev) => prev.filter((v) => v.id !== deleteTarget?.id));
+              if (deleteTarget) deleteVehicle(deleteTarget.id);
               setDeleteTarget(null);
             }}>削除</Button>
           </DialogFooter>

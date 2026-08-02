@@ -6,6 +6,8 @@ export interface School {
   id: string;
   name: string;
   color_code: string | null;
+  area?: string | null;
+  address?: string | null;
 }
 
 export interface Vehicle {
@@ -19,6 +21,10 @@ export interface Staff {
   id: string;
   name: string;
   is_driver: boolean;
+  homeAddress?: string | null;
+  assignedVehicleId?: string | null;
+  status?: "present" | "absent" | "late" | "early_leave";
+  status_time?: string | null;
 }
 
 export interface Child {
@@ -28,6 +34,9 @@ export interface Child {
   unit_name: string | null;
   has_caution: boolean;
   notes: string | null;
+  homeAddress?: string | null;
+  status?: "present" | "absent" | "late" | "early_leave";
+  status_time?: string | null;
   // join
   school?: School | null;
 }
@@ -36,13 +45,13 @@ export interface Child {
 // トランザクション
 // =====================
 
-export type AttendanceStatus = "present" | "absent" | "parent_pickup";
+export type TransportMode = "both" | "pickup_only" | "dropoff_only" | "no_transport" | "absent";
 
 export interface DailyAttendance {
   id: string;
   target_date: string; // ISO date string
   child_id: string;
-  status: AttendanceStatus;
+  status: TransportMode;
   pickup_time: string | null; // "HH:MM"
   // join
   child?: Child | null;
@@ -82,9 +91,15 @@ export interface ChildMagnet {
   has_caution: boolean;
   pickup_time: string | null;
   school_name: string;
+  school_area?: string | null;
   unit_name: string | null;
   notes: string | null;
+  transportMode: TransportMode;
+  status?: "present" | "absent" | "late" | "early_leave";
+  status_time?: string | null;
 }
+
+export type LocationOption = "office" | "home";
 
 /** ドラッグ先の「車両カラム」 */
 export interface VehicleColumn {
@@ -93,7 +108,13 @@ export interface VehicleColumn {
   vehicleId: string;
   vehicleName: string;
   driverName: string;
+  driverStatus?: "present" | "absent" | "late" | "early_leave";
+  driverStatusTime?: string | null;
   capacity: number;
+  startLocation?: LocationOption;
+  endLocation?: LocationOption;
+  routeInfo?: string;
+  estimatedTime?: number;
   children: ChildMagnet[];
 }
 

@@ -36,7 +36,8 @@ export function ChildCard({ magnet, isDragging }: ChildCardProps) {
       className={cn(
         "group flex items-center gap-2 p-2.5 rounded-lg border-2 shadow-sm cursor-grab active:cursor-grabbing select-none",
         "hover:shadow-md transition-all duration-150",
-        isDragging && "shadow-xl scale-105 rotate-1 z-50"
+        isDragging && "shadow-xl scale-105 rotate-1 z-50",
+        magnet.has_caution ? "bg-green-50 border-green-200" : "bg-white"
       )}
     >
       {/* Color accent bar */}
@@ -56,13 +57,20 @@ export function ChildCard({ magnet, isDragging }: ChildCardProps) {
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          {magnet.has_caution && (
-            <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />
-          )}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-semibold text-gray-800 truncate">
             {magnet.name}
           </span>
+          {magnet.status === "late" && (
+            <span className="text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded border border-yellow-200 whitespace-nowrap">
+              遅刻 {magnet.status_time}
+            </span>
+          )}
+          {magnet.status === "early_leave" && (
+            <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-1 py-0.5 rounded border border-purple-200 whitespace-nowrap">
+              早退 {magnet.status_time}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 mt-0.5">
           <div
@@ -88,19 +96,29 @@ export function ChildCard({ magnet, isDragging }: ChildCardProps) {
 export function ChildCardOverlay({ magnet }: { magnet: ChildMagnet }) {
   return (
     <div
-      className="flex items-center gap-2 p-2.5 rounded-lg border-2 shadow-2xl bg-white rotate-2 scale-105"
-      style={{ borderColor: magnet.color }}
+      className={cn(
+        "flex items-center gap-2 p-2.5 rounded-lg border-2 shadow-2xl rotate-2 scale-105",
+        magnet.has_caution ? "bg-green-50 border-green-300" : "bg-white"
+      )}
+      style={{ borderColor: magnet.has_caution ? undefined : magnet.color }}
     >
       <div
         className="w-1 self-stretch rounded-full shrink-0"
         style={{ backgroundColor: magnet.color }}
       />
       <div className="flex-1">
-        <div className="flex items-center gap-1.5">
-          {magnet.has_caution && (
-            <AlertCircle className="w-3 h-3 text-red-500" />
-          )}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-semibold text-gray-800">{magnet.name}</span>
+          {magnet.status === "late" && (
+            <span className="text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded border border-yellow-200 whitespace-nowrap">
+              遅刻 {magnet.status_time}
+            </span>
+          )}
+          {magnet.status === "early_leave" && (
+            <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-1 py-0.5 rounded border border-purple-200 whitespace-nowrap">
+              早退 {magnet.status_time}
+            </span>
+          )}
         </div>
         <p className="text-xs text-gray-500">{magnet.school_name}</p>
       </div>

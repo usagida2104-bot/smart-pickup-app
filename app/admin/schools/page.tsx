@@ -11,8 +11,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MOCK_SCHOOLS } from "@/lib/mockData";
 import { School } from "@/types";
+import { useMasterStore } from "@/lib/store/masterStore";
 
 const COLOR_PRESETS = [
   "#F87171", "#FB923C", "#FBBF24", "#34D399",
@@ -20,34 +20,34 @@ const COLOR_PRESETS = [
 ];
 
 export default function SchoolsPage() {
-  const [schools, setSchools] = useState<School[]>(MOCK_SCHOOLS);
+  const { schools, addSchool, updateSchool, deleteSchool } = useMasterStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<School | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
-  const [form, setForm] = useState({ name: "", color_code: "#60A5FA" });
+  const [form, setForm] = useState({ name: "", color_code: "#60A5FA", area: "", address: "" });
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", color_code: "#60A5FA" });
+    setForm({ name: "", color_code: "#60A5FA", area: "", address: "" });
     setDialogOpen(true);
   };
 
   const openEdit = (school: School) => {
     setEditing(school);
-    setForm({ name: school.name, color_code: school.color_code ?? "#60A5FA" });
+    setForm({ 
+      name: school.name, 
+      color_code: school.color_code ?? "#60A5FA", 
+      area: school.area ?? "",
+      address: school.address ?? ""
+    });
     setDialogOpen(true);
   };
 
   const handleSave = () => {
     if (editing) {
-      setSchools((prev) =>
-        prev.map((s) => s.id === editing.id ? { ...s, ...form } : s)
-      );
+      updateSchool(editing.id, form);
     } else {
-      setSchools((prev) => [
-        ...prev,
-        { id: `school-${Date.now()}`, ...form },
-      ]);
+      addSchool({ id: `school-${Date.now()}`, ...form });
     }
     setDialogOpen(false);
   };
@@ -71,6 +71,8 @@ export default function SchoolsPage() {
             <TableRow className="bg-gray-50">
               <TableHead>カラー</TableHead>
               <TableHead>学校名</TableHead>
+              <TableHead>エリア</TableHead>
+              <TableHead>住所</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -87,6 +89,8 @@ export default function SchoolsPage() {
                   </div>
                 </TableCell>
                 <TableCell className="font-medium">{school.name}</TableCell>
+                <TableCell className="text-gray-500">{school.area || "未設定"}</TableCell>
+                <TableCell className="text-gray-500 text-sm">{school.address || "未設定"}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(school)}>
@@ -121,13 +125,33 @@ export default function SchoolsPage() {
               />
             </div>
             <div>
+              <Label htmlFor="school-area">エリア（グループ名）</Label>
+              <Input
+                id="school-area"
+                value={form.area}
+                onChange={(e) => setForm({ ...form, area: e.target.value })}
+                placeholder="北エリア、中央グループなど"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="school-address">住所</Label>
+              <Input
+                id="school-address"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder="宮城県仙台市青葉区..."
+                className="mt-1.5"
+              />
+            </div>
+            <div>
               <Label>マグネットカラー</Label>
               <div className="flex flex-wrap gap-2 mt-2">
                 {COLOR_PRESETS.map((color) => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded-lg transition-transform hover:scale-110 ${
-                      form.color_code === color ? "ring-2 ring-offset-2 ring-gray-800 scale-110" : ""
+                    className={`w-8 h-8 rounded-lg transition-transform hover:scale-110 shadow-sm border ${
+                      form.color_code === color ? "ring-2 ring-offset-2 ring-blue-600 scale-110 border-transparent" : "border-gray-200"
                     }`}
                     style={{ backgroundColor: color }}
                     onClick={() => setForm({ ...form, color_code: color })}
@@ -144,7 +168,11 @@ export default function SchoolsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
-            <Button onClick={handleSave} disabled={!form.name.trim()}>
+            <Button 
+              onClick={handleSave} 
+              disabled={!form.name.trim()}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 transition-colors shadow-sm"
+            >
               {editing ? "更新" : "追加"}
             </Button>
           </DialogFooter>
@@ -163,7 +191,7 @@ export default function SchoolsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>キャンセル</Button>
             <Button variant="destructive" onClick={() => {
-              setSchools((prev) => prev.filter((s) => s.id !== deleteTarget?.id));
+              if (deleteTarget) deleteSchool(deleteTarget.id);
               setDeleteTarget(null);
             }}>削除</Button>
           </DialogFooter>
