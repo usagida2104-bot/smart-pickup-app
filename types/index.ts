@@ -107,6 +107,7 @@ export interface VehicleColumn {
   shiftId: string;
   vehicleId: string;
   vehicleName: string;
+  driverId: string;
   driverName: string;
   driverStatus?: "present" | "absent" | "late" | "early_leave";
   driverStatusTime?: string | null;

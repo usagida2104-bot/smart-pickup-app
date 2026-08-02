@@ -91,7 +91,7 @@ export default function ChildrenPage() {
   };
 
   const handleDelete = (child: Child) => {
-    setChildren((prev) => prev.filter((c) => c.id !== child.id));
+    deleteChild(child.id);
     setDeleteTarget(null);
   };
 

@@ -21,8 +21,10 @@ import { useBoardStore } from "@/lib/store/boardStore";
 import { autoAssignVehicles } from "@/lib/autoAssignVehicles";
 import { MOCK_WHITEBOARD_STATE, toMagnet, MOCK_STAFF, OFFICE_ADDRESS } from "@/lib/mockData";
 import { useMasterStore } from "@/lib/store/masterStore";
-import { ChildMagnet, VehicleColumn as VehicleColumnType } from "@/types";
+import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance } from "@/types";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase/client";
+import { fetchDailyData, saveBoardState } from "@/lib/supabase/service";
 
 function UnassignedPool({ children }: { children: ChildMagnet[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: "unassigned" });
@@ -162,7 +164,7 @@ export default function BoardPage() {
         }),
       });
 
-      let data;
+      let data: any;
       try {
         data = await res.json();
       } catch (e) {
@@ -210,14 +212,11 @@ export default function BoardPage() {
       });
       setIsAutoAssigned(true);
 
-      // 自動配車後、即座に localStorage に永続化
-      setTimeout(() => {
+      // 自動配車後、即座に Supabase に永続化
+      setTimeout(async () => {
         const todayStr = new Date().toISOString().split("T")[0];
         const state = useBoardStore.getState();
-        localStorage.setItem(`board_data_${todayStr}`, JSON.stringify({
-          inboundBoard: state.inboundBoard,
-          outboundBoard: state.outboundBoard
-        }));
+        await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
       }, 0);
     } catch (err: any) {
       console.error(err);
@@ -231,15 +230,10 @@ export default function BoardPage() {
     setIsSaving(true);
     setToastMessage(null);
     try {
-      // Simulate API call for saving
-      await new Promise(resolve => setTimeout(resolve, 800));
-
       const todayStr = new Date().toISOString().split("T")[0];
       const state = useBoardStore.getState();
-      localStorage.setItem(`board_data_${todayStr}`, JSON.stringify({
-        inboundBoard: state.inboundBoard,
-        outboundBoard: state.outboundBoard
-      }));
+      
+      await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
 
       setToastMessage({ type: "success", text: "✅ 送迎表を保存しました" });
     } catch (error) {
@@ -269,6 +263,7 @@ export default function BoardPage() {
         shiftId: shift.id,
         vehicleId: shift.vehicle_id,
         vehicleName: shift.vehicle?.name ?? "不明",
+        driverId: shift.driver_id,
         driverName: shift.driver?.name ?? "不明",
         driverStatus: shift.driver?.status,
         driverStatusTime: shift.driver?.status_time,
@@ -284,6 +279,7 @@ export default function BoardPage() {
         shiftId: shift.id,
         vehicleId: shift.vehicle_id,
         vehicleName: shift.vehicle?.name ?? "不明",
+        driverId: shift.driver_id,
         driverName: shift.driver?.name ?? "不明",
         driverStatus: shift.driver?.status,
         driverStatusTime: shift.driver?.status_time,
@@ -294,14 +290,11 @@ export default function BoardPage() {
     });
     setIsAutoAssigned(false);
 
-    // リセット後、最新状態をlocalStorageに上書き保存
-    setTimeout(() => {
+    // リセット後、最新状態をSupabaseに上書き保存
+    setTimeout(async () => {
       const todayStr = new Date().toISOString().split("T")[0];
       const state = useBoardStore.getState();
-      localStorage.setItem(`board_data_${todayStr}`, JSON.stringify({
-        inboundBoard: state.inboundBoard,
-        outboundBoard: state.outboundBoard
-      }));
+      await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
     }, 0);
 
     setToastMessage({ type: "success", text: "✅ 最新の状態でリセットしました" });
@@ -314,6 +307,7 @@ export default function BoardPage() {
     shiftId: shift.id,
     vehicleId: shift.vehicle_id,
     vehicleName: shift.vehicle?.name ?? "不明",
+    driverId: shift.driver_id,
     driverName: shift.driver?.name ?? "不明",
     driverStatus: shift.driver?.status,
     driverStatusTime: shift.driver?.status_time,
@@ -327,41 +321,49 @@ export default function BoardPage() {
   // Initialize board on mount
   useEffect(() => {
     const todayStr = new Date().toISOString().split("T")[0];
-    const storageKey = `attendance_${todayStr}`;
-    const boardKey = `board_data_${todayStr}`;
-    
-    const stored = localStorage.getItem(storageKey);
-    const storedBoard = localStorage.getItem(boardKey);
-    
-    let currentAttendances = attendances;
-    
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        useMasterStore.getState().setAttendances(parsed);
-        currentAttendances = parsed;
-        console.log(`[送迎ボード] localStorageからデータ読み込み完了 - Date: ${todayStr}`, parsed);
-      } catch (e) {
-        console.error("[送迎ボード] localStorageからのデータ読み込みに失敗しました:", e);
-      }
-    }
+    let isMounted = true;
 
-    if (storedBoard) {
+    const loadData = async () => {
       try {
-        const parsed = JSON.parse(storedBoard);
-        if (parsed.inboundBoard && parsed.outboundBoard) {
-          useBoardStore.getState().setBoard("inbound", parsed.inboundBoard);
-          useBoardStore.getState().setBoard("outbound", parsed.outboundBoard);
-          console.log(`[送迎ボード] localStorageから配車データ復元完了 - Date: ${todayStr}`);
+        const { attendances: fetchedAtts, boardState } = await fetchDailyData(todayStr);
+        if (!isMounted) return;
+
+        // attendance の反映
+        if (fetchedAtts.length > 0) {
+          useMasterStore.getState().setAttendances(fetchedAtts);
         }
-      } catch(e) {
-        console.error("Board data parse error", e);
+
+        // board の反映
+        if (boardState && boardState.inbound_board && boardState.outbound_board) {
+          useBoardStore.getState().setBoard("inbound", boardState.inbound_board);
+          useBoardStore.getState().setBoard("outbound", boardState.outbound_board);
+        } else {
+          // 何もない場合はリセット（新規作成）
+          handleReset(fetchedAtts.length > 0 ? fetchedAtts : attendances);
+        }
+      } catch (err) {
+        console.error("Board load error", err);
       }
-    } else {
-      if (inboundBoard.columns.length === 0 && outboundBoard.columns.length === 0) {
-        handleReset(currentAttendances);
-      }
-    }
+    };
+
+    loadData();
+
+    // リアルタイム購読の設定
+    const channel = supabase
+      .channel(`board-${todayStr}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "board_states", filter: `target_date=eq.${todayStr}` },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -390,7 +392,7 @@ export default function BoardPage() {
               })
               .map(m => {
                 const child = children.find(c => c.id === m.id);
-                return { ...m, status: child?.status, status_time: child?.status_time, has_caution: child?.has_caution };
+                return { ...m, status: child?.status, status_time: child?.status_time, has_caution: child?.has_caution ?? false };
               })
           };
         });
@@ -402,7 +404,7 @@ export default function BoardPage() {
         })
         .map(m => {
           const child = children.find(c => c.id === m.id);
-          return { ...m, status: child?.status, status_time: child?.status_time, has_caution: child?.has_caution };
+          return { ...m, status: child?.status, status_time: child?.status_time, has_caution: child?.has_caution ?? false };
         });
 
       // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して未割り当てに追加

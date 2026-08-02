@@ -11,10 +11,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { MOCK_DAILY_ATTENDANCE } from "@/lib/mockData";
 import { TransportMode, DailyAttendance } from "@/types";
 import { cn } from "@/lib/utils";
 import { useMasterStore } from "@/lib/store/masterStore";
+import { fetchDailyData, upsertDailyAttendance } from "@/lib/supabase/service";
+import { supabase } from "@/lib/supabase/client";
 
 const TIME_OPTIONS = Array.from({ length: 13 * 12 + 1 }).map((_, i) => {
   const h = Math.floor(i / 12) + 8;
@@ -65,76 +66,94 @@ export default function DailySetupPage() {
     if (children.length === 0) return;
     
     const targetDateStr = formatDate(selectedDate);
-    const storageKey = `attendance_${targetDateStr}`;
-    const stored = localStorage.getItem(storageKey);
-    
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setAttendances(parsed);
-        setGlobalAttendances(parsed);
-        return;
-      } catch (e) {
-        console.error("Failed to parse stored attendance", e);
-      }
-    }
-    
-    setAttendances(
-      children.map((child) => {
-        let existing = globalAttendances.find((a) => a.child_id === child.id && a.target_date === targetDateStr);
-        if (!existing) {
-          const mock = MOCK_DAILY_ATTENDANCE.find((a) => a.child_id === child.id);
-          if (mock) {
-            existing = { ...mock, target_date: targetDateStr };
-          }
-        }
-        
-        return (
-          existing ?? {
-            id: `att-${child.id}`,
-            target_date: targetDateStr,
-            child_id: child.id,
-            status: "both" as TransportMode,
-            pickup_time: "14:30",
-            child,
-          }
-        );
-      })
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, selectedDate]);
+    let isMounted = true;
 
-  const performSave = (atts: DailyAttendance[]) => {
+    const loadData = async () => {
+      try {
+        const { attendances: fetchedAtts } = await fetchDailyData(targetDateStr);
+        
+        if (!isMounted) return;
+
+        const mergedAtts = children.map((child) => {
+          const existing = fetchedAtts.find((a) => a.child_id === child.id);
+          return (
+            existing ?? {
+              id: `att-${targetDateStr}-${child.id}`,
+              target_date: targetDateStr,
+              child_id: child.id,
+              status: "both" as TransportMode,
+              pickup_time: "14:30",
+              child,
+            }
+          );
+        });
+        
+        setAttendances(mergedAtts);
+        setGlobalAttendances(mergedAtts);
+      } catch (err) {
+        console.error("Failed to fetch daily attendances", err);
+      }
+    };
+
+    loadData();
+
+    // Subscribe to realtime changes for this date
+    const channel = supabase
+      .channel(`attendances-${targetDateStr}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_attendances", filter: `target_date=eq.${targetDateStr}` },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [children, selectedDate, setGlobalAttendances]);
+
+  const performSave = async (updatedAtt: DailyAttendance) => {
     setIsSaving(true);
-    const targetDateStr = formatDate(selectedDate);
-    const storageKey = `attendance_${targetDateStr}`;
-    
-    // localStorageへの永続化保存
-    localStorage.setItem(storageKey, JSON.stringify(atts));
-    
-    // グローバルStoreへの書き込み
-    setGlobalAttendances(atts);
-    
-    // デバッグ用のログ出力
-    console.log(`[日別設定] 自動保存完了 - Date: ${targetDateStr}`, atts);
-    
-    setTimeout(() => {
+    try {
+      await upsertDailyAttendance({
+        id: updatedAtt.id,
+        target_date: updatedAtt.target_date,
+        child_id: updatedAtt.child_id,
+        status: updatedAtt.status,
+        pickup_time: updatedAtt.pickup_time
+      });
+      // グローバルStoreへの書き込みは state から反映するか、fetch し直すかで担保
+      // 今回は local state の attendances をそのまま global にセットしてOK
+    } catch (err) {
+      console.error("Failed to save attendance", err);
+    } finally {
       setIsSaving(false);
-    }, 400); // 擬似的な保存時間
+    }
   };
 
   const updateStatus = (childId: string, status: TransportMode) => {
-    const newAtts = attendances.map((a) => (a.child_id === childId ? { ...a, status } : a));
+    const target = attendances.find((a) => a.child_id === childId);
+    if (!target) return;
+    const updated = { ...target, status };
+    
+    const newAtts = attendances.map((a) => (a.child_id === childId ? updated : a));
     setAttendances(newAtts);
-    performSave(newAtts);
+    setGlobalAttendances(newAtts);
+    performSave(updated);
   };
 
   const updatePickupTime = (childId: string, time: string) => {
-    const newAtts = attendances.map((a) =>
-      a.child_id === childId ? { ...a, pickup_time: time || null } : a
-    );
+    const target = attendances.find((a) => a.child_id === childId);
+    if (!target) return;
+    const updated = { ...target, pickup_time: time || null };
+
+    const newAtts = attendances.map((a) => (a.child_id === childId ? updated : a));
     setAttendances(newAtts);
-    performSave(newAtts);
+    setGlobalAttendances(newAtts);
+    performSave(updated);
   };
 
   const presentCount = attendances.filter((a) => ["both", "pickup_only", "dropoff_only", "no_transport"].includes(a.status)).length;

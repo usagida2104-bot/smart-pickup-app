@@ -3,6 +3,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { SupabaseProvider } from "@/components/providers/SupabaseProvider";
 
 export const metadata: Metadata = {
   title: "放デイ 送迎表システム",
@@ -24,11 +25,13 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-gray-50">
         <AuthProvider>
-          <Sidebar className="hidden md:flex print:hidden" />
-          <Header className="flex print:hidden" />
-          <main className="pt-16 md:ml-64 min-h-screen print:ml-0 print:pt-0">
-            {children}
-          </main>
+          <SupabaseProvider>
+            <Sidebar className="hidden md:flex print:hidden" />
+            <Header className="flex print:hidden" />
+            <main className="pt-16 md:ml-64 min-h-screen print:ml-0 print:pt-0">
+              {children}
+            </main>
+          </SupabaseProvider>
         </AuthProvider>
       </body>
     </html>

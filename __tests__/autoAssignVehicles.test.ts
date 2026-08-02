@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { autoAssignVehicles } from "../lib/autoAssignVehicles";
-import { DailyAttendance, DailyShift } from "../types";
+import { DailyAttendance, DailyShift, TransportMode } from "../types";
 
 describe("autoAssignVehicles", () => {
   const createMockAttendance = (
     id: string,
-    status: "present" | "absent" | "parent_pickup",
+    status: TransportMode,
     pickup_time: string | null,
     school_name: string,
     area?: string
@@ -51,7 +51,7 @@ describe("autoAssignVehicles", () => {
 
   it("should assign present children and ignore absent ones", () => {
     const attendances = [
-      createMockAttendance("1", "present", "15:00", "School A"),
+      createMockAttendance("1", "both", "15:00", "School A"),
       createMockAttendance("2", "absent", "15:00", "School A"),
     ];
     const shifts = [createMockShift("v1", 4)];
@@ -66,9 +66,9 @@ describe("autoAssignVehicles", () => {
 
   it("should handle over capacity by leaving children in unassigned", () => {
     const attendances = [
-      createMockAttendance("1", "present", "15:00", "School A"),
-      createMockAttendance("2", "present", "15:10", "School B"),
-      createMockAttendance("3", "present", "15:20", "School C"),
+      createMockAttendance("1", "both", "15:00", "School A"),
+      createMockAttendance("2", "both", "15:10", "School B"),
+      createMockAttendance("3", "both", "15:20", "School C"),
     ];
     const shifts = [createMockShift("v1", 2)]; // Capacity is 2
 
@@ -82,7 +82,7 @@ describe("autoAssignVehicles", () => {
   it("should return empty columns and empty unassigned when everyone is absent", () => {
     const attendances = [
       createMockAttendance("1", "absent", "15:00", "School A"),
-      createMockAttendance("2", "parent_pickup", "15:00", "School B"),
+      createMockAttendance("2", "no_transport", "15:00", "School B"),
     ];
     const shifts = [createMockShift("v1", 4), createMockShift("v2", 4)];
 
@@ -96,10 +96,10 @@ describe("autoAssignVehicles", () => {
 
   it("should distribute children evenly across vehicles (load balancing)", () => {
     const attendances = [
-      createMockAttendance("1", "present", "15:00", "School A"),
-      createMockAttendance("2", "present", "15:00", "School B"),
-      createMockAttendance("3", "present", "15:00", "School A"),
-      createMockAttendance("4", "present", "15:00", "School C"),
+      createMockAttendance("1", "both", "15:00", "School A"),
+      createMockAttendance("2", "both", "15:00", "School B"),
+      createMockAttendance("3", "both", "15:00", "School A"),
+      createMockAttendance("4", "both", "15:00", "School C"),
     ];
     const shifts = [
       createMockShift("v1", 4),
@@ -124,10 +124,10 @@ describe("autoAssignVehicles", () => {
 
   it("should group children by area if different schools share the same area", () => {
     const attendances = [
-      createMockAttendance("1", "present", "15:00", "School A", "North Area"),
-      createMockAttendance("2", "present", "15:00", "School B", "South Area"),
-      createMockAttendance("3", "present", "15:00", "School C", "North Area"),
-      createMockAttendance("4", "present", "15:00", "School D", "South Area"),
+      createMockAttendance("1", "both", "15:00", "School A", "North Area"),
+      createMockAttendance("2", "both", "15:00", "School B", "South Area"),
+      createMockAttendance("3", "both", "15:00", "School C", "North Area"),
+      createMockAttendance("4", "both", "15:00", "School D", "South Area"),
     ];
     const shifts = [
       createMockShift("v1", 4),

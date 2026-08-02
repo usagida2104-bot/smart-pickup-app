@@ -40,6 +40,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       shiftId: shift.id,
       vehicleId: shift.vehicle_id,
       vehicleName: shift.vehicle?.name ?? "不明な車両",
+      driverId: shift.driver_id,
       driverName: shift.driver?.name ?? "不明なドライバー",
       capacity: shift.vehicle?.capacity ?? 0,
       children: [],
@@ -61,6 +62,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       school_area: child.school?.area ?? null,
       unit_name: child.unit_name,
       notes: child.notes,
+      transportMode: attendance.status,
     };
 
     // 同一学校・同一pickup_timeが既にいる車両を優先探索
