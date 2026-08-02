@@ -60,7 +60,7 @@ export default function DailySetupPage() {
   const [attendances, setAttendances] = useState<DailyAttendance[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const dateInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     if (children.length === 0) return;
@@ -185,28 +185,12 @@ export default function DailySetupPage() {
           <ChevronLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1 text-center flex justify-center items-center">
-          <button 
-            type="button"
-            onClick={() => {
-              if (dateInputRef.current) {
-                try {
-                  if ('showPicker' in HTMLInputElement.prototype) {
-                    dateInputRef.current.showPicker();
-                  } else {
-                    dateInputRef.current.focus();
-                  }
-                } catch (e) {
-                  // Fallback if browser blocks showPicker
-                  dateInputRef.current.focus();
-                }
-              }
-            }}
-            className="cursor-pointer flex items-center gap-2 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors relative"
-          >
-            <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
-            <p className="text-base md:text-lg font-semibold text-gray-800 whitespace-nowrap">{displayDate}</p>
+          <div className="relative group">
+            <div className="flex items-center gap-2 group-hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
+              <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
+              <p className="text-base md:text-lg font-semibold text-gray-800 whitespace-nowrap">{displayDate}</p>
+            </div>
             <input 
-              ref={dateInputRef}
               type="date" 
               value={formatDate(selectedDate)}
               onChange={(e) => {
@@ -215,10 +199,9 @@ export default function DailySetupPage() {
                   setSelectedDate(d);
                 }
               }}
-              className="absolute w-0 h-0 opacity-0 pointer-events-none"
-              style={{ top: '50%', left: '50%' }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
-          </button>
+          </div>
         </div>
         <Button
           variant="ghost"
