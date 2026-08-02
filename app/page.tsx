@@ -67,11 +67,11 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Welcome banner */}
-      <div className="mb-8 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white shadow-xl">
-        <p className="text-blue-200 text-sm mb-1">{today}</p>
-        <h1 className="text-3xl font-bold mb-2">おはようございます 👋</h1>
+      <div className="mb-6 md:mb-8 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 p-5 md:p-8 text-white shadow-xl">
+        <p className="text-blue-200 text-xs md:text-sm mb-1">{today}</p>
+        <h1 className="text-xl md:text-3xl font-bold mb-2">おはようございます 👋</h1>
         <p className="text-blue-100">
           放課後等デイサービス 送迎表管理システムへようこそ。
         </p>
@@ -85,22 +85,24 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick access cards */}
-      <h2 className="text-lg font-semibold text-gray-700 mb-4">クイックアクセス</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <h2 className="text-base md:text-lg font-semibold text-gray-700 mb-3 md:mb-4">クイックアクセス</h2>
+      <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
             <Link
               key={card.href}
               href={card.href}
-              className="group rounded-xl border border-gray-200 bg-white p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200"
+              className="group flex md:block items-center gap-4 md:gap-0 rounded-xl border border-gray-200 bg-white p-4 md:p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200"
             >
-              <div className={`inline-flex w-12 h-12 rounded-xl ${card.bg} items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+              <div className={`shrink-0 inline-flex w-12 h-12 md:mb-4 rounded-xl ${card.bg} items-center justify-center group-hover:scale-110 transition-transform`}>
                 <Icon className={`w-6 h-6 ${card.textColor}`} />
               </div>
-              <h3 className="font-semibold text-gray-800 mb-1">{card.title}</h3>
-              <p className="text-sm text-gray-500 mb-3">{card.desc}</p>
-              <div className={`flex items-center gap-1 text-sm font-medium ${card.textColor}`}>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-0.5 md:mb-1 truncate">{card.title}</h3>
+                <p className="text-xs md:text-sm text-gray-500 mb-0 md:mb-3 truncate md:whitespace-normal">{card.desc}</p>
+              </div>
+              <div className={`hidden md:flex items-center gap-1 text-sm font-medium ${card.textColor}`}>
                 開く <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </Link>
