@@ -53,11 +53,11 @@ export default function SchoolsPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">学校管理</h1>
-          <p className="text-sm text-gray-500 mt-1">登録校数: {schools.length}校</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800">学校管理</h1>
+          <p className="text-xs md:text-sm text-gray-500 mt-1">登録校数: {schools.length}校</p>
         </div>
         <Button onClick={openCreate} className="gap-2">
           <Plus className="w-4 h-4" />
@@ -66,20 +66,21 @@ export default function SchoolsPage() {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead>カラー</TableHead>
-              <TableHead>学校名</TableHead>
-              <TableHead>エリア</TableHead>
-              <TableHead>住所</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead className="whitespace-nowrap">カラー</TableHead>
+              <TableHead className="whitespace-nowrap">学校名</TableHead>
+              <TableHead className="whitespace-nowrap">エリア</TableHead>
+              <TableHead className="whitespace-nowrap">住所</TableHead>
+              <TableHead className="text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {schools.map((school) => (
               <TableRow key={school.id}>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <div
                       className="w-8 h-8 rounded-lg shadow-sm border border-white/50"
@@ -88,10 +89,10 @@ export default function SchoolsPage() {
                     <code className="text-xs text-gray-500">{school.color_code}</code>
                   </div>
                 </TableCell>
-                <TableCell className="font-medium">{school.name}</TableCell>
-                <TableCell className="text-gray-500">{school.area || "未設定"}</TableCell>
-                <TableCell className="text-gray-500 text-sm">{school.address || "未設定"}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="font-medium whitespace-nowrap">{school.name}</TableCell>
+                <TableCell className="text-gray-500 whitespace-nowrap">{school.area || "未設定"}</TableCell>
+                <TableCell className="text-gray-500 text-sm whitespace-nowrap">{school.address || "未設定"}</TableCell>
+                <TableCell className="text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-2">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(school)}>
                       <Pencil className="w-4 h-4 text-gray-500" />
@@ -105,6 +106,7 @@ export default function SchoolsPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* Create/Edit Dialog */}

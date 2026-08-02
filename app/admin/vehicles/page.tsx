@@ -54,11 +54,11 @@ export default function VehiclesPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">車両管理</h1>
-          <p className="text-sm text-gray-500 mt-1">登録車両数: {vehicles.length}台</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800">車両管理</h1>
+          <p className="text-xs md:text-sm text-gray-500 mt-1">登録車両数: {vehicles.length}台</p>
         </div>
         <Button onClick={openCreate} className="gap-2">
           <Plus className="w-4 h-4" />
@@ -67,25 +67,26 @@ export default function VehiclesPage() {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead>車両名</TableHead>
-              <TableHead>種別</TableHead>
-              <TableHead>定員（ドライバー除く）</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead className="whitespace-nowrap">車両名</TableHead>
+              <TableHead className="whitespace-nowrap">種別</TableHead>
+              <TableHead className="whitespace-nowrap">定員（ドライバー除く）</TableHead>
+              <TableHead className="text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {vehicles.map((v) => (
               <TableRow key={v.id}>
-                <TableCell className="font-medium">{v.name}</TableCell>
-                <TableCell>
+                <TableCell className="font-medium whitespace-nowrap">{v.name}</TableCell>
+                <TableCell className="whitespace-nowrap">
                   <Badge variant="outline">
                     {vehicleTypeLabels[v.vehicle_type ?? ""] ?? v.vehicle_type}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <div className="flex gap-1">
                       {Array.from({ length: v.capacity }).map((_, i) => (
@@ -95,7 +96,7 @@ export default function VehiclesPage() {
                     <span className="text-sm font-semibold text-gray-700">{v.capacity}名</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-2">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
                       <Pencil className="w-4 h-4 text-gray-500" />
@@ -109,6 +110,7 @@ export default function VehiclesPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* Create/Edit Dialog */}

@@ -149,15 +149,15 @@ export default function DailySetupPage() {
   });
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">日別設定</h1>
-        <p className="text-sm text-gray-500 mt-1">出欠・下校時間を設定します</p>
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-800">日別設定</h1>
+        <p className="text-xs md:text-sm text-gray-500 mt-1">出欠・下校時間を設定します</p>
       </div>
 
       {/* Date Selector */}
-      <div className="flex items-center gap-4 mb-6 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="flex items-center justify-between gap-2 md:gap-4 mb-4 md:mb-6 p-3 md:p-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         <Button
           variant="ghost"
           size="icon"
@@ -184,8 +184,8 @@ export default function DailySetupPage() {
             }}
             className="cursor-pointer flex items-center gap-2 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors relative"
           >
-            <CalendarIcon className="w-5 h-5 text-gray-500" />
-            <p className="text-lg font-semibold text-gray-800">{displayDate}</p>
+            <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
+            <p className="text-base md:text-lg font-semibold text-gray-800 whitespace-nowrap">{displayDate}</p>
             <input 
               ref={dateInputRef}
               type="date" 
@@ -219,23 +219,24 @@ export default function DailySetupPage() {
       </div>
 
       {/* Summary badges */}
-      <div className="flex gap-3 mb-6">
-        <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="flex flex-wrap gap-2 md:gap-3 mb-4 md:mb-6">
+        <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-blue-50 border border-blue-200 rounded-lg">
           <CheckCircle2 className="w-4 h-4 text-blue-600" />
-          <span className="text-sm font-semibold text-blue-700">出席 {presentCount}名</span>
+          <span className="text-xs md:text-sm font-semibold text-blue-700 whitespace-nowrap">出席 {presentCount}名</span>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
+        <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 border border-red-200 rounded-lg">
           <XCircle className="w-4 h-4 text-red-600" />
-          <span className="text-sm font-semibold text-red-700">欠席 {absentCount}名</span>
+          <span className="text-xs md:text-sm font-semibold text-red-700 whitespace-nowrap">欠席 {absentCount}名</span>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+        <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-orange-50 border border-orange-200 rounded-lg">
           <Users className="w-4 h-4 text-orange-600" />
-          <span className="text-sm font-semibold text-orange-700">送迎不要 {noTransportCount}名</span>
+          <span className="text-xs md:text-sm font-semibold text-orange-700 whitespace-nowrap">送迎不要 {noTransportCount}名</span>
         </div>
       </div>
 
       {/* Attendance List (Table Format) */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
@@ -243,7 +244,7 @@ export default function DailySetupPage() {
               <TableHead className="min-w-[220px] whitespace-nowrap">ステータス</TableHead>
               <TableHead className="whitespace-nowrap">学校</TableHead>
               <TableHead className="w-[220px] whitespace-nowrap">送迎区分</TableHead>
-              <TableHead className="w-[180px]">下校時間</TableHead>
+              <TableHead className="w-[180px] whitespace-nowrap">下校時間</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -391,6 +392,7 @@ export default function DailySetupPage() {
             })}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* Auto-Save Status */}
