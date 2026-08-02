@@ -25,8 +25,8 @@ export default function RootLayout({
       <body className="antialiased bg-gray-50">
         <AuthProvider>
           <Sidebar className="hidden md:flex print:hidden" />
-          <Header className="hidden md:flex print:hidden" />
-          <main className="md:ml-64 md:pt-16 min-h-screen print:ml-0 print:pt-0">
+          <Header className="flex print:hidden" />
+          <main className="pt-16 md:ml-64 min-h-screen print:ml-0 print:pt-0">
             {children}
           </main>
         </AuthProvider>
