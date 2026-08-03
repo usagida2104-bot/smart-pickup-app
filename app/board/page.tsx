@@ -220,67 +220,57 @@ export default function BoardPage() {
     const state = useBoardStore.getState();
     const attsToUse = overrideAtts || attendances;
     
-    const currentInboundIds = new Set([
-      ...state.inboundBoard.columns.flatMap(c => c.children.map(ch => ch.id)),
-      ...state.inboundBoard.unassigned.children.map(ch => ch.id)
-    ]);
-    const currentOutboundIds = new Set([
-      ...state.outboundBoard.columns.flatMap(c => c.children.map(ch => ch.id)),
-      ...state.outboundBoard.unassigned.children.map(ch => ch.id)
-    ]);
-
-    attsToUse.forEach(a => {
-      if (["both", "pickup_only"].includes(a.status)) currentInboundIds.add(a.child_id);
-      if (["both", "dropoff_only"].includes(a.status)) currentOutboundIds.add(a.child_id);
-    });
-
-    const inboundChildren = Array.from(currentInboundIds)
-      .filter(id => {
-        const att = attsToUse.find(a => a.child_id === id);
-        const child = children.find(c => c.id === id);
-        return child && (att?.attendance_status || child?.status) !== "absent";
+    const inboundChildren = attsToUse
+      .filter(a => ["both", "pickup_only"].includes(a.status))
+      .filter(a => {
+        const child = children.find(c => c.id === a.child_id);
+        const isAbsent = (a.attendance_status || child?.status) === "absent";
+        return child && !isAbsent;
       })
-      .map(id => toMagnet(id, children, attsToUse));
+      .map(a => toMagnet(a.child_id, children, attsToUse));
       
-    const outboundChildren = Array.from(currentOutboundIds)
-      .filter(id => {
-        const att = attsToUse.find(a => a.child_id === id);
-        const child = children.find(c => c.id === id);
-        return child && (att?.attendance_status || child?.status) !== "absent";
+    const outboundChildren = attsToUse
+      .filter(a => ["both", "dropoff_only"].includes(a.status))
+      .filter(a => {
+        const child = children.find(c => c.id === a.child_id);
+        const isAbsent = (a.attendance_status || child?.status) === "absent";
+        return child && !isAbsent;
       })
-      .map(id => toMagnet(id, children, attsToUse));
+      .map(a => toMagnet(a.child_id, children, attsToUse));
 
-    setBoard("inbound", {
-      columns: dynamicShifts.map((shift) => ({
-        id: shift.id,
-        shiftId: shift.id,
-        vehicleId: shift.vehicle_id,
-        vehicleName: shift.vehicle?.name ?? "不明",
-        driverId: shift.driver_id,
-        driverName: shift.driver?.name ?? "不明",
-        driverStatus: shift.driver?.status,
-        driverStatusTime: shift.driver?.status_time,
-        capacity: shift.vehicle?.capacity ?? 0,
-        children: [],
-      })),
-      unassigned: { id: "unassigned", children: inboundChildren },
-    });
-    
-    setBoard("outbound", {
-      columns: dynamicShifts.map((shift) => ({
-        id: shift.id,
-        shiftId: shift.id,
-        vehicleId: shift.vehicle_id,
-        vehicleName: shift.vehicle?.name ?? "不明",
-        driverId: shift.driver_id,
-        driverName: shift.driver?.name ?? "不明",
-        driverStatus: shift.driver?.status,
-        driverStatusTime: shift.driver?.status_time,
-        capacity: shift.vehicle?.capacity ?? 0,
-        children: [],
-      })),
-      unassigned: { id: "unassigned", children: outboundChildren },
-    });
+    if (activeTab === "inbound") {
+      setBoard("inbound", {
+        columns: dynamicShifts.map((shift) => ({
+          id: shift.id,
+          shiftId: shift.id,
+          vehicleId: shift.vehicle_id,
+          vehicleName: shift.vehicle?.name ?? "不明",
+          driverId: shift.driver_id,
+          driverName: shift.driver?.name ?? "不明",
+          driverStatus: shift.driver?.status,
+          driverStatusTime: shift.driver?.status_time,
+          capacity: shift.vehicle?.capacity ?? 0,
+          children: [],
+        })),
+        unassigned: { id: "unassigned", children: inboundChildren },
+      });
+    } else {
+      setBoard("outbound", {
+        columns: dynamicShifts.map((shift) => ({
+          id: shift.id,
+          shiftId: shift.id,
+          vehicleId: shift.vehicle_id,
+          vehicleName: shift.vehicle?.name ?? "不明",
+          driverId: shift.driver_id,
+          driverName: shift.driver?.name ?? "不明",
+          driverStatus: shift.driver?.status,
+          driverStatusTime: shift.driver?.status_time,
+          capacity: shift.vehicle?.capacity ?? 0,
+          children: [],
+        })),
+        unassigned: { id: "unassigned", children: outboundChildren },
+      });
+    }
     setIsAutoAssigned(false);
 
     // リセット後、最新状態をSupabaseに上書き保存
