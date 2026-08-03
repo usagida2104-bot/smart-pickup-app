@@ -303,6 +303,8 @@ export default function BoardPage() {
 
   // Initialize board on mount
   useEffect(() => {
+    if (children.length === 0) return;
+
     const todayStr = new Date().toISOString().split("T")[0];
     let isMounted = true;
 
@@ -311,10 +313,23 @@ export default function BoardPage() {
         const { attendances: fetchedAtts, boardState } = await fetchDailyData(todayStr);
         if (!isMounted) return;
 
-        // attendance の反映
-        if (fetchedAtts.length > 0) {
-          useMasterStore.getState().setAttendances(fetchedAtts);
-        }
+        // attendance の反映 (未保存の児童もデフォルト設定でマージする)
+        const mergedAtts = children.map((child) => {
+          const existing = fetchedAtts.find((a) => a.child_id === child.id);
+          return (
+            existing ?? {
+              id: `att-${todayStr}-${child.id}`,
+              target_date: todayStr,
+              child_id: child.id,
+              status: "both" as any,
+              pickup_time: child.school?.default_dismissal_time ?? "14:30",
+              attendance_status: "present" as const,
+              attendance_time: null,
+              child,
+            }
+          );
+        });
+        useMasterStore.getState().setAttendances(mergedAtts);
 
         // board の反映
         if (boardState && boardState.inbound_board && boardState.outbound_board) {
@@ -322,7 +337,7 @@ export default function BoardPage() {
           useBoardStore.getState().setBoard("outbound", boardState.outbound_board);
         } else {
           // 何もない場合はリセット（新規作成）
-          handleReset(fetchedAtts.length > 0 ? fetchedAtts : attendances);
+          handleReset(mergedAtts);
         }
       } catch (err) {
         console.error("Board load error", err);
@@ -348,7 +363,7 @@ export default function BoardPage() {
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [children]);
 
   // 同期用useEffect (児童およびスタッフマスターの変更をボードに反映)
   useEffect(() => {
