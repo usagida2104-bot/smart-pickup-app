@@ -35,8 +35,8 @@ const getStatusColor = (status?: string) => {
 
 const STATUS_CONFIG: Record<TransportMode, { label: string; color: string; bg: string }> = {
   both: { label: "往復", color: "text-blue-700", bg: "bg-blue-100 border-blue-300" },
-  pickup_only: { label: "行きのみ", color: "text-cyan-700", bg: "bg-cyan-100 border-cyan-300" },
-  dropoff_only: { label: "帰りのみ", color: "text-indigo-700", bg: "bg-indigo-100 border-indigo-300" },
+  pickup_only: { label: "迎えのみ", color: "text-cyan-700", bg: "bg-cyan-100 border-cyan-300" },
+  dropoff_only: { label: "送りのみ", color: "text-indigo-700", bg: "bg-indigo-100 border-indigo-300" },
   no_transport: { label: "送迎不要", color: "text-orange-700", bg: "bg-orange-100 border-orange-300" },
   absent: { label: "欠席", color: "text-red-700", bg: "bg-red-100 border-red-300" },
 };
@@ -364,9 +364,9 @@ export default function DailySetupPage() {
                         config.color
                       )}
                     >
-                      <option value="both">往復（行き・帰り）</option>
-                      <option value="pickup_only">行きのみ（迎え）</option>
-                      <option value="dropoff_only">帰りのみ（送り）</option>
+                      <option value="both">往復（迎え・送り）</option>
+                      <option value="pickup_only">迎えのみ</option>
+                      <option value="dropoff_only">送りのみ</option>
                       <option value="no_transport">送迎不要</option>
                       <option value="absent">欠席</option>
                     </select>

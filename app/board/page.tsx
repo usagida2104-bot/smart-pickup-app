@@ -356,6 +356,13 @@ export default function BoardPage() {
           loadData();
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_attendances", filter: `target_date=eq.${todayStr}` },
+        () => {
+          loadData();
+        }
+      )
       .subscribe();
 
     return () => {
