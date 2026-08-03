@@ -235,11 +235,19 @@ export default function BoardPage() {
     });
 
     const inboundChildren = Array.from(currentInboundIds)
-      .filter(id => children.some(c => c.id === id && c.status !== "absent"))
+      .filter(id => {
+        const att = attsToUse.find(a => a.child_id === id);
+        const child = children.find(c => c.id === id);
+        return child && (att?.attendance_status || child?.status) !== "absent";
+      })
       .map(id => toMagnet(id, children, attsToUse));
       
     const outboundChildren = Array.from(currentOutboundIds)
-      .filter(id => children.some(c => c.id === id && c.status !== "absent"))
+      .filter(id => {
+        const att = attsToUse.find(a => a.child_id === id);
+        const child = children.find(c => c.id === id);
+        return child && (att?.attendance_status || child?.status) !== "absent";
+      })
       .map(id => toMagnet(id, children, attsToUse));
 
     setBoard("inbound", {
@@ -377,7 +385,8 @@ export default function BoardPage() {
                 const isValidForMode = mode === "inbound" 
                   ? ["both", "pickup_only"].includes(att?.status || "")
                   : ["both", "dropoff_only"].includes(att?.status || "");
-                return child && child.status !== "absent" && isValidForMode;
+                const isAbsent = (att?.attendance_status || child?.status) === "absent";
+                return child && !isAbsent && isValidForMode;
               })
               .map(m => {
                 const child = children.find(c => c.id === m.id);
@@ -400,7 +409,8 @@ export default function BoardPage() {
           const isValidForMode = mode === "inbound" 
             ? ["both", "pickup_only"].includes(att?.status || "")
             : ["both", "dropoff_only"].includes(att?.status || "");
-          return child && child.status !== "absent" && isValidForMode;
+          const isAbsent = (att?.attendance_status || child?.status) === "absent";
+          return child && !isAbsent && isValidForMode;
         })
         .map(m => {
           const child = children.find(c => c.id === m.id);
@@ -422,7 +432,7 @@ export default function BoardPage() {
 
       const missingChildren = attendances
         .filter(a => mode === "inbound" ? ["both", "pickup_only"].includes(a.status) : ["both", "dropoff_only"].includes(a.status))
-        .filter(a => children.some(c => c.id === a.child_id && c.status !== "absent"))
+        .filter(a => children.some(c => c.id === a.child_id && (a.attendance_status || c.status) !== "absent"))
         .filter(a => !currentIds.has(a.child_id))
         .map(a => toMagnet(a.child_id, children, attendances));
 

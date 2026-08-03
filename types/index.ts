@@ -54,6 +54,8 @@ export interface DailyAttendance {
   child_id: string;
   status: TransportMode;
   pickup_time: string | null; // "HH:MM"
+  attendance_status?: "present" | "absent" | "late" | "early_leave";
+  attendance_time?: string | null;
   // join
   child?: Child | null;
 }

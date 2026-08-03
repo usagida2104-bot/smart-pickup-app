@@ -82,7 +82,9 @@ export default function DailySetupPage() {
               target_date: targetDateStr,
               child_id: child.id,
               status: "both" as TransportMode,
-              pickup_time: "14:30",
+              pickup_time: child.school?.default_dismissal_time ?? "14:30",
+              attendance_status: "present" as const,
+              attendance_time: null,
               child,
             }
           );
@@ -123,7 +125,9 @@ export default function DailySetupPage() {
         target_date: updatedAtt.target_date,
         child_id: updatedAtt.child_id,
         status: updatedAtt.status,
-        pickup_time: updatedAtt.pickup_time
+        pickup_time: updatedAtt.pickup_time,
+        attendance_status: updatedAtt.attendance_status,
+        attendance_time: updatedAtt.attendance_time
       });
       // グローバルStoreへの書き込みは state から反映するか、fetch し直すかで担保
       // 今回は local state の attendances をそのまま global にセットしてOK
@@ -156,8 +160,28 @@ export default function DailySetupPage() {
     performSave(updated);
   };
 
-  const presentCount = attendances.filter((a) => ["both", "pickup_only", "dropoff_only", "no_transport"].includes(a.status)).length;
-  const absentCount = attendances.filter((a) => a.status === "absent").length;
+  const updateAttendanceStatus = (childId: string, status: "present" | "absent" | "late" | "early_leave", time?: string | null) => {
+    const target = attendances.find((a) => a.child_id === childId);
+    if (!target) return;
+    const updated = { 
+      ...target, 
+      attendance_status: status,
+      attendance_time: time !== undefined ? time : target.attendance_time
+    };
+    if (status === "late" || status === "early_leave") {
+      updated.attendance_time = updated.attendance_time || "14:00";
+    } else {
+      updated.attendance_time = null;
+    }
+
+    const newAtts = attendances.map((a) => (a.child_id === childId ? updated : a));
+    setAttendances(newAtts);
+    setGlobalAttendances(newAtts);
+    performSave(updated);
+  };
+
+  const presentCount = attendances.filter((a) => a.attendance_status === "present" || a.attendance_status === "late" || a.attendance_status === "early_leave").length;
+  const absentCount = attendances.filter((a) => a.attendance_status === "absent").length;
   const noTransportCount = attendances.filter((a) => a.status === "no_transport").length;
 
   const displayDate = selectedDate.toLocaleDateString("ja-JP", {
@@ -280,19 +304,14 @@ export default function DailySetupPage() {
                     </div>
                   </TableCell>
 
-                  {/* Status column (Global Status) */}
+                  {/* Status column (Daily Attendance Status) */}
                   <TableCell className="whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Select 
-                        value={child.status || "present"}
-                        onValueChange={(v: "present" | "absent" | "late" | "early_leave") => {
-                          updateChild(child.id, { 
-                            status: v, 
-                            status_time: (v === "late" || v === "early_leave") ? (child.status_time || "14:00") : null 
-                          });
-                        }}
+                        value={att.attendance_status || "present"}
+                        onValueChange={(v: "present" | "absent" | "late" | "early_leave") => updateAttendanceStatus(child.id, v)}
                       >
-                        <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(child.status))}>
+                        <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(att.attendance_status || "present"))}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -303,10 +322,10 @@ export default function DailySetupPage() {
                         </SelectContent>
                       </Select>
 
-                      {(child.status === "late" || child.status === "early_leave") && (
+                      {(att.attendance_status === "late" || att.attendance_status === "early_leave") && (
                         <Select
-                          value={child.status_time || "14:00"}
-                          onValueChange={(v) => updateChild(child.id, { status_time: v })}
+                          value={att.attendance_time || "14:00"}
+                          onValueChange={(v) => updateAttendanceStatus(child.id, att.attendance_status as any, v)}
                         >
                           <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
                             <SelectValue />

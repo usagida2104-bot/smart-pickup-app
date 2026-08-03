@@ -155,8 +155,8 @@ export function toMagnet(childId: string, allChildren?: Child[] | any, allAttend
     unit_name: child.unit_name,
     notes: child.notes,
     transportMode: att?.status ?? "both",
-    status: child.status,
-    status_time: child.status_time,
+    status: (att?.attendance_status && att.attendance_status !== "present" ? att.attendance_status : child.status) as any,
+    status_time: att?.attendance_time || child.status_time,
   };
 }
 

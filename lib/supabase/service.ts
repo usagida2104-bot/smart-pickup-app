@@ -160,6 +160,8 @@ export async function upsertDailyAttendance(attendance: DailyAttendance) {
     child_id: attendance.child_id,
     status: attendance.status,
     pickup_time: attendance.pickup_time,
+    attendance_status: attendance.attendance_status ?? 'present',
+    attendance_time: attendance.attendance_time ?? null,
     updated_at: new Date().toISOString(),
   }, { onConflict: "target_date,child_id" });
   
