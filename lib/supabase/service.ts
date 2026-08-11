@@ -32,6 +32,7 @@ export async function fetchMasterData() {
   const childrenWithSchool = (children || []).map((c: any) => ({
     ...c,
     homeAddress: c.home_address, // snake to camel
+    weekly_schedule: c.weekly_schedule ?? [1, 2, 3, 4, 5], // default to Mon-Fri
     school: schoolsFormatted.find((s: any) => s.id === c.school_id) || null,
   }));
 
@@ -139,6 +140,7 @@ export async function upsertChild(child: Child) {
     home_address: child.homeAddress,
     status: child.status,
     status_time: child.status_time,
+    weekly_schedule: child.weekly_schedule ?? [1, 2, 3, 4, 5],
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

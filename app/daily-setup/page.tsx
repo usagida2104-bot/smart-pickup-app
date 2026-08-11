@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { CheckCircle2, XCircle, Users, Clock, ChevronLeft, ChevronRight, Loader2, CalendarIcon } from "lucide-react";
+import { CheckCircle2, XCircle, Users, Clock, ChevronLeft, ChevronRight, Loader2, CalendarIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +60,7 @@ export default function DailySetupPage() {
   const [attendances, setAttendances] = useState<DailyAttendance[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [selectedSpotChildId, setSelectedSpotChildId] = useState<string>("");
 
 
   useEffect(() => {
@@ -74,7 +75,16 @@ export default function DailySetupPage() {
         
         if (!isMounted) return;
 
-        const mergedAtts = children.map((child) => {
+        const dayOfWeek = selectedDate.getDay();
+
+        // 既にDBにレコードがある児童、または利用曜日に該当する児童のみ抽出
+        const relevantChildren = children.filter(child => {
+          const hasRecord = fetchedAtts.some(a => a.child_id === child.id);
+          const scheduled = (child.weekly_schedule ?? [1, 2, 3, 4, 5]).includes(dayOfWeek);
+          return hasRecord || scheduled;
+        });
+
+        const mergedAtts = relevantChildren.map((child) => {
           const existing = fetchedAtts.find((a) => a.child_id === child.id);
           return (
             existing ?? {
@@ -138,6 +148,30 @@ export default function DailySetupPage() {
     }
   };
 
+  const handleSpotAdd = () => {
+    if (!selectedSpotChildId) return;
+    const child = children.find(c => c.id === selectedSpotChildId);
+    if (!child) return;
+
+    const targetDateStr = formatDate(selectedDate);
+    const newAtt = {
+      id: `att-${targetDateStr}-${child.id}`,
+      target_date: targetDateStr,
+      child_id: child.id,
+      status: "both" as TransportMode,
+      pickup_time: child.school?.default_dismissal_time ?? "14:30",
+      attendance_status: "present" as const,
+      attendance_time: null,
+      child,
+    };
+
+    const newAtts = [...attendances, newAtt];
+    setAttendances(newAtts);
+    setGlobalAttendances(newAtts);
+    performSave(newAtt);
+    setSelectedSpotChildId("");
+  };
+
   const updateStatus = (childId: string, status: TransportMode) => {
     const target = attendances.find((a) => a.child_id === childId);
     if (!target) return;
@@ -190,6 +224,8 @@ export default function DailySetupPage() {
     day: "numeric",
     weekday: "long",
   });
+
+  const unassignedChildren = children.filter(c => !attendances.some(a => a.child_id === c.id));
 
   return (
     <div className="p-4 md:p-8">
@@ -253,19 +289,41 @@ export default function DailySetupPage() {
         </Button>
       </div>
 
-      {/* Summary badges */}
-      <div className="flex flex-wrap gap-2 md:gap-3 mb-4 md:mb-6">
-        <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-blue-50 border border-blue-200 rounded-lg">
-          <CheckCircle2 className="w-4 h-4 text-blue-600" />
-          <span className="text-xs md:text-sm font-semibold text-blue-700 whitespace-nowrap">出席 {presentCount}名</span>
+      {/* Summary & Spot Add */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-6">
+        <div className="flex flex-wrap gap-2 md:gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-blue-50 border border-blue-200 rounded-lg">
+            <CheckCircle2 className="w-4 h-4 text-blue-600" />
+            <span className="text-xs md:text-sm font-semibold text-blue-700 whitespace-nowrap">出席 {presentCount}名</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 border border-red-200 rounded-lg">
+            <XCircle className="w-4 h-4 text-red-600" />
+            <span className="text-xs md:text-sm font-semibold text-red-700 whitespace-nowrap">欠席 {absentCount}名</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-orange-50 border border-orange-200 rounded-lg">
+            <Users className="w-4 h-4 text-orange-600" />
+            <span className="text-xs md:text-sm font-semibold text-orange-700 whitespace-nowrap">送迎不要 {noTransportCount}名</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 border border-red-200 rounded-lg">
-          <XCircle className="w-4 h-4 text-red-600" />
-          <span className="text-xs md:text-sm font-semibold text-red-700 whitespace-nowrap">欠席 {absentCount}名</span>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-orange-50 border border-orange-200 rounded-lg">
-          <Users className="w-4 h-4 text-orange-600" />
-          <span className="text-xs md:text-sm font-semibold text-orange-700 whitespace-nowrap">送迎不要 {noTransportCount}名</span>
+
+        {/* Spot Add */}
+        <div className="flex items-center gap-2">
+          <Select value={selectedSpotChildId} onValueChange={setSelectedSpotChildId}>
+            <SelectTrigger className="w-[200px] bg-white text-sm">
+              <SelectValue placeholder="スポット追加する児童" />
+            </SelectTrigger>
+            <SelectContent>
+              {unassignedChildren.length === 0 && (
+                <SelectItem value="none" disabled>対象児童がいません</SelectItem>
+              )}
+              {unassignedChildren.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={handleSpotAdd} disabled={!selectedSpotChildId || selectedSpotChildId === "none"} size="sm" className="gap-1 bg-gray-800 hover:bg-gray-700">
+            <Plus className="w-4 h-4" /> 追加
+          </Button>
         </div>
       </div>
 

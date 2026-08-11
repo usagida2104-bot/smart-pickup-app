@@ -51,6 +51,7 @@ export default function ChildrenPage() {
     has_caution: false,
     notes: "",
     homeAddress: "",
+    weekly_schedule: [1, 2, 3, 4, 5], // default Mon-Fri
   };
   const [form, setForm] = useState(defaultForm);
 
@@ -69,6 +70,7 @@ export default function ChildrenPage() {
       has_caution: child.has_caution,
       notes: child.notes ?? "",
       homeAddress: child.homeAddress ?? "",
+      weekly_schedule: child.weekly_schedule ?? [1, 2, 3, 4, 5],
     });
     setDialogOpen(true);
   };
@@ -85,6 +87,7 @@ export default function ChildrenPage() {
         has_caution: form.has_caution,
         notes: form.notes || null,
         homeAddress: form.homeAddress || null,
+        weekly_schedule: form.weekly_schedule,
       });
     }
     setDialogOpen(false);
@@ -114,7 +117,7 @@ export default function ChildrenPage() {
             <TableHeader>
               <TableRow className="bg-gray-50">
                 <TableHead className="whitespace-nowrap">名前</TableHead>
-                <TableHead className="whitespace-nowrap min-w-[220px]">ステータス</TableHead>
+                <TableHead className="whitespace-nowrap min-w-[120px]">利用曜日</TableHead>
                 <TableHead className="whitespace-nowrap">学校</TableHead>
                 <TableHead className="whitespace-nowrap">ユニット</TableHead>
                 <TableHead className="whitespace-nowrap">配慮事項</TableHead>
@@ -133,43 +136,20 @@ export default function ChildrenPage() {
                     {child.name}
                   </div>
                 </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <Select 
-                      value={child.status || "present"}
-                      onValueChange={(v: "present" | "absent" | "late" | "early_leave") => {
-                        updateChild(child.id, { 
-                          status: v, 
-                          status_time: (v === "late" || v === "early_leave") ? (child.status_time || "14:00") : null 
-                        });
-                      }}
-                    >
-                      <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(child.status))}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="present"><span className="text-pink-700 font-bold">出席</span></SelectItem>
-                        <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
-                        <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
-                        <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {(child.status === "late" || child.status === "early_leave") && (
-                      <Select
-                        value={child.status_time || "14:00"}
-                        onValueChange={(v) => updateChild(child.id, { status_time: v })}
-                      >
-                        <SelectTrigger className="w-[80px] h-8 text-xs bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TIME_OPTIONS.map((time) => (
-                            <SelectItem key={time} value={time}>{time}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                <TableCell className="whitespace-nowrap text-sm text-gray-700">
+                  <div className="flex gap-1 flex-wrap w-[180px]">
+                    {["月", "火", "水", "木", "金", "土", "日"].map((d, i) => {
+                      const dayVal = i === 6 ? 0 : i + 1; // 0=Sun, 1=Mon...
+                      const isActive = (child.weekly_schedule || []).includes(dayVal);
+                      return (
+                        <span key={d} className={cn(
+                          "w-6 h-6 flex items-center justify-center rounded-full text-xs font-semibold",
+                          isActive ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400 opacity-50"
+                        )}>
+                          {d}
+                        </span>
+                      );
+                    })}
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
@@ -297,6 +277,35 @@ export default function ChildrenPage() {
               >
                 配慮事項あり（背景ハイライト）
               </Label>
+            </div>
+            
+            {/* Weekly Schedule Settings */}
+            <div className="pt-2 pb-2">
+              <Label className="mb-2 block text-sm font-medium">標準利用曜日</Label>
+              <div className="flex gap-2 justify-between">
+                {["月", "火", "水", "木", "金", "土", "日"].map((d, i) => {
+                  const dayVal = i === 6 ? 0 : i + 1; // 0=Sun, 1=Mon...
+                  const isActive = form.weekly_schedule.includes(dayVal);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        const newSchedule = isActive 
+                          ? form.weekly_schedule.filter(v => v !== dayVal)
+                          : [...form.weekly_schedule, dayVal].sort();
+                        setForm({ ...form, weekly_schedule: newSchedule });
+                      }}
+                      className={cn(
+                        "w-10 h-10 flex items-center justify-center rounded-full font-bold transition-colors shadow-sm",
+                        isActive ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      )}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <Label htmlFor="child-address">自宅住所</Label>

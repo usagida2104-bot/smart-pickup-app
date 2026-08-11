@@ -38,6 +38,7 @@ export interface Child {
   homeAddress?: string | null;
   status?: "present" | "absent" | "late" | "early_leave";
   status_time?: string | null;
+  weekly_schedule?: number[];
   // join
   school?: School | null;
 }
