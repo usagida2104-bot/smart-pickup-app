@@ -203,11 +203,11 @@ export default function ChildrenPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col p-4 md:p-6 gap-0">
+          <DialogHeader className="shrink-0 pb-4">
             <DialogTitle>{editing ? "児童を編集" : "児童を追加"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2 flex-1 overflow-y-auto px-1">
             <div>
               <Label htmlFor="child-name">名前 *</Label>
               <Input
@@ -328,7 +328,7 @@ export default function ChildrenPage() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 pt-4 mt-2 border-t">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               キャンセル
             </Button>
