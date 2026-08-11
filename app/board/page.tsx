@@ -55,9 +55,10 @@ export default function BoardPage() {
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
 
-  // 本日の稼働シフトをスタッフの担当車両設定から動的に構築
+  const LEADER_ROLES = ["ぽっけリーダー", "ぽっけⅡリーダー", "日中一時リーダー"];
+  // 本日の稼働シフトをスタッフの担当車両設定から動的に構築（リーダーはドライバーから除外）
   const dynamicShifts = staff
-    .filter((s) => s.is_driver && s.assignedVehicleId && s.status !== "absent")
+    .filter((s) => s.is_driver && s.assignedVehicleId && s.status !== "absent" && !LEADER_ROLES.includes(s.role || ""))
     .map((s) => {
       const v = vehicles.find((v) => v.id === s.assignedVehicleId);
       return {

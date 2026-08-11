@@ -41,17 +41,31 @@ export default function StaffPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
-  const [form, setForm] = useState({ name: "", is_driver: true, homeAddress: "", assignedVehicleId: "" as string | null });
+  const [form, setForm] = useState({ 
+    name: "", 
+    is_driver: true, 
+    homeAddress: "", 
+    assignedVehicleId: "" as string | null,
+    unit_name: "ぽっけ" as string | null,
+    role: "一般スタッフ" as string | null
+  });
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", is_driver: true, homeAddress: "", assignedVehicleId: null });
+    setForm({ name: "", is_driver: true, homeAddress: "", assignedVehicleId: null, unit_name: "ぽっけ", role: "一般スタッフ" });
     setDialogOpen(true);
   };
 
   const openEdit = (s: Staff) => {
     setEditing(s);
-    setForm({ name: s.name, is_driver: s.is_driver, homeAddress: s.homeAddress || "", assignedVehicleId: s.assignedVehicleId || null });
+    setForm({ 
+      name: s.name, 
+      is_driver: s.is_driver, 
+      homeAddress: s.homeAddress || "", 
+      assignedVehicleId: s.assignedVehicleId || null,
+      unit_name: s.unit_name || "ぽっけ",
+      role: s.role || "一般スタッフ"
+    });
     setDialogOpen(true);
   };
 
@@ -83,6 +97,7 @@ export default function StaffPage() {
             <TableHeader>
               <TableRow className="bg-gray-50">
                 <TableHead className="whitespace-nowrap">名前</TableHead>
+                <TableHead className="whitespace-nowrap">所属 / 役職</TableHead>
                 <TableHead className="whitespace-nowrap min-w-[220px]">ステータス</TableHead>
                 <TableHead className="whitespace-nowrap">ドライバー</TableHead>
                 <TableHead className="text-right whitespace-nowrap">操作</TableHead>
@@ -94,6 +109,12 @@ export default function StaffPage() {
                 <TableCell className="font-medium whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     {s.name}
+                  </div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex flex-col gap-1">
+                    {s.unit_name && <Badge variant="secondary" className="w-max text-[10px]">{s.unit_name}</Badge>}
+                    {s.role && <span className="text-xs text-gray-500 font-semibold">{s.role}</span>}
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
@@ -188,27 +209,81 @@ export default function StaffPage() {
                 className="mt-1.5"
               />
             </div>
-            <div 
-              className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
-                form.is_driver 
-                  ? "bg-blue-50 border-blue-300 shadow-sm" 
-                  : "bg-gray-50 border-gray-200"
-              }`}
-            >
-              <Switch
-                id="is-driver"
-                checked={form.is_driver}
-                onCheckedChange={(v) => setForm({ ...form, is_driver: v })}
-                className={form.is_driver ? "data-[state=checked]:bg-blue-600" : ""}
-              />
-              <Label 
-                htmlFor="is-driver" 
-                className={form.is_driver ? "text-blue-700 font-bold" : "text-gray-900"}
-              >
-                ドライバー権限あり
-              </Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>所属ユニット</Label>
+                <Select
+                  value={form.unit_name || "ぽっけ"}
+                  onValueChange={(v) => {
+                    setForm({ ...form, unit_name: v, role: "一般スタッフ" });
+                  }}
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ぽっけ">ぽっけ</SelectItem>
+                    <SelectItem value="ぽっけⅡ">ぽっけⅡ</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>役職</Label>
+                <Select
+                  value={form.role || "一般スタッフ"}
+                  onValueChange={(v) => setForm({ ...form, role: v })}
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="一般スタッフ">一般スタッフ</SelectItem>
+                    {form.unit_name === "ぽっけ" && (
+                      <>
+                        <SelectItem value="ぽっけリーダー">ぽっけリーダー</SelectItem>
+                        <SelectItem value="日中一時リーダー">日中一時リーダー</SelectItem>
+                      </>
+                    )}
+                    {form.unit_name === "ぽっけⅡ" && (
+                      <SelectItem value="ぽっけⅡリーダー">ぽっけⅡリーダー</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            {form.is_driver && (
+
+            {(() => {
+              const isLeader = ["ぽっけリーダー", "ぽっけⅡリーダー", "日中一時リーダー"].includes(form.role || "");
+              return (
+                <div 
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
+                    form.is_driver && !isLeader
+                      ? "bg-blue-50 border-blue-300 shadow-sm" 
+                      : "bg-gray-50 border-gray-200"
+                  } ${isLeader ? "opacity-60" : ""}`}
+                >
+                  <Switch
+                    id="is-driver"
+                    checked={form.is_driver && !isLeader}
+                    disabled={isLeader}
+                    onCheckedChange={(v) => setForm({ ...form, is_driver: v })}
+                    className={form.is_driver && !isLeader ? "data-[state=checked]:bg-blue-600" : ""}
+                  />
+                  <div className="flex flex-col">
+                    <Label 
+                      htmlFor="is-driver" 
+                      className={form.is_driver && !isLeader ? "text-blue-700 font-bold" : "text-gray-900"}
+                    >
+                      ドライバー権限あり
+                    </Label>
+                    {isLeader && (
+                      <span className="text-[10px] text-gray-500 mt-1">リーダーは送迎を行いません</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            {form.is_driver && !["ぽっけリーダー", "ぽっけⅡリーダー", "日中一時リーダー"].includes(form.role || "") && (
               <div>
                 <Label>担当車両</Label>
                 <Select

@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Child } from "@/types";
 import { useMasterStore } from "@/lib/store/masterStore";
 
-const unitOptions = ["ぽっけ1", "ぽっけ2", "日中一時"];
+const unitOptions = ["ぽっけ", "ぽっけⅡ", "日中一時"];
 
 const TIME_OPTIONS = Array.from({ length: 13 * 12 + 1 }).map((_, i) => {
   const h = Math.floor(i / 12) + 8;

@@ -119,6 +119,8 @@ export async function upsertStaff(staff: Staff) {
     assigned_vehicle_id: staff.assignedVehicleId,
     status: staff.status,
     status_time: staff.status_time,
+    unit_name: staff.unit_name,
+    role: staff.role,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

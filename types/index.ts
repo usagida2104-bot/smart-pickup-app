@@ -26,6 +26,8 @@ export interface Staff {
   assignedVehicleId?: string | null;
   status?: "present" | "absent" | "late" | "early_leave";
   status_time?: string | null;
+  unit_name?: string | null;
+  role?: string | null;
 }
 
 export interface Child {
