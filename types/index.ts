@@ -41,6 +41,7 @@ export interface Child {
   status?: "present" | "absent" | "late" | "early_leave";
   status_time?: string | null;
   weekly_schedule?: number[];
+  display_order?: number;
   // join
   school?: School | null;
 }

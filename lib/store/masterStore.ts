@@ -5,7 +5,8 @@ import {
   upsertStaff, deleteStaff,
   upsertVehicle, deleteVehicle,
   upsertSchool, deleteSchool,
-  upsertChild, deleteChild
+  upsertChild, deleteChild,
+  updateChildrenOrder
 } from "../supabase/service";
 
 interface MasterStore {
@@ -38,6 +39,7 @@ interface MasterStore {
   addChild: (child: Child) => Promise<void>;
   updateChild: (id: string, child: Partial<Child>) => Promise<void>;
   deleteChild: (id: string) => Promise<void>;
+  reorderChild: (id: string, direction: -1 | 1) => Promise<void>;
 }
 
 export const useMasterStore = create<MasterStore>((set, get) => ({
@@ -142,5 +144,23 @@ export const useMasterStore = create<MasterStore>((set, get) => ({
   deleteChild: async (id) => {
     set((state) => ({ children: state.children.filter(c => c.id !== id) }));
     await deleteChild(id);
+  },
+  reorderChild: async (id, direction) => {
+    const state = get();
+    const children = [...state.children];
+    const index = children.findIndex(c => c.id === id);
+    if (index === -1) return;
+    
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= children.length) return;
+    
+    const child = children[index];
+    children.splice(index, 1);
+    children.splice(targetIndex, 0, child);
+    
+    const updatedChildren = children.map((c, i) => ({ ...c, display_order: i }));
+    set({ children: updatedChildren });
+    
+    await updateChildrenOrder(updatedChildren.map(c => ({ id: c.id, display_order: c.display_order })));
   },
 }));

@@ -15,7 +15,7 @@ export async function fetchMasterData() {
     supabase.from("schools").select("*"),
     supabase.from("vehicles").select("*"),
     supabase.from("staff").select("*"),
-    supabase.from("children").select("*"),
+    supabase.from("children").select("*").order("display_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
   ]);
 
   if (errSchools) console.error("Error fetching schools", errSchools);
@@ -143,6 +143,7 @@ export async function upsertChild(child: Child) {
     status: child.status,
     status_time: child.status_time,
     weekly_schedule: child.weekly_schedule ?? [1, 2, 3, 4, 5],
+    display_order: child.display_order,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;
@@ -151,6 +152,13 @@ export async function upsertChild(child: Child) {
 export async function deleteChild(id: string) {
   const { error } = await supabase.from("children").delete().eq("id", id);
   if (error) throw error;
+}
+
+export async function updateChildrenOrder(childrenOrder: { id: string; display_order: number }[]) {
+  const promises = childrenOrder.map(c => 
+    supabase.from("children").update({ display_order: c.display_order, updated_at: new Date().toISOString() }).eq("id", c.id)
+  );
+  await Promise.all(promises);
 }
 
 // =====================

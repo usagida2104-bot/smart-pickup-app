@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, AlertCircle, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +39,7 @@ const getStatusColor = (status?: string) => {
 };
 
 export default function ChildrenPage() {
-  const { children, schools, addChild, updateChild, deleteChild } = useMasterStore();
+  const { children, schools, addChild, updateChild, deleteChild, reorderChild } = useMasterStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Child | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Child | null>(null);
@@ -126,7 +126,7 @@ export default function ChildrenPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-            {children.map((child) => (
+            {children.map((child, index) => (
               <TableRow key={child.id} className={cn(
                 "hover:bg-gray-50",
                 child.has_caution && "bg-green-50 hover:bg-green-100"
@@ -177,7 +177,26 @@ export default function ChildrenPage() {
                   {child.notes || <span className="text-gray-400 text-xs">-</span>}
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={index === 0}
+                      onClick={() => reorderChild(child.id, -1)}
+                      title="ひとつ上へ"
+                    >
+                      <ArrowUp className="w-4 h-4 text-gray-500" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={index === children.length - 1}
+                      onClick={() => reorderChild(child.id, 1)}
+                      title="ひとつ下へ"
+                    >
+                      <ArrowDown className="w-4 h-4 text-gray-500" />
+                    </Button>
+                    <div className="w-px h-4 bg-gray-200 mx-1" />
                     <Button
                       variant="ghost"
                       size="icon"
