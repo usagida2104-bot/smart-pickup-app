@@ -123,7 +123,10 @@ export async function upsertStaff(staff: Staff) {
     role: staff.role,
     updated_at: new Date().toISOString(),
   });
-  if (error) throw error;
+  if (error) {
+    console.error("Supabase upsertStaff Error:", error);
+    throw error;
+  }
 }
 
 export async function deleteStaff(id: string) {

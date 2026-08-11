@@ -69,13 +69,17 @@ export default function StaffPage() {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (editing) {
-      updateStaff(editing.id, form);
-    } else {
-      addStaff({ id: `staff-${Date.now()}`, ...form });
+  const handleSave = async () => {
+    try {
+      if (editing) {
+        await updateStaff(editing.id, form);
+      } else {
+        await addStaff({ id: `staff-${Date.now()}`, ...form });
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      alert("保存に失敗しました。データベースに必要なカラムが不足している可能性があります。");
     }
-    setDialogOpen(false);
   };
 
   return (
@@ -134,11 +138,15 @@ export default function StaffPage() {
                   <div className="flex items-center gap-2">
                     <Select 
                       value={s.status || "present"}
-                      onValueChange={(v: "present" | "absent" | "late" | "early_leave") => {
-                        updateStaff(s.id, { 
-                          status: v, 
-                          status_time: (v === "late" || v === "early_leave") ? (s.status_time || "09:00") : null 
-                        });
+                      onValueChange={async (v: "present" | "absent" | "late" | "early_leave") => {
+                        try {
+                          await updateStaff(s.id, { 
+                            status: v, 
+                            status_time: (v === "late" || v === "early_leave") ? (s.status_time || "09:00") : null 
+                          });
+                        } catch (e) {
+                          alert("保存に失敗しました。");
+                        }
                       }}
                     >
                       <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(s.status))}>
@@ -155,7 +163,13 @@ export default function StaffPage() {
                     {(s.status === "late" || s.status === "early_leave") && (
                       <Select
                         value={s.status_time || "09:00"}
-                        onValueChange={(v) => updateStaff(s.id, { status_time: v })}
+                        onValueChange={async (v) => {
+                          try {
+                            await updateStaff(s.id, { status_time: v });
+                          } catch (e) {
+                            alert("保存に失敗しました。");
+                          }
+                        }}
                       >
                         <SelectTrigger className="w-[80px] h-8 text-xs bg-white">
                           <SelectValue />

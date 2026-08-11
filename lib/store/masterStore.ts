@@ -53,20 +53,34 @@ export const useMasterStore = create<MasterStore>((set, get) => ({
   setAttendances: (atts) => set(() => ({ attendances: atts })),
   
   addStaff: async (newStaff) => {
-    // 楽観的更新
+    const originalStaff = get().staff;
     set((state) => ({ staff: [...state.staff, newStaff] }));
-    await upsertStaff(newStaff);
+    try {
+      await upsertStaff(newStaff);
+    } catch (e) {
+      console.error("Failed to add staff. Rolling back.", e);
+      set({ staff: originalStaff });
+      throw e;
+    }
   },
   updateStaff: async (id, updated) => {
     const state = get();
     const target = state.staff.find(s => s.id === id);
     if (!target) return;
+    
     const newTarget = { ...target, ...updated };
+    const originalStaff = [...state.staff];
     
     set((state) => ({
       staff: state.staff.map(s => s.id === id ? newTarget : s)
     }));
-    await upsertStaff(newTarget);
+    try {
+      await upsertStaff(newTarget);
+    } catch (e) {
+      console.error("Failed to update staff. Rolling back.", e);
+      set({ staff: originalStaff });
+      throw e;
+    }
   },
   deleteStaff: async (id) => {
     set((state) => ({ staff: state.staff.filter(s => s.id !== id) }));
