@@ -112,9 +112,22 @@ export default function StaffPage() {
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
-                  <div className="flex flex-col gap-1">
-                    {s.unit_name && <Badge variant="secondary" className="w-max text-[10px]">{s.unit_name}</Badge>}
-                    {s.role && <span className="text-xs text-gray-500 font-semibold">{s.role}</span>}
+                  <div className="flex items-center gap-2">
+                    {s.unit_name && <span className="text-sm font-medium text-gray-700">{s.unit_name}</span>}
+                    {s.role && (
+                      <Badge 
+                        variant={s.role.includes("リーダー") ? "default" : "secondary"}
+                        className={cn(
+                          "w-max text-[11px] px-2 py-0.5 font-bold",
+                          s.role === "ぽっけリーダー" ? "bg-blue-600 hover:bg-blue-600 text-white shadow-sm" :
+                          s.role === "ぽっけⅡリーダー" ? "bg-purple-600 hover:bg-purple-600 text-white shadow-sm" :
+                          s.role === "日中一時リーダー" ? "bg-orange-500 hover:bg-orange-500 text-white shadow-sm" :
+                          "bg-gray-100 text-gray-500 hover:bg-gray-100 font-normal border-gray-200"
+                        )}
+                      >
+                        {s.role}
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
