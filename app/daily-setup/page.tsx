@@ -366,9 +366,9 @@ export default function DailySetupPage() {
             <TableRow className="bg-gray-50">
               <TableHead className="w-[200px] whitespace-nowrap">児童名</TableHead>
               <TableHead className="min-w-[220px] whitespace-nowrap">ステータス</TableHead>
+              <TableHead className="w-[180px] whitespace-nowrap">下校時間</TableHead>
               <TableHead className="whitespace-nowrap">学校</TableHead>
               <TableHead className="w-[220px] whitespace-nowrap">送迎区分</TableHead>
-              <TableHead className="w-[180px] whitespace-nowrap">下校時間</TableHead>
               <TableHead className="w-[60px] text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -430,38 +430,6 @@ export default function DailySetupPage() {
                     </div>
                   </TableCell>
 
-                  {/* School column */}
-                  <TableCell className="whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3.5 h-3.5 rounded-full shadow-sm shrink-0"
-                        style={{ backgroundColor: child.school?.color_code ?? "#ccc" }}
-                      />
-                      <span className="text-sm text-gray-600 truncate max-w-[150px]">
-                        {child.school?.name ?? "学校未設定"}
-                      </span>
-                    </div>
-                  </TableCell>
-
-                  {/* Status column */}
-                  <TableCell>
-                    <select
-                      value={att.status}
-                      onChange={(e) => updateStatus(att.child_id, e.target.value as TransportMode)}
-                      className={cn(
-                        "w-full px-3 py-2 rounded-lg text-sm font-semibold border outline-none cursor-pointer",
-                        config.bg,
-                        config.color
-                      )}
-                    >
-                      <option value="both">往復（迎え・送り）</option>
-                      <option value="pickup_only">迎えのみ</option>
-                      <option value="dropoff_only">送りのみ</option>
-                      <option value="no_transport">送迎不要</option>
-                      <option value="absent">欠席</option>
-                    </select>
-                  </TableCell>
-
                   {/* Time column */}
                   <TableCell>
                     <div className="flex items-center gap-1.5">
@@ -506,6 +474,38 @@ export default function DailySetupPage() {
                         ))}
                       </select>
                     </div>
+                  </TableCell>
+
+                  {/* School column */}
+                  <TableCell className="whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3.5 h-3.5 rounded-full shadow-sm shrink-0"
+                        style={{ backgroundColor: child.school?.color_code ?? "#ccc" }}
+                      />
+                      <span className="text-sm text-gray-600 truncate max-w-[150px]">
+                        {child.school?.name ?? "学校未設定"}
+                      </span>
+                    </div>
+                  </TableCell>
+
+                  {/* Status column */}
+                  <TableCell>
+                    <select
+                      value={att.status}
+                      onChange={(e) => updateStatus(att.child_id, e.target.value as TransportMode)}
+                      className={cn(
+                        "w-full px-3 py-2 rounded-lg text-sm font-semibold border outline-none cursor-pointer",
+                        config.bg,
+                        config.color
+                      )}
+                    >
+                      <option value="both">往復（迎え・送り）</option>
+                      <option value="pickup_only">迎えのみ</option>
+                      <option value="dropoff_only">送りのみ</option>
+                      <option value="no_transport">送迎不要</option>
+                      <option value="absent">欠席</option>
+                    </select>
                   </TableCell>
                   
                   {/* Action column */}
