@@ -265,38 +265,27 @@ export default function StaffPage() {
               </div>
             </div>
 
-            {(() => {
-              const isLeader = ["ぽっけリーダー", "ぽっけⅡリーダー", "日中一時リーダー"].includes(form.role || "");
-              return (
-                <div 
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
-                    form.is_driver && !isLeader
-                      ? "bg-blue-50 border-blue-300 shadow-sm" 
-                      : "bg-gray-50 border-gray-200"
-                  } ${isLeader ? "opacity-60" : ""}`}
-                >
-                  <Switch
-                    id="is-driver"
-                    checked={form.is_driver && !isLeader}
-                    disabled={isLeader}
-                    onCheckedChange={(v) => setForm({ ...form, is_driver: v })}
-                    className={form.is_driver && !isLeader ? "data-[state=checked]:bg-blue-600" : ""}
-                  />
-                  <div className="flex flex-col">
-                    <Label 
-                      htmlFor="is-driver" 
-                      className={form.is_driver && !isLeader ? "text-blue-700 font-bold" : "text-gray-900"}
-                    >
-                      ドライバー権限あり
-                    </Label>
-                    {isLeader && (
-                      <span className="text-[10px] text-gray-500 mt-1">リーダーは送迎を行いません</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-            {form.is_driver && !["ぽっけリーダー", "ぽっけⅡリーダー", "日中一時リーダー"].includes(form.role || "") && (
+            <div 
+              className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
+                form.is_driver 
+                  ? "bg-blue-50 border-blue-300 shadow-sm" 
+                  : "bg-gray-50 border-gray-200"
+              }`}
+            >
+              <Switch
+                id="is-driver"
+                checked={form.is_driver}
+                onCheckedChange={(v) => setForm({ ...form, is_driver: v })}
+                className={form.is_driver ? "data-[state=checked]:bg-blue-600" : ""}
+              />
+              <Label 
+                htmlFor="is-driver" 
+                className={form.is_driver ? "text-blue-700 font-bold" : "text-gray-900"}
+              >
+                ドライバー権限あり
+              </Label>
+            </div>
+            {form.is_driver && (
               <div>
                 <Label>担当車両</Label>
                 <Select
