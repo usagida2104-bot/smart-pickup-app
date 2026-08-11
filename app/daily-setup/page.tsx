@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { CheckCircle2, XCircle, Users, Clock, ChevronLeft, ChevronRight, Loader2, CalendarIcon, Plus } from "lucide-react";
+import { CheckCircle2, XCircle, Users, Clock, ChevronLeft, ChevronRight, Loader2, CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -79,9 +79,14 @@ export default function DailySetupPage() {
 
         // 既にDBにレコードがある児童、または利用曜日に該当する児童のみ抽出
         const relevantChildren = children.filter(child => {
-          const hasRecord = fetchedAtts.some(a => a.child_id === child.id);
+          const dbRecord = fetchedAtts.find(a => a.child_id === child.id);
+          
+          if (dbRecord && dbRecord.attendance_status === ("excluded" as any)) {
+            return false;
+          }
+
           const scheduled = (child.weekly_schedule ?? [1, 2, 3, 4, 5]).includes(dayOfWeek);
-          return hasRecord || scheduled;
+          return !!dbRecord || scheduled;
         });
 
         const mergedAtts = relevantChildren.map((child) => {
@@ -143,6 +148,32 @@ export default function DailySetupPage() {
       // 今回は local state の attendances をそのまま global にセットしてOK
     } catch (err) {
       console.error("Failed to save attendance", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRemove = async (childId: string) => {
+    const targetDateStr = formatDate(selectedDate);
+    const excludedAtt: DailyAttendance = {
+      id: `att-${targetDateStr}-${childId}`,
+      target_date: targetDateStr,
+      child_id: childId,
+      status: "both" as TransportMode,
+      pickup_time: "14:30",
+      attendance_status: "excluded" as any,
+      attendance_time: null
+    };
+
+    const newAtts = attendances.filter(a => a.child_id !== childId);
+    setAttendances(newAtts);
+    setGlobalAttendances(newAtts);
+    
+    setIsSaving(true);
+    try {
+      await upsertDailyAttendance(excludedAtt);
+    } catch (err) {
+      console.error("Failed to exclude child", err);
     } finally {
       setIsSaving(false);
     }
@@ -321,7 +352,7 @@ export default function DailySetupPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={handleSpotAdd} disabled={!selectedSpotChildId || selectedSpotChildId === "none"} size="sm" className="gap-1 bg-gray-800 hover:bg-gray-700">
+          <Button onClick={handleSpotAdd} disabled={!selectedSpotChildId || selectedSpotChildId === "none"} size="sm" className="gap-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
             <Plus className="w-4 h-4" /> 追加
           </Button>
         </div>
@@ -338,6 +369,7 @@ export default function DailySetupPage() {
               <TableHead className="whitespace-nowrap">学校</TableHead>
               <TableHead className="w-[220px] whitespace-nowrap">送迎区分</TableHead>
               <TableHead className="w-[180px] whitespace-nowrap">下校時間</TableHead>
+              <TableHead className="w-[60px] text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -474,6 +506,19 @@ export default function DailySetupPage() {
                         ))}
                       </select>
                     </div>
+                  </TableCell>
+                  
+                  {/* Action column */}
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemove(att.child_id)}
+                      className="text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      title="この日の一覧から除外する"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
