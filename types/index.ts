@@ -42,6 +42,7 @@ export interface Child {
   status_time?: string | null;
   weekly_schedule?: number[];
   display_order?: number;
+  default_dismissal_time?: string | null;
   // join
   school?: School | null;
 }

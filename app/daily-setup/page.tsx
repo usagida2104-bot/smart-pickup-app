@@ -97,7 +97,7 @@ export default function DailySetupPage() {
               target_date: targetDateStr,
               child_id: child.id,
               status: "both" as TransportMode,
-              pickup_time: child.school?.default_dismissal_time ?? "14:30",
+              pickup_time: child.default_dismissal_time || null,
               attendance_status: "present" as const,
               attendance_time: null,
               child,

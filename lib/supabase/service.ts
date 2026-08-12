@@ -33,6 +33,7 @@ export async function fetchMasterData() {
     ...c,
     homeAddress: c.home_address, // snake to camel
     weekly_schedule: c.weekly_schedule ?? [1, 2, 3, 4, 5], // default to Mon-Fri
+    default_dismissal_time: c.default_dismissal_time,
     school: schoolsFormatted.find((s: any) => s.id === c.school_id) || null,
   }));
 
@@ -147,9 +148,13 @@ export async function upsertChild(child: Child) {
     status_time: child.status_time,
     weekly_schedule: child.weekly_schedule ?? [1, 2, 3, 4, 5],
     display_order: child.display_order,
+    default_dismissal_time: child.default_dismissal_time,
     updated_at: new Date().toISOString(),
   });
-  if (error) throw error;
+  if (error) {
+    console.error("Supabase upsertChild Error:", error);
+    throw error;
+  }
 }
 
 export async function deleteChild(id: string) {

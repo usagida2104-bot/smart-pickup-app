@@ -134,14 +134,23 @@ export const useMasterStore = create<MasterStore>((set, get) => ({
   },
 
   addChild: async (newChild) => {
+    const originalChildren = get().children;
     set((state) => ({ children: [...state.children, newChild] }));
-    await upsertChild(newChild);
+    try {
+      await upsertChild(newChild);
+    } catch (e) {
+      console.error("Failed to add child. Rolling back.", e);
+      set({ children: originalChildren });
+      throw e;
+    }
   },
   updateChild: async (id, updated) => {
     const state = get();
     const target = state.children.find(c => c.id === id);
     if (!target) return;
+    
     const newTarget = { ...target, ...updated };
+    const originalChildren = [...state.children];
 
     set((state) => ({
       children: state.children.map(c => {
@@ -153,7 +162,13 @@ export const useMasterStore = create<MasterStore>((set, get) => ({
         return c;
       })
     }));
-    await upsertChild(newTarget);
+    try {
+      await upsertChild(newTarget);
+    } catch (e) {
+      console.error("Failed to update child. Rolling back.", e);
+      set({ children: originalChildren });
+      throw e;
+    }
   },
   deleteChild: async (id) => {
     set((state) => ({ children: state.children.filter(c => c.id !== id) }));

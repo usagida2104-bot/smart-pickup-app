@@ -51,6 +51,7 @@ export default function ChildrenPage() {
     has_caution: false,
     notes: "",
     homeAddress: "",
+    default_dismissal_time: "",
     weekly_schedule: [1, 2, 3, 4, 5], // default Mon-Fri
   };
   const [form, setForm] = useState(defaultForm);
@@ -70,27 +71,33 @@ export default function ChildrenPage() {
       has_caution: child.has_caution,
       notes: child.notes ?? "",
       homeAddress: child.homeAddress ?? "",
+      default_dismissal_time: child.default_dismissal_time ?? "",
       weekly_schedule: child.weekly_schedule ?? [1, 2, 3, 4, 5],
     });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (editing) {
-      updateChild(editing.id, form);
-    } else {
-      addChild({
-        id: `child-${Date.now()}`,
-        name: form.name,
-        school_id: form.school_id || null,
-        unit_name: form.unit_name || null,
-        has_caution: form.has_caution,
-        notes: form.notes || null,
-        homeAddress: form.homeAddress || null,
-        weekly_schedule: form.weekly_schedule,
-      });
+  const handleSave = async () => {
+    try {
+      if (editing) {
+        await updateChild(editing.id, form);
+      } else {
+        await addChild({
+          id: `child-${Date.now()}`,
+          name: form.name,
+          school_id: form.school_id || null,
+          unit_name: form.unit_name || null,
+          has_caution: form.has_caution,
+          notes: form.notes || null,
+          homeAddress: form.homeAddress || null,
+          default_dismissal_time: form.default_dismissal_time || null,
+          weekly_schedule: form.weekly_schedule,
+        });
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      alert("保存に失敗しました。データベースに必要なカラムが不足している可能性があります。");
     }
-    setDialogOpen(false);
   };
 
   const handleDelete = (child: Child) => {
@@ -120,6 +127,7 @@ export default function ChildrenPage() {
                 <TableHead className="whitespace-nowrap min-w-[120px]">利用曜日</TableHead>
                 <TableHead className="whitespace-nowrap">学校</TableHead>
                 <TableHead className="whitespace-nowrap">ユニット</TableHead>
+                <TableHead className="whitespace-nowrap">下校時間</TableHead>
                 <TableHead className="whitespace-nowrap">配慮事項</TableHead>
                 <TableHead className="whitespace-nowrap">メモ</TableHead>
                 <TableHead className="text-right whitespace-nowrap">操作</TableHead>
@@ -160,6 +168,13 @@ export default function ChildrenPage() {
                     <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50">
                       {child.unit_name}
                     </Badge>
+                  ) : (
+                    <span className="text-xs text-gray-400">未設定</span>
+                  )}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {child.default_dismissal_time ? (
+                    <span className="font-medium text-gray-700">{child.default_dismissal_time}</span>
                   ) : (
                     <span className="text-xs text-gray-400">未設定</span>
                   )}
@@ -273,6 +288,23 @@ export default function ChildrenPage() {
                 <SelectContent>
                   {unitOptions.map((u) => (
                     <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>基本下校時間</Label>
+              <Select
+                value={form.default_dismissal_time || "none"}
+                onValueChange={(v) => setForm({ ...form, default_dismissal_time: v === "none" ? "" : v })}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="時間指定なし" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" className="text-gray-500">時間指定なし</SelectItem>
+                  {TIME_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
