@@ -249,6 +249,18 @@ export default function DailySetupPage() {
   const absentCount = attendances.filter((a) => a.attendance_status === "absent").length;
   const noTransportCount = attendances.filter((a) => a.status === "no_transport").length;
 
+  const unitCounts = { ぽっけ: 0, ぽっけⅡ: 0, 日中一時: 0 };
+  attendances.forEach(a => {
+    if (a.attendance_status !== "absent") {
+      const child = children.find(c => c.id === a.child_id);
+      if (child && child.unit_name) {
+        if (child.unit_name === "ぽっけ") unitCounts.ぽっけ++;
+        else if (child.unit_name === "ぽっけⅡ") unitCounts["ぽっけⅡ"]++;
+        else if (child.unit_name === "日中一時") unitCounts.日中一時++;
+      }
+    }
+  });
+
   const displayDate = selectedDate.toLocaleDateString("ja-JP", {
     year: "numeric",
     month: "long",
@@ -334,6 +346,16 @@ export default function DailySetupPage() {
           <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-orange-50 border border-orange-200 rounded-lg">
             <Users className="w-4 h-4 text-orange-600" />
             <span className="text-xs md:text-sm font-semibold text-orange-700 whitespace-nowrap">送迎不要 {noTransportCount}名</span>
+          </div>
+          <div className="hidden md:block w-px bg-gray-300 mx-1 self-stretch" />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+            <span className="text-xs font-semibold text-gray-700">ぽっけ: {unitCounts.ぽっけ}名</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+            <span className="text-xs font-semibold text-gray-700">ぽっけⅡ: {unitCounts["ぽっけⅡ"]}名</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+            <span className="text-xs font-semibold text-gray-700">日中一時: {unitCounts.日中一時}名</span>
           </div>
         </div>
 
