@@ -88,19 +88,34 @@ export const useMasterStore = create<MasterStore>((set, get) => ({
   },
 
   addVehicle: async (newVehicle) => {
+    const originalVehicles = get().vehicles;
     set((state) => ({ vehicles: [...state.vehicles, newVehicle] }));
-    await upsertVehicle(newVehicle);
+    try {
+      await upsertVehicle(newVehicle);
+    } catch (e) {
+      console.error("Failed to add vehicle. Rolling back.", e);
+      set({ vehicles: originalVehicles });
+      throw e;
+    }
   },
   updateVehicle: async (id, updated) => {
     const state = get();
     const target = state.vehicles.find(v => v.id === id);
     if (!target) return;
+    
     const newTarget = { ...target, ...updated };
+    const originalVehicles = [...state.vehicles];
 
     set((state) => ({
       vehicles: state.vehicles.map(v => v.id === id ? newTarget : v)
     }));
-    await upsertVehicle(newTarget);
+    try {
+      await upsertVehicle(newTarget);
+    } catch (e) {
+      console.error("Failed to update vehicle. Rolling back.", e);
+      set({ vehicles: originalVehicles });
+      throw e;
+    }
   },
   deleteVehicle: async (id) => {
     set((state) => ({ vehicles: state.vehicles.filter(v => v.id !== id) }));

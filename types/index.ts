@@ -16,6 +16,7 @@ export interface Vehicle {
   name: string;
   capacity: number;
   vehicle_type: "minivan" | "compact" | "k-car" | null;
+  is_active?: boolean;
 }
 
 export interface Staff {

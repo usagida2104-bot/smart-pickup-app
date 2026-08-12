@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useMasterStore } from "@/lib/store/masterStore";
 import { Vehicle } from "@/types";
+import { cn } from "@/lib/utils";
 
 const vehicleTypeLabels: Record<string, string> = {
   minivan: "ミニバン",
@@ -29,7 +30,7 @@ export default function VehiclesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
-  const defaultForm = { name: "", capacity: 4, vehicle_type: "compact" as Vehicle["vehicle_type"] };
+  const defaultForm = { name: "", capacity: 4, vehicle_type: "compact" as Vehicle["vehicle_type"], is_active: true };
   const [form, setForm] = useState(defaultForm);
 
   const openCreate = () => {
@@ -40,17 +41,21 @@ export default function VehiclesPage() {
 
   const openEdit = (v: Vehicle) => {
     setEditing(v);
-    setForm({ name: v.name, capacity: v.capacity, vehicle_type: v.vehicle_type });
+    setForm({ name: v.name, capacity: v.capacity, vehicle_type: v.vehicle_type, is_active: v.is_active ?? true });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (editing) {
-      updateVehicle(editing.id, form);
-    } else {
-      addVehicle({ id: `vehicle-${Date.now()}`, ...form });
+  const handleSave = async () => {
+    try {
+      if (editing) {
+        await updateVehicle(editing.id, form);
+      } else {
+        await addVehicle({ id: `vehicle-${Date.now()}`, ...form });
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      alert("保存に失敗しました。データベースに必要なカラムが不足している可能性があります。");
     }
-    setDialogOpen(false);
   };
 
   return (
@@ -73,18 +78,28 @@ export default function VehiclesPage() {
             <TableRow className="bg-gray-50">
               <TableHead className="whitespace-nowrap">車両名</TableHead>
               <TableHead className="whitespace-nowrap">種別</TableHead>
+              <TableHead className="whitespace-nowrap">稼働ステータス</TableHead>
               <TableHead className="whitespace-nowrap">定員（ドライバー除く）</TableHead>
               <TableHead className="text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {vehicles.map((v) => (
-              <TableRow key={v.id}>
+            {vehicles.map((v) => {
+              const isActive = v.is_active ?? true;
+              return (
+              <TableRow key={v.id} className={cn(!isActive && "bg-gray-100 opacity-60")}>
                 <TableCell className="font-medium whitespace-nowrap">{v.name}</TableCell>
                 <TableCell className="whitespace-nowrap">
                   <Badge variant="outline">
                     {vehicleTypeLabels[v.vehicle_type ?? ""] ?? v.vehicle_type}
                   </Badge>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {isActive ? (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">使用可能</Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-gray-200 text-gray-700 border-gray-300">使用不可</Badge>
+                  )}
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -107,7 +122,8 @@ export default function VehiclesPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
         </div>
@@ -157,6 +173,21 @@ export default function VehiclesPage() {
                 onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
                 className="mt-1.5"
               />
+            </div>
+            <div>
+              <Label>稼働ステータス</Label>
+              <Select
+                value={form.is_active ? "active" : "inactive"}
+                onValueChange={(v) => setForm({ ...form, is_active: v === "active" })}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">使用可能</SelectItem>
+                  <SelectItem value="inactive">使用不可（点検・停止中など）</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

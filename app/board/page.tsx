@@ -68,7 +68,8 @@ export default function BoardPage() {
         vehicle: v,
         driver: s,
       };
-    });
+    })
+    .filter((shift) => shift.vehicle && (shift.vehicle.is_active ?? true));
 
   const handleChildClick = (magnet: ChildMagnet, columnId: string) => {
     setSelectedChild({ magnet, columnId });

@@ -43,9 +43,14 @@ export async function fetchMasterData() {
     assignedVehicleId: s.assigned_vehicle_id,
   }));
 
+  const vehiclesFormatted = (vehicles || []).map((v: any) => ({
+    ...v,
+    is_active: v.is_active ?? true,
+  }));
+
   return {
     schools: schoolsFormatted as School[],
-    vehicles: vehicles || [],
+    vehicles: vehiclesFormatted as Vehicle[],
     staff: staffFormatted as Staff[],
     children: childrenWithSchool as Child[],
   };
@@ -101,9 +106,13 @@ export async function upsertVehicle(vehicle: Vehicle) {
     name: vehicle.name,
     capacity: vehicle.capacity,
     vehicle_type: vehicle.vehicle_type,
+    is_active: vehicle.is_active ?? true,
     updated_at: new Date().toISOString(),
   });
-  if (error) throw error;
+  if (error) {
+    console.error("Supabase upsertVehicle Error:", error);
+    throw error;
+  }
 }
 
 export async function deleteVehicle(id: string) {
