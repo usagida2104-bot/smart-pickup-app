@@ -333,29 +333,37 @@ export default function DailySetupPage() {
       </div>
 
       {/* Summary & Spot Add */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-6">
-        <div className="flex flex-wrap gap-2 md:gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-blue-50 border border-blue-200 rounded-lg">
-            <CheckCircle2 className="w-4 h-4 text-blue-600" />
-            <span className="text-xs md:text-sm font-semibold text-blue-700 whitespace-nowrap">出席 {presentCount}名</span>
+      <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4 mb-4 md:mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
+          {/* Status Group */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              <span className="text-xs md:text-sm font-semibold text-blue-700 whitespace-nowrap">出席 {presentCount}名</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 border border-red-200 rounded-lg">
+              <XCircle className="w-4 h-4 text-red-600" />
+              <span className="text-xs md:text-sm font-semibold text-red-700 whitespace-nowrap">欠席 {absentCount}名</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-orange-50 border border-orange-200 rounded-lg">
+              <Users className="w-4 h-4 text-orange-600" />
+              <span className="text-xs md:text-sm font-semibold text-orange-700 whitespace-nowrap">送迎不要 {noTransportCount}名</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 border border-red-200 rounded-lg">
-            <XCircle className="w-4 h-4 text-red-600" />
-            <span className="text-xs md:text-sm font-semibold text-red-700 whitespace-nowrap">欠席 {absentCount}名</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-orange-50 border border-orange-200 rounded-lg">
-            <Users className="w-4 h-4 text-orange-600" />
-            <span className="text-xs md:text-sm font-semibold text-orange-700 whitespace-nowrap">送迎不要 {noTransportCount}名</span>
-          </div>
-          <div className="hidden md:block w-px bg-gray-300 mx-1 self-stretch" />
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
-            <span className="text-xs font-semibold text-gray-700">ぽっけ: {unitCounts.ぽっけ}名</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
-            <span className="text-xs font-semibold text-gray-700">ぽっけⅡ: {unitCounts["ぽっけⅡ"]}名</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
-            <span className="text-xs font-semibold text-gray-700">日中一時: {unitCounts.日中一時}名</span>
+
+          <div className="hidden lg:block w-px bg-gray-300 h-8" />
+
+          {/* Unit Group */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm">
+              <span className="text-xs md:text-sm font-bold text-indigo-700 whitespace-nowrap">ぽっけ: {unitCounts.ぽっけ}名</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-violet-50 border border-violet-200 rounded-lg shadow-sm">
+              <span className="text-xs md:text-sm font-bold text-violet-700 whitespace-nowrap">ぽっけⅡ: {unitCounts["ぽっけⅡ"]}名</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-teal-50 border border-teal-200 rounded-lg shadow-sm">
+              <span className="text-xs md:text-sm font-bold text-teal-700 whitespace-nowrap">日中一時: {unitCounts.日中一時}名</span>
+            </div>
           </div>
         </div>
 
