@@ -207,13 +207,15 @@ export async function upsertDailyAttendance(attendance: DailyAttendance) {
 
 export async function saveBoardState(target_date: string, inbound_board: any, outbound_board: any) {
   const { error } = await supabase.from("board_states").upsert({
-    id: `board-${target_date}`,
     target_date,
     inbound_board,
     outbound_board,
     updated_at: new Date().toISOString(),
   });
-  if (error) throw error;
+  if (error) {
+    console.error("Supabase Save Error:", error);
+    throw error;
+  }
 }
 
 export async function upsertDailyStaff(ds: {
