@@ -531,31 +531,44 @@ export default function BoardPage() {
       <div className="p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col print:hidden">
       {/* Page header */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-4 print:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
-            <p className="text-xs md:text-sm text-gray-500 print:text-base">{displayDate} — 出席 {totalPresent}名</p>
-          </div>
-          
-          <div className="flex items-center gap-2 bg-white rounded-lg p-1 border shadow-sm print:hidden">
+        
+        {/* Left: Title & Subtitle */}
+        <div className="shrink-0">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
+          <p className="text-xs md:text-sm text-gray-500 print:text-base">{displayDate} — 出席 {totalPresent}名</p>
+        </div>
+        
+        {/* Center: Date Picker */}
+        <div className="flex-1 flex justify-start xl:justify-center overflow-x-auto print:hidden pb-1 xl:pb-0">
+          <div className="flex items-center gap-1 md:gap-2 bg-white rounded-xl p-1.5 md:p-2 border shadow-sm shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSelectedDate(addDays(selectedDate, -1))}
-              className="h-8 w-8 hover:bg-gray-100"
+              className="h-8 w-8 hover:bg-gray-100 shrink-0"
             >
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
             </Button>
             
-            <div className="relative flex items-center">
-              <CalendarIcon className="absolute left-2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <Input
+            <div className="relative group flex items-center justify-center cursor-pointer min-w-[180px]">
+              <div className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg group-hover:bg-gray-100 transition-colors pointer-events-none w-full">
+                <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-500 shrink-0" />
+                <span className="text-sm md:text-base font-bold text-gray-800 whitespace-nowrap">{displayDate}</span>
+              </div>
+              <input
                 type="date"
                 value={formatDate(selectedDate)}
                 onChange={(e) => {
                   if (e.target.value) setSelectedDate(new Date(e.target.value));
                 }}
-                className="h-8 pl-8 pr-2 w-[140px] text-sm font-medium border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 cursor-pointer"
+                onClick={(e) => {
+                  try {
+                    if (typeof (e.currentTarget as any).showPicker === 'function') {
+                      (e.currentTarget as any).showPicker();
+                    }
+                  } catch (err) {}
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
             </div>
 
@@ -563,32 +576,35 @@ export default function BoardPage() {
               variant="ghost"
               size="icon"
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-              className="h-8 w-8 hover:bg-gray-100"
+              className="h-8 w-8 hover:bg-gray-100 shrink-0"
             >
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+              <ChevronRight className="w-5 h-5 text-gray-600" />
             </Button>
 
-            <div className="w-px h-4 bg-gray-200 mx-1" />
+            <div className="w-px h-6 bg-gray-200 mx-1 shrink-0" />
             
             <Button
-              variant="ghost"
+              variant="outline"
+              size="sm"
               onClick={() => setSelectedDate(new Date())}
-              className="h-8 px-3 text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="h-8 px-3 text-xs font-bold text-gray-600 hover:text-gray-900 shrink-0"
             >
               今日
             </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 md:gap-3 print:hidden">
+
+        {/* Right: Actions */}
+        <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2 xl:gap-3 shrink-0 print:hidden">
           {overCapacityCols.length > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
-              ⚠️ {overCapacityCols.length}台が定員超過
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold">
+              ⚠️ {overCapacityCols.length}台超過
             </div>
           )}
-          <div className="flex bg-gray-100 p-1 rounded-lg">
+          <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
             <button
               onClick={() => setActiveTab("inbound")}
-              className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
                 activeTab === "inbound" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -596,38 +612,37 @@ export default function BoardPage() {
             </button>
             <button
               onClick={() => setActiveTab("outbound")}
-              className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
                 activeTab === "outbound" ? "bg-white shadow-sm text-indigo-700" : "text-gray-500 hover:text-gray-700"
               }`}
             >
               送り
             </button>
           </div>
-          <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
-            <Printer className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5 h-8 px-3 text-xs shrink-0">
+            <Printer className="w-3.5 h-3.5" />
             A4印刷
           </Button>
-          <Button variant="outline" size="sm" onClick={() => handleReset()} className="gap-2">
-            <RotateCcw className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => handleReset()} className="gap-1.5 h-8 px-3 text-xs shrink-0">
+            <RotateCcw className="w-3.5 h-3.5" />
             リセット
           </Button>
           <Button 
             size="sm" 
             onClick={handleAutoAssign} 
             disabled={isAutoAssigning}
-            className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-70 transition-all"
+            className="gap-1.5 h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-70 transition-all shrink-0"
           >
-            <Sparkles className={`w-4 h-4 ${isAutoAssigning ? "animate-pulse" : ""}`} />
+            <Sparkles className={`w-3.5 h-3.5 ${isAutoAssigning ? "animate-pulse" : ""}`} />
             {isAutoAssigning ? "AI配車中..." : "自動配車"}
           </Button>
           <Button 
             size="sm" 
-            variant="outline" 
-            className="gap-2"
             onClick={handleSave}
             disabled={isSaving}
+            className="gap-1.5 h-8 px-4 text-xs font-bold bg-gray-900 hover:bg-gray-800 text-white shrink-0"
           >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             {isSaving ? "保存中..." : "保存"}
           </Button>
         </div>
