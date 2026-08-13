@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
 import { Sparkles, RotateCcw, Save, Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { VehicleColumn } from "@/components/board/VehicleColumn";
 import { ChildCard } from "@/components/board/ChildCard";
 import { useBoardStore } from "@/lib/store/boardStore";
@@ -15,6 +16,16 @@ import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, Daily
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState } from "@/lib/supabase/service";
+
+function formatDate(date: Date) {
+  return date.toISOString().split("T")[0];
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
 
 function UnassignedPool({ children, mode, onChildClick }: { children: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void }) {
   return (
@@ -54,6 +65,7 @@ export default function BoardPage() {
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [dailyStaff, setDailyStaff] = useState<any[]>([]);
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
 
@@ -64,7 +76,7 @@ export default function BoardPage() {
       const v = dailyVehicles.find((dv) => dv.vehicle_id === ds.staff?.assignedVehicleId);
       return {
         id: `shift-${ds.staff_id}`,
-        target_date: new Date().toISOString().split("T")[0],
+        target_date: formatDate(selectedDate),
         vehicle_id: ds.staff!.assignedVehicleId!,
         driver_id: ds.staff_id,
         vehicle: v?.vehicle,
@@ -190,9 +202,9 @@ export default function BoardPage() {
 
       // 自動配車後、即座に Supabase に永続化
       setTimeout(async () => {
-        const todayStr = new Date().toISOString().split("T")[0];
+        const targetDateStr = formatDate(selectedDate);
         const state = useBoardStore.getState();
-        await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
+        await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
       }, 0);
     } catch (err: any) {
       console.error(err);
@@ -206,10 +218,10 @@ export default function BoardPage() {
     setIsSaving(true);
     setToastMessage(null);
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const targetDateStr = formatDate(selectedDate);
       const state = useBoardStore.getState();
       
-      await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
+      await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
 
       setToastMessage({ type: "success", text: "✅ 送迎表を保存しました" });
     } catch (error) {
@@ -305,16 +317,16 @@ export default function BoardPage() {
   // ボード表示用カラム: Zustandが空ならMOCK初期値を使用
   const displayColumns = board.columns.length > 0 ? board.columns : initialColumns;
 
-  // Initialize board on mount
+  // Initialize board on mount and date change
   useEffect(() => {
     if (children.length === 0) return;
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const targetDateStr = formatDate(selectedDate);
     let isMounted = true;
 
     const loadData = async () => {
       try {
-        const { attendances: fetchedAtts, boardState, dailyStaff: fetchedStaff, dailyVehicles: fetchedVehicles } = await fetchDailyData(todayStr);
+        const { attendances: fetchedAtts, boardState, dailyStaff: fetchedStaff, dailyVehicles: fetchedVehicles } = await fetchDailyData(targetDateStr);
         if (!isMounted) return;
 
         // Merge dailyStaff
@@ -336,8 +348,8 @@ export default function BoardPage() {
           const existing = fetchedAtts.find((a) => a.child_id === child.id);
           return (
             existing ?? {
-              id: `att-${todayStr}-${child.id}`,
-              target_date: todayStr,
+              id: `att-${targetDateStr}-${child.id}`,
+              target_date: targetDateStr,
               child_id: child.id,
               status: "both" as any,
               pickup_time: child.school?.default_dismissal_time ?? "14:30",
@@ -366,17 +378,17 @@ export default function BoardPage() {
 
     // リアルタイム購読の設定
     const channel = supabase
-      .channel(`board-${todayStr}`)
+      .channel(`board-${targetDateStr}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "board_states", filter: `target_date=eq.${todayStr}` },
+        { event: "*", schema: "public", table: "board_states", filter: `target_date=eq.${targetDateStr}` },
         () => {
           loadData();
         }
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "daily_attendances", filter: `target_date=eq.${todayStr}` },
+        { event: "*", schema: "public", table: "daily_attendances", filter: `target_date=eq.${targetDateStr}` },
         () => {
           loadData();
         }
@@ -388,7 +400,7 @@ export default function BoardPage() {
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children]);
+  }, [children, selectedDate]);
 
   // 同期用useEffect (児童およびスタッフマスターの変更をボードに反映)
   useEffect(() => {
@@ -483,7 +495,7 @@ export default function BoardPage() {
 
 
 
-  const today = new Date().toLocaleDateString("ja-JP", {
+  const displayDate = selectedDate.toLocaleDateString("ja-JP", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -507,8 +519,8 @@ export default function BoardPage() {
     try {
       reorderChild(activeTab, columnId, childId, direction);
       const state = useBoardStore.getState();
-      const todayStr = new Date().toISOString().split("T")[0];
-      await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
+      const targetDateStr = formatDate(selectedDate);
+      await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
     } catch (err) {
       console.error("Failed to reorder directly", err);
     }
@@ -518,10 +530,54 @@ export default function BoardPage() {
     <>
       <div className="p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col print:hidden">
       {/* Page header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4 print:mb-6">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
-          <p className="text-xs md:text-sm text-gray-500 print:text-base">{today} — 出席 {totalPresent}名</p>
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-4 print:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
+            <p className="text-xs md:text-sm text-gray-500 print:text-base">{displayDate} — 出席 {totalPresent}名</p>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-white rounded-lg p-1 border shadow-sm print:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+              className="h-8 w-8 hover:bg-gray-100"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            </Button>
+            
+            <div className="relative flex items-center">
+              <CalendarIcon className="absolute left-2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <Input
+                type="date"
+                value={formatDate(selectedDate)}
+                onChange={(e) => {
+                  if (e.target.value) setSelectedDate(new Date(e.target.value));
+                }}
+                className="h-8 pl-8 pr-2 w-[140px] text-sm font-medium border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 cursor-pointer"
+              />
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+              className="h-8 w-8 hover:bg-gray-100"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            </Button>
+
+            <div className="w-px h-4 bg-gray-200 mx-1" />
+            
+            <Button
+              variant="ghost"
+              onClick={() => setSelectedDate(new Date())}
+              className="h-8 px-3 text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              今日
+            </Button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-3 print:hidden">
           {overCapacityCols.length > 0 && (
@@ -636,7 +692,7 @@ export default function BoardPage() {
         <div className="mb-6 border-b-2 border-black pb-2">
           <h1 className="text-3xl font-bold mb-2">放デイ 送迎運行表 ({activeTab === "inbound" ? "迎え" : "送り"})</h1>
           <div className="flex justify-between items-end">
-            <p className="text-xl font-bold">{today}</p>
+            <p className="text-xl font-bold">{displayDate}</p>
             <p className="text-sm">出力日時: {new Date().toLocaleString("ja-JP")}</p>
           </div>
         </div>
