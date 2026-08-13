@@ -399,15 +399,16 @@ export default function BoardPage() {
       const newCols = boardState.columns
         .filter(col => {
           // スタッフが休みの場合は車両カラムごと削除
-          const driver = staff.find(s => s.id === col.driverId);
+          const driver = dailyStaff.find(ds => ds.staff_id === col.driverId);
           return !driver || driver.status !== "absent";
         })
         .map(col => {
-          const driver = staff.find(s => s.id === col.driverId);
+          const driver = dailyStaff.find(ds => ds.staff_id === col.driverId);
           return {
             ...col,
             driverStatus: driver?.status,
             driverStatusTime: driver?.status_time,
+            driverRole: driver?.role || driver?.staff?.role,
             children: col.children
               .filter(m => {
                 const child = children.find(c => c.id === m.id);
@@ -471,13 +472,13 @@ export default function BoardPage() {
         children: [...newUnassignedChildren, ...missingChildren]
       };
 
-      return { columns: newCols, unassigned: newUnassigned };
+      state.setBoard(mode, { columns: newCols, unassigned: newUnassigned });
     };
 
-    state.setBoard("inbound", syncBoard(state.inboundBoard, "inbound"));
-    state.setBoard("outbound", syncBoard(state.outboundBoard, "outbound"));
+    syncBoard(state.inboundBoard, "inbound");
+    syncBoard(state.outboundBoard, "outbound");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, staff, attendances]);
+  }, [children, dailyStaff, attendances]);
 
 
 

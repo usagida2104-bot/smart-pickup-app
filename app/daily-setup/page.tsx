@@ -115,6 +115,7 @@ export default function DailySetupPage() {
             staff_id: s.id,
             status: "present",
             status_time: null,
+            role: s.role,
             staff: s,
           };
         });
@@ -292,7 +293,31 @@ export default function DailySetupPage() {
         target_date: updated.target_date,
         staff_id: updated.staff_id,
         status: updated.status,
-        status_time: updated.status_time
+        status_time: updated.status_time,
+        role: updated.role
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateDailyStaffRole = async (staffId: string, role: string) => {
+    const target = dailyStaff.find(s => s.staff_id === staffId);
+    if (!target) return;
+    const updated = { ...target, role };
+    const newStaff = dailyStaff.map(s => s.staff_id === staffId ? updated : s);
+    setDailyStaff(newStaff);
+    setIsSaving(true);
+    try {
+      await upsertDailyStaff({
+        id: updated.id,
+        target_date: updated.target_date,
+        staff_id: updated.staff_id,
+        status: updated.status,
+        status_time: updated.status_time,
+        role: updated.role
       });
     } catch (err) {
       console.error(err);
@@ -681,7 +706,29 @@ export default function DailySetupPage() {
                     <TableRow key={ds.staff_id} className={cn(ds.status === "absent" && "bg-gray-50 opacity-70")}>
                       <TableCell className="font-medium whitespace-nowrap">{s.name}</TableCell>
                       <TableCell className="whitespace-nowrap">
-                        {s.role && <Badge variant="secondary">{s.role}</Badge>}
+                        <Select
+                          value={ds.role || "一般スタッフ"}
+                          onValueChange={(v) => updateDailyStaffRole(ds.staff_id, v)}
+                        >
+                          <SelectTrigger 
+                            className={cn(
+                              "w-[140px] h-8 text-xs font-bold border",
+                              ds.role?.includes("リーダー") ? (
+                                ds.role === "ぽっけリーダー" ? "bg-blue-600 text-white" :
+                                ds.role === "ぽっけⅡリーダー" ? "bg-purple-600 text-white" :
+                                ds.role === "日中一時リーダー" ? "bg-orange-500 text-white" : ""
+                              ) : "bg-gray-100 text-gray-700"
+                            )}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="一般スタッフ">一般スタッフ</SelectItem>
+                            <SelectItem value="ぽっけリーダー">ぽっけリーダー</SelectItem>
+                            <SelectItem value="ぽっけⅡリーダー">ぽっけⅡリーダー</SelectItem>
+                            <SelectItem value="日中一時リーダー">日中一時リーダー</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         <div className="flex items-center gap-2">

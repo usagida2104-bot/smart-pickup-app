@@ -222,6 +222,7 @@ export async function upsertDailyStaff(ds: {
   staff_id: string;
   status: string;
   status_time: string | null;
+  role?: string | null;
 }) {
   const { error } = await supabase.from("daily_staff").upsert({
     id: ds.id,
@@ -229,6 +230,7 @@ export async function upsertDailyStaff(ds: {
     staff_id: ds.staff_id,
     status: ds.status,
     status_time: ds.status_time,
+    role: ds.role,
     updated_at: new Date().toISOString(),
   });
   if (error) {
