@@ -15,6 +15,8 @@ describe("autoAssignVehicles", () => {
     child_id: id,
     status,
     pickup_time,
+    attendance_status: "present",
+    attendance_time: null,
     child: {
       id,
       name: `Child ${id}`,

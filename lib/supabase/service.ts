@@ -64,17 +64,25 @@ export async function fetchDailyData(targetDate: string) {
   const [
     { data: attendances, error: errAtts },
     { data: board, error: errBoard },
+    { data: dailyStaff, error: errDailyStaff },
+    { data: dailyVehicles, error: errDailyVehicles },
   ] = await Promise.all([
     supabase.from("daily_attendances").select("*").eq("target_date", targetDate),
     supabase.from("board_states").select("*").eq("target_date", targetDate).maybeSingle(),
+    supabase.from("daily_staff").select("*").eq("target_date", targetDate),
+    supabase.from("daily_vehicles").select("*").eq("target_date", targetDate),
   ]);
 
   if (errAtts) console.error("Error fetching attendances", errAtts);
   if (errBoard && errBoard.code !== 'PGRST116') console.error("Error fetching board states", errBoard); // PGRST116 is no rows
+  if (errDailyStaff) console.error("Error fetching daily staff", errDailyStaff);
+  if (errDailyVehicles) console.error("Error fetching daily vehicles", errDailyVehicles);
 
   return {
     attendances: (attendances || []) as DailyAttendance[],
     boardState: board || null, // { target_date, inbound_board, outbound_board }
+    dailyStaff: (dailyStaff || []) as any[],
+    dailyVehicles: (dailyVehicles || []) as any[],
   };
 }
 
@@ -197,13 +205,53 @@ export async function upsertDailyAttendance(attendance: DailyAttendance) {
   if (error) throw error;
 }
 
-export async function saveBoardState(targetDate: string, inboundBoard: BoardState, outboundBoard: BoardState) {
+export async function saveBoardState(target_date: string, inbound_board: any, outbound_board: any) {
   const { error } = await supabase.from("board_states").upsert({
-    target_date: targetDate,
-    inbound_board: inboundBoard as any,
-    outbound_board: outboundBoard as any,
+    id: `board-${target_date}`,
+    target_date,
+    inbound_board,
+    outbound_board,
     updated_at: new Date().toISOString(),
   });
-  
   if (error) throw error;
+}
+
+export async function upsertDailyStaff(ds: {
+  id: string;
+  target_date: string;
+  staff_id: string;
+  status: string;
+  status_time: string | null;
+}) {
+  const { error } = await supabase.from("daily_staff").upsert({
+    id: ds.id,
+    target_date: ds.target_date,
+    staff_id: ds.staff_id,
+    status: ds.status,
+    status_time: ds.status_time,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) {
+    console.error("Supabase upsertDailyStaff Error:", error);
+    throw error;
+  }
+}
+
+export async function upsertDailyVehicle(dv: {
+  id: string;
+  target_date: string;
+  vehicle_id: string;
+  is_active: boolean;
+}) {
+  const { error } = await supabase.from("daily_vehicles").upsert({
+    id: dv.id,
+    target_date: dv.target_date,
+    vehicle_id: dv.vehicle_id,
+    is_active: dv.is_active,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) {
+    console.error("Supabase upsertDailyVehicle Error:", error);
+    throw error;
+  }
 }

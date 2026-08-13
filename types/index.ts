@@ -60,10 +60,29 @@ export interface DailyAttendance {
   child_id: string;
   status: TransportMode;
   pickup_time: string | null; // "HH:MM"
-  attendance_status?: "present" | "absent" | "late" | "early_leave";
-  attendance_time?: string | null;
+  attendance_status: "present" | "absent" | "late" | "early_leave";
+  attendance_time: string | null;
   // join
-  child?: Child | null;
+  child?: Child;
+}
+
+export interface DailyStaff {
+  id: string;
+  target_date: string;
+  staff_id: string;
+  status: "present" | "absent" | "late" | "early_leave";
+  status_time: string | null;
+  // join
+  staff?: Staff;
+}
+
+export interface DailyVehicle {
+  id: string;
+  target_date: string;
+  vehicle_id: string;
+  is_active: boolean;
+  // join
+  vehicle?: Vehicle;
 }
 
 export interface DailyShift {

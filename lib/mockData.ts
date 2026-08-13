@@ -74,6 +74,8 @@ const createAttendance = (child_id: string, status: string, pickup_time: string 
     child_id,
     status: status as any,
     pickup_time,
+    attendance_status: "present",
+    attendance_time: null,
     child,
   };
 };

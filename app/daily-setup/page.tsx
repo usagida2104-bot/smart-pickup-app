@@ -11,10 +11,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { TransportMode, DailyAttendance } from "@/types";
+import { TransportMode, DailyAttendance, DailyStaff, DailyVehicle } from "@/types";
 import { cn } from "@/lib/utils";
 import { useMasterStore } from "@/lib/store/masterStore";
-import { fetchDailyData, upsertDailyAttendance } from "@/lib/supabase/service";
+import { fetchDailyData, upsertDailyAttendance, upsertDailyStaff, upsertDailyVehicle } from "@/lib/supabase/service";
 import { supabase } from "@/lib/supabase/client";
 
 const TIME_OPTIONS = Array.from({ length: 13 * 12 + 1 }).map((_, i) => {
@@ -55,9 +55,12 @@ const HOURS = Array.from({ length: 14 }, (_, i) => i + 8); // 8〜21時
 const MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 
 export default function DailySetupPage() {
-  const { children, attendances: globalAttendances, setAttendances: setGlobalAttendances, updateChild } = useMasterStore();
+  const { children, staff, vehicles, attendances: globalAttendances, setAttendances: setGlobalAttendances, updateChild } = useMasterStore();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [attendances, setAttendances] = useState<DailyAttendance[]>([]);
+  const [dailyStaff, setDailyStaff] = useState<DailyStaff[]>([]);
+  const [dailyVehicles, setDailyVehicles] = useState<DailyVehicle[]>([]);
+  const [activeTab, setActiveTab] = useState<"children" | "staff" | "vehicles">("children");
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [selectedSpotChildId, setSelectedSpotChildId] = useState<string>("");
@@ -71,20 +74,16 @@ export default function DailySetupPage() {
 
     const loadData = async () => {
       try {
-        const { attendances: fetchedAtts } = await fetchDailyData(targetDateStr);
+        const { attendances: fetchedAtts, dailyStaff: fetchedStaff, dailyVehicles: fetchedVehicles } = await fetchDailyData(targetDateStr);
         
         if (!isMounted) return;
 
         const dayOfWeek = selectedDate.getDay();
 
-        // 既にDBにレコードがある児童、または利用曜日に該当する児童のみ抽出
+        // Children logic
         const relevantChildren = children.filter(child => {
           const dbRecord = fetchedAtts.find(a => a.child_id === child.id);
-          
-          if (dbRecord && dbRecord.attendance_status === ("excluded" as any)) {
-            return false;
-          }
-
+          if (dbRecord && dbRecord.attendance_status === ("excluded" as any)) return false;
           const scheduled = (child.weekly_schedule ?? [1, 2, 3, 4, 5]).includes(dayOfWeek);
           return !!dbRecord || scheduled;
         });
@@ -104,9 +103,35 @@ export default function DailySetupPage() {
             }
           );
         });
-        
         setAttendances(mergedAtts);
         setGlobalAttendances(mergedAtts);
+
+        // Staff logic
+        const mergedStaff = staff.map((s) => {
+          const existing = fetchedStaff.find((ds: any) => ds.staff_id === s.id);
+          return existing ?? {
+            id: `d-staff-${targetDateStr}-${s.id}`,
+            target_date: targetDateStr,
+            staff_id: s.id,
+            status: "present",
+            status_time: null,
+            staff: s,
+          };
+        });
+        setDailyStaff(mergedStaff);
+
+        // Vehicles logic
+        const mergedVehicles = vehicles.map((v) => {
+          const existing = fetchedVehicles.find((dv: any) => dv.vehicle_id === v.id);
+          return existing ?? {
+            id: `d-veh-${targetDateStr}-${v.id}`,
+            target_date: targetDateStr,
+            vehicle_id: v.id,
+            is_active: v.is_active ?? true,
+            vehicle: v,
+          };
+        });
+        setDailyVehicles(mergedVehicles);
       } catch (err) {
         console.error("Failed to fetch daily attendances", err);
       }
@@ -245,6 +270,58 @@ export default function DailySetupPage() {
     performSave(updated);
   };
 
+  const updateDailyStaffStatus = async (staffId: string, status: "present" | "absent" | "late" | "early_leave", time?: string | null) => {
+    const target = dailyStaff.find(s => s.staff_id === staffId);
+    if (!target) return;
+    const updated = {
+      ...target,
+      status,
+      status_time: time !== undefined ? time : target.status_time
+    };
+    if (status === "late" || status === "early_leave") {
+      updated.status_time = updated.status_time || "14:00";
+    } else {
+      updated.status_time = null;
+    }
+    const newStaff = dailyStaff.map(s => s.staff_id === staffId ? updated : s);
+    setDailyStaff(newStaff);
+    setIsSaving(true);
+    try {
+      await upsertDailyStaff({
+        id: updated.id,
+        target_date: updated.target_date,
+        staff_id: updated.staff_id,
+        status: updated.status,
+        status_time: updated.status_time
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateDailyVehicleActive = async (vehicleId: string, isActive: boolean) => {
+    const target = dailyVehicles.find(v => v.vehicle_id === vehicleId);
+    if (!target) return;
+    const updated = { ...target, is_active: isActive };
+    const newVehicles = dailyVehicles.map(v => v.vehicle_id === vehicleId ? updated : v);
+    setDailyVehicles(newVehicles);
+    setIsSaving(true);
+    try {
+      await upsertDailyVehicle({
+        id: updated.id,
+        target_date: updated.target_date,
+        vehicle_id: updated.vehicle_id,
+        is_active: updated.is_active
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const presentCount = attendances.filter((a) => a.attendance_status === "present" || a.attendance_status === "late" || a.attendance_status === "early_leave").length;
   const absentCount = attendances.filter((a) => a.attendance_status === "absent").length;
   const noTransportCount = attendances.filter((a) => a.status === "no_transport").length;
@@ -331,6 +408,31 @@ export default function DailySetupPage() {
           今日
         </Button>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
+        <button
+          className={cn("px-4 py-2 font-semibold border-b-2 transition-colors whitespace-nowrap", activeTab === "children" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700")}
+          onClick={() => setActiveTab("children")}
+        >
+          児童設定
+        </button>
+        <button
+          className={cn("px-4 py-2 font-semibold border-b-2 transition-colors whitespace-nowrap", activeTab === "staff" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700")}
+          onClick={() => setActiveTab("staff")}
+        >
+          職員設定
+        </button>
+        <button
+          className={cn("px-4 py-2 font-semibold border-b-2 transition-colors whitespace-nowrap", activeTab === "vehicles" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700")}
+          onClick={() => setActiveTab("vehicles")}
+        >
+          車両設定
+        </button>
+      </div>
+
+      {activeTab === "children" && (
+        <>
 
       {/* Summary & Spot Add */}
       <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4 mb-4 md:mb-6">
@@ -557,6 +659,112 @@ export default function DailySetupPage() {
         </Table>
         </div>
       </div>
+      </>
+      )}
+
+      {activeTab === "staff" && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="whitespace-nowrap">職員名</TableHead>
+                  <TableHead className="whitespace-nowrap">役職</TableHead>
+                  <TableHead className="whitespace-nowrap">出勤ステータス</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dailyStaff.map(ds => {
+                  const s = ds.staff;
+                  if (!s) return null;
+                  return (
+                    <TableRow key={ds.staff_id} className={cn(ds.status === "absent" && "bg-gray-50 opacity-70")}>
+                      <TableCell className="font-medium whitespace-nowrap">{s.name}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {s.role && <Badge variant="secondary">{s.role}</Badge>}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={ds.status}
+                            onValueChange={(v: any) => updateDailyStaffStatus(ds.staff_id, v)}
+                          >
+                            <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(ds.status))}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="present"><span className="text-pink-700 font-bold">出勤</span></SelectItem>
+                              <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
+                              <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
+                              <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {(ds.status === "late" || ds.status === "early_leave") && (
+                            <Select
+                              value={ds.status_time || "14:00"}
+                              onValueChange={(v) => updateDailyStaffStatus(ds.staff_id, ds.status as any, v)}
+                            >
+                              <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[200px]">
+                                {TIME_OPTIONS.map((time) => (
+                                  <SelectItem key={time} value={time}>{time}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "vehicles" && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="whitespace-nowrap">車両名</TableHead>
+                  <TableHead className="whitespace-nowrap">稼働ステータス</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dailyVehicles.map(dv => {
+                  const v = dv.vehicle;
+                  if (!v) return null;
+                  return (
+                    <TableRow key={dv.vehicle_id} className={cn(!dv.is_active && "bg-gray-100 opacity-60")}>
+                      <TableCell className="font-medium whitespace-nowrap">{v.name}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Select
+                          value={dv.is_active ? "active" : "inactive"}
+                          onValueChange={(val) => updateDailyVehicleActive(dv.vehicle_id, val === "active")}
+                        >
+                          <SelectTrigger className="w-[140px] h-8 text-xs font-bold border">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">使用可能</SelectItem>
+                            <SelectItem value="inactive">使用不可</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       {/* Auto-Save Status */}
       <div className="mt-6 flex justify-end">

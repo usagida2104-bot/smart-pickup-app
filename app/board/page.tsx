@@ -11,7 +11,7 @@ import { useBoardStore } from "@/lib/store/boardStore";
 import { autoAssignVehicles } from "@/lib/autoAssignVehicles";
 import { MOCK_WHITEBOARD_STATE, toMagnet, MOCK_STAFF, OFFICE_ADDRESS } from "@/lib/mockData";
 import { useMasterStore } from "@/lib/store/masterStore";
-import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance } from "@/types";
+import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, DailyStaff, DailyVehicle } from "@/types";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState } from "@/lib/supabase/service";
@@ -52,24 +52,27 @@ export default function BoardPage() {
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [dailyStaff, setDailyStaff] = useState<any[]>([]);
+  const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
 
-  // 本日の稼働シフトをスタッフの担当車両設定から動的に構築
-  const dynamicShifts = staff
-    .filter((s) => s.is_driver && s.assignedVehicleId && s.status !== "absent")
-    .map((s) => {
-      const v = vehicles.find((v) => v.id === s.assignedVehicleId);
+  // 本日の稼働シフトを日別設定から動的に構築
+  const dynamicShifts = dailyStaff
+    .filter((ds) => ds.staff?.is_driver && ds.staff?.assignedVehicleId && ds.status !== "absent")
+    .map((ds) => {
+      const v = dailyVehicles.find((dv) => dv.vehicle_id === ds.staff?.assignedVehicleId);
       return {
-        id: `shift-${s.id}`,
+        id: `shift-${ds.staff_id}`,
         target_date: new Date().toISOString().split("T")[0],
-        vehicle_id: s.assignedVehicleId!,
-        driver_id: s.id,
-        vehicle: v,
-        driver: s,
+        vehicle_id: ds.staff!.assignedVehicleId!,
+        driver_id: ds.staff_id,
+        vehicle: v?.vehicle,
+        driver: ds.staff,
+        is_active: v?.is_active ?? true,
       };
     })
-    .filter((shift) => shift.vehicle && (shift.vehicle.is_active ?? true));
+    .filter((shift) => shift.vehicle && shift.is_active);
 
   const handleChildClick = (magnet: ChildMagnet, columnId: string) => {
     setSelectedChild({ magnet, columnId });
@@ -311,8 +314,22 @@ export default function BoardPage() {
 
     const loadData = async () => {
       try {
-        const { attendances: fetchedAtts, boardState } = await fetchDailyData(todayStr);
+        const { attendances: fetchedAtts, boardState, dailyStaff: fetchedStaff, dailyVehicles: fetchedVehicles } = await fetchDailyData(todayStr);
         if (!isMounted) return;
+
+        // Merge dailyStaff
+        const mergedStaff = staff.map((s) => {
+          const existing = fetchedStaff?.find((ds: any) => ds.staff_id === s.id);
+          return existing ?? { staff_id: s.id, status: "present", staff: s };
+        });
+        setDailyStaff(mergedStaff);
+
+        // Merge dailyVehicles
+        const mergedVehicles = vehicles.map((v) => {
+          const existing = fetchedVehicles?.find((dv: any) => dv.vehicle_id === v.id);
+          return existing ?? { vehicle_id: v.id, is_active: v.is_active ?? true, vehicle: v };
+        });
+        setDailyVehicles(mergedVehicles);
 
         // attendance の反映 (未保存の児童もデフォルト設定でマージする)
         const mergedAtts = children.map((child) => {
