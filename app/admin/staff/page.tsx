@@ -102,7 +102,6 @@ export default function StaffPage() {
               <TableRow className="bg-gray-50">
                 <TableHead className="whitespace-nowrap">名前</TableHead>
                 <TableHead className="whitespace-nowrap">所属 / 役職</TableHead>
-                <TableHead className="whitespace-nowrap min-w-[220px]">ステータス</TableHead>
                 <TableHead className="whitespace-nowrap">ドライバー</TableHead>
                 <TableHead className="text-right whitespace-nowrap">操作</TableHead>
               </TableRow>
@@ -132,16 +131,6 @@ export default function StaffPage() {
                         {s.role}
                       </Badge>
                     )}
-                  </div>
-                </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn("px-3 py-1 font-bold", getStatusColor(s.status))}>
-                      {s.status === "absent" ? "休み" :
-                       s.status === "late" ? `遅刻 ${s.status_time ? `(${s.status_time})` : ""}` :
-                       s.status === "early_leave" ? `早退 ${s.status_time ? `(${s.status_time})` : ""}` :
-                       "出勤"}
-                    </Badge>
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
