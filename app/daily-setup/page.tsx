@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, XCircle, Users, Clock, ChevronLeft, ChevronRight, Loader2, CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateSelector } from "@/components/ui/date-selector";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -381,57 +382,8 @@ export default function DailySetupPage() {
       </div>
 
       {/* Date Selector */}
-      <div className="flex items-center justify-between gap-2 md:gap-4 mb-4 md:mb-6 p-3 md:p-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSelectedDate((d) => addDays(d, -1))}
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex-1 text-center flex justify-center items-center">
-          <div className="relative group flex items-center justify-center cursor-pointer">
-            <div className="flex items-center gap-2 group-hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors pointer-events-none">
-              <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
-              <p className="text-base md:text-lg font-semibold text-gray-800 whitespace-nowrap">{displayDate}</p>
-            </div>
-            <input 
-              type="date" 
-              value={formatDate(selectedDate)}
-              onChange={(e) => {
-                if (e.target.value) {
-                  const d = new Date(e.target.value);
-                  setSelectedDate(d);
-                }
-              }}
-              onClick={(e) => {
-                try {
-                  if (typeof (e.currentTarget as any).showPicker === 'function') {
-                    (e.currentTarget as any).showPicker();
-                  }
-                } catch (err) {
-                  console.error(err);
-                }
-              }}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSelectedDate((d) => addDays(d, 1))}
-        >
-          <ChevronRight className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSelectedDate(new Date())}
-          className="ml-2"
-        >
-          今日
-        </Button>
+      <div className="mb-4 md:mb-6">
+        <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
       </div>
 
       {/* Tabs */}
