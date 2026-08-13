@@ -109,7 +109,7 @@ export default function DailySetupPage() {
         // Staff logic
         const mergedStaff = staff.map((s) => {
           const existing = fetchedStaff.find((ds: any) => ds.staff_id === s.id);
-          return existing ?? {
+          return existing ? { ...existing, staff: s } : {
             id: `d-staff-${targetDateStr}-${s.id}`,
             target_date: targetDateStr,
             staff_id: s.id,
@@ -124,7 +124,7 @@ export default function DailySetupPage() {
         // Vehicles logic
         const mergedVehicles = vehicles.map((v) => {
           const existing = fetchedVehicles.find((dv: any) => dv.vehicle_id === v.id);
-          return existing ?? {
+          return existing ? { ...existing, vehicle: v } : {
             id: `d-veh-${targetDateStr}-${v.id}`,
             target_date: targetDateStr,
             vehicle_id: v.id,

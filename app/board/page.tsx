@@ -320,14 +320,14 @@ export default function BoardPage() {
         // Merge dailyStaff
         const mergedStaff = staff.map((s) => {
           const existing = fetchedStaff?.find((ds: any) => ds.staff_id === s.id);
-          return existing ?? { staff_id: s.id, status: "present", staff: s };
+          return existing ? { ...existing, staff: s } : { staff_id: s.id, status: "present", role: s.role, staff: s };
         });
         setDailyStaff(mergedStaff);
 
         // Merge dailyVehicles
         const mergedVehicles = vehicles.map((v) => {
           const existing = fetchedVehicles?.find((dv: any) => dv.vehicle_id === v.id);
-          return existing ?? { vehicle_id: v.id, is_active: v.is_active ?? true, vehicle: v };
+          return existing ? { ...existing, vehicle: v } : { vehicle_id: v.id, is_active: v.is_active ?? true, vehicle: v };
         });
         setDailyVehicles(mergedVehicles);
 
