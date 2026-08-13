@@ -136,51 +136,12 @@ export default function StaffPage() {
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2">
-                    <Select 
-                      value={s.status || "present"}
-                      onValueChange={async (v: "present" | "absent" | "late" | "early_leave") => {
-                        try {
-                          await updateStaff(s.id, { 
-                            status: v, 
-                            status_time: (v === "late" || v === "early_leave") ? (s.status_time || "09:00") : null 
-                          });
-                        } catch (e) {
-                          alert("保存に失敗しました。");
-                        }
-                      }}
-                    >
-                      <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(s.status))}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="present"><span className="text-pink-700 font-bold">出勤</span></SelectItem>
-                        <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
-                        <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
-                        <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {(s.status === "late" || s.status === "early_leave") && (
-                      <Select
-                        value={s.status_time || "09:00"}
-                        onValueChange={async (v) => {
-                          try {
-                            await updateStaff(s.id, { status_time: v });
-                          } catch (e) {
-                            alert("保存に失敗しました。");
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="w-[80px] h-8 text-xs bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TIME_OPTIONS.map((time) => (
-                            <SelectItem key={time} value={time}>{time}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <Badge variant="outline" className={cn("px-3 py-1 font-bold", getStatusColor(s.status))}>
+                      {s.status === "absent" ? "休み" :
+                       s.status === "late" ? `遅刻 ${s.status_time ? `(${s.status_time})` : ""}` :
+                       s.status === "early_leave" ? `早退 ${s.status_time ? `(${s.status_time})` : ""}` :
+                       "出勤"}
+                    </Badge>
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
