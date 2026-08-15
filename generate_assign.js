@@ -1,4 +1,6 @@
-import {
+const fs = require('fs');
+
+const code = `import {
   AssignInput,
   AssignResult,
   ChildMagnet,
@@ -46,11 +48,11 @@ function canRideTogether(group: ChildMagnet[], newChild: ChildMagnet): boolean {
   
   const hasNG = (notes: string | null, targetName: string) => {
     if (!notes) return false;
-    return notes.includes(`NG:${targetName}`) || 
-           notes.includes(`NG: ${targetName}`) || 
-           notes.includes(`NG ${targetName}`) ||
-           notes.includes(`${targetName}NG`) ||
-           notes.includes(`${targetName} NG`);
+    return notes.includes(\`NG:\${targetName}\`) || 
+           notes.includes(\`NG: \${targetName}\`) || 
+           notes.includes(\`NG \${targetName}\`) ||
+           notes.includes(\`\${targetName}NG\`) ||
+           notes.includes(\`\${targetName} NG\`);
   };
 
   for (const c of group) {
@@ -92,7 +94,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     };
   });
 
-  console.log(`\n[AutoAssign] クラスタリング開始... 対象児童: ${allMagnets.length}名`);
+  console.log(\`\\n[AutoAssign] クラスタリング開始... 対象児童: \${allMagnets.length}名\`);
 
   // Step 2: 児童のクラスタリング (MissionGroup 化)
   const schoolGroups = new Map<string, ChildMagnet[]>();
@@ -125,7 +127,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       }
       if (!merged) {
         currentGroups.push({
-          id: `mg-${groupIdCounter++}`,
+          id: \`mg-\${groupIdCounter++}\`,
           school_name: schoolName,
           base_pickup_time: student.pickup_time,
           children: [student],
@@ -146,7 +148,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       }
       if (!merged) {
         currentGroups.push({
-          id: `mg-${groupIdCounter++}`,
+          id: \`mg-\${groupIdCounter++}\`,
           school_name: schoolName,
           base_pickup_time: "15:00", // Default time
           children: [student],
@@ -159,7 +161,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   }
 
   missionGroups.forEach(mg => {
-    console.log(`[AutoAssign] クラスタ生成: ${mg.school_name} / ${mg.base_pickup_time} (${mg.tripIndex}便目) / ${mg.children.length}名 -> ${mg.children.map(c => c.name).join(", ")}`);
+    console.log(\`[AutoAssign] クラスタ生成: \${mg.school_name} / \${mg.base_pickup_time} (\${mg.tripIndex}便目) / \${mg.children.length}名 -> \${mg.children.map(c => c.name).join(", ")}\`);
   });
 
   // Step 3 & 4: タイムラインの分類とキャパシティ最適化
@@ -232,14 +234,14 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
           
           let trip = col.trips.find(t => t.tripIndex === tripIndex);
           if (!trip) {
-            trip = { id: `${col.shiftId}-trip-${tripIndex}`, tripIndex, children: [] };
+            trip = { id: \`\${col.shiftId}-trip-\${tripIndex}\`, tripIndex, children: [] };
             col.trips.push(trip);
           }
           trip.children.push(...toAssign);
-          console.log(`[AutoAssign] 割当: ${col.vehicleName} ${tripIndex}便目に ${toAssign.length}名 (${group.school_name})`);
+          console.log(\`[AutoAssign] 割当: \${col.vehicleName} \${tripIndex}便目に \${toAssign.length}名 (\${group.school_name})\`);
         } else {
           // どの車両の、どの便（〜4便）にも全く空きがない場合
-          console.warn(`[AutoAssign] キャパシティ完全超過: ${unassignedFromGroup.length}名を未割り当てに移行 (${group.school_name})`);
+          console.warn(\`[AutoAssign] キャパシティ完全超過: \${unassignedFromGroup.length}名を未割り当てに移行 (\${group.school_name})\`);
           unassigned.push(...unassignedFromGroup);
           break; // このグループの残りは諦める
         }
@@ -250,11 +252,15 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   // 1便も作られなかった車両があれば、UI互換性のために空の1便目をセット
   for (const col of columns) {
     if (col.trips.length === 0) {
-      col.trips.push({ id: `${col.shiftId}-trip-1`, tripIndex: 1, children: [] });
+      col.trips.push({ id: \`\${col.shiftId}-trip-1\`, tripIndex: 1, children: [] });
     }
   }
 
-  console.log(`[AutoAssign] 完了: 割り当て成功 ${allMagnets.length - unassigned.length}名, 未割り当て ${unassigned.length}名\n`);
+  console.log(\`[AutoAssign] 完了: 割り当て成功 \${allMagnets.length - unassigned.length}名, 未割り当て \${unassigned.length}名\\n\`);
   
   return { columns, unassigned };
 }
+`;
+
+fs.writeFileSync('lib/autoAssignVehicles.ts', code);
+console.log("Written autoAssignVehicles.ts");
