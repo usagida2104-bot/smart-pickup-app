@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+const fs = require('fs');
+
+const testCode = `import { describe, it, expect } from "vitest";
 import { autoAssignVehicles } from "../lib/autoAssignVehicles";
 import { DailyAttendance, DailyShift, TransportMode } from "../types";
 
@@ -20,7 +22,7 @@ describe("autoAssignVehicles (3-Phase Zero-Unassigned Mode)", () => {
     attendance_time: null,
     child: {
       id,
-      name: `Child ${id}`,
+      name: \`Child \${id}\`,
       school_id: "s1",
       unit_name,
       has_caution: false,
@@ -41,7 +43,7 @@ describe("autoAssignVehicles (3-Phase Zero-Unassigned Mode)", () => {
     driver_id: "d1",
     vehicle: {
       id,
-      name: `Vehicle ${id} (Cap ${capacity})`,
+      name: \`Vehicle \${id} (Cap \${capacity})\`,
       capacity,
       vehicle_type: "minivan",
     },
@@ -165,3 +167,7 @@ describe("autoAssignVehicles (3-Phase Zero-Unassigned Mode)", () => {
     expect(assignedCount).toBe(8);
   });
 });
+`;
+
+fs.writeFileSync('__tests__/autoAssignVehicles.test.ts', testCode);
+console.log("Written autoAssignVehicles.test.ts");

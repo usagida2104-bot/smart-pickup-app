@@ -1,4 +1,6 @@
-import {
+const fs = require('fs');
+
+const code = `import {
   AssignInput,
   AssignResult,
   ChildMagnet,
@@ -46,11 +48,11 @@ function canRideTogether(group: ChildMagnet[], newChild: ChildMagnet): boolean {
   
   const hasNG = (notes: string | null, targetName: string) => {
     if (!notes) return false;
-    return notes.includes(`NG:${targetName}`) || 
-           notes.includes(`NG: ${targetName}`) || 
-           notes.includes(`NG ${targetName}`) ||
-           notes.includes(`${targetName}NG`) ||
-           notes.includes(`${targetName} NG`);
+    return notes.includes(\`NG:\${targetName}\`) || 
+           notes.includes(\`NG: \${targetName}\`) || 
+           notes.includes(\`NG \${targetName}\`) ||
+           notes.includes(\`\${targetName}NG\`) ||
+           notes.includes(\`\${targetName} NG\`);
   };
 
   for (const c of group) {
@@ -91,7 +93,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     };
   });
 
-  console.log(`\n[AutoAssign] 配車開始... 総出席児童: ${allMagnets.length}名`);
+  console.log(\`\\n[AutoAssign] 配車開始... 総出席児童: \${allMagnets.length}名\`);
 
   // ==========================================
   // 前処理: クラスタリング
@@ -126,7 +128,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       }
       if (!merged) {
         currentGroups.push({
-          id: `mg-${groupIdCounter++}`,
+          id: \`mg-\${groupIdCounter++}\`,
           school_name: schoolName,
           base_pickup_time: student.pickup_time,
           children: [student],
@@ -147,7 +149,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       }
       if (!merged) {
         currentGroups.push({
-          id: `mg-${groupIdCounter++}`,
+          id: \`mg-\${groupIdCounter++}\`,
           school_name: schoolName,
           base_pickup_time: "15:00",
           children: [student],
@@ -177,7 +179,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   // ==========================================
   // Phase 1: 理想クラスタリング配車（同一校のみ）
   // ==========================================
-  console.log(`[AutoAssign] Phase 1 開始...`);
+  console.log(\`[AutoAssign] Phase 1 開始...\`);
   for (let currentTripIndex = 1; currentTripIndex <= 4; currentTripIndex++) {
     const groupsForTrip = missionGroups.filter(g => g.tripIndex === currentTripIndex);
     groupsForTrip.sort((a, b) => b.children.length - a.children.length);
@@ -190,23 +192,26 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
         let targetTripIndex = currentTripIndex;
         let found = false;
 
-        for (const col of columns) {
-          let existingTrip = col.trips.find(t => t.tripIndex === targetTripIndex);
-          
-          if (!existingTrip) {
-            bestSlot = { col, tripIndex: targetTripIndex, capacity: col.capacity };
-            found = true;
-            break;
-          } else {
-            // Phase 1 制約: 同一学校のみ相乗り可
-            if (existingTrip.children.length < col.capacity && existingTrip.children[0]?.school_name === group.school_name) {
-              if (canRideTogether(existingTrip.children, unassignedFromGroup[0])) {
-                bestSlot = { col, tripIndex: targetTripIndex, capacity: col.capacity - existingTrip.children.length };
-                found = true;
-                break;
+        while (targetTripIndex <= 4 && !found) {
+          for (const col of columns) {
+            let existingTrip = col.trips.find(t => t.tripIndex === targetTripIndex);
+            
+            if (!existingTrip) {
+              bestSlot = { col, tripIndex: targetTripIndex, capacity: col.capacity };
+              found = true;
+              break;
+            } else {
+              // Phase 1 制約: 同一学校のみ相乗り可
+              if (existingTrip.children.length < col.capacity && existingTrip.children[0]?.school_name === group.school_name) {
+                if (canRideTogether(existingTrip.children, unassignedFromGroup[0])) {
+                  bestSlot = { col, tripIndex: targetTripIndex, capacity: col.capacity - existingTrip.children.length };
+                  found = true;
+                  break;
+                }
               }
             }
           }
+          if (!found) targetTripIndex++;
         }
 
         if (bestSlot) {
@@ -214,7 +219,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
           const toAssign = unassignedFromGroup.splice(0, capacity);
           let trip = col.trips.find(t => t.tripIndex === tripIndex);
           if (!trip) {
-            trip = { id: `${col.shiftId}-trip-${tripIndex}`, tripIndex, children: [] };
+            trip = { id: \`\${col.shiftId}-trip-\${tripIndex}\`, tripIndex, children: [] };
             col.trips.push(trip);
           }
           trip.children.push(...toAssign);
@@ -230,7 +235,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   // Phase 2: 同時間帯の相乗り（学校違いを許可）
   // ==========================================
   if (unassigned.length > 0) {
-    console.log(`[AutoAssign] Phase 2 開始... 対象:${unassigned.length}名`);
+    console.log(\`[AutoAssign] Phase 2 開始... 対象:\${unassigned.length}名\`);
     let phase2Unassigned: ChildMagnet[] = [];
     
     for (const child of unassigned) {
@@ -242,7 +247,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
         let existingTrip = col.trips.find(t => t.tripIndex === idealTripIndex);
         if (!existingTrip) {
           // 全く空いている便
-          const trip = { id: `${col.shiftId}-trip-${idealTripIndex}`, tripIndex: idealTripIndex, children: [child] };
+          const trip = { id: \`\${col.shiftId}-trip-\${idealTripIndex}\`, tripIndex: idealTripIndex, children: [child] };
           col.trips.push(trip);
           assigned = true;
           break;
@@ -267,7 +272,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   // Phase 3: 未割り当て完全ゼロ保証 (時間外も許可)
   // ==========================================
   if (unassigned.length > 0) {
-    console.log(`[AutoAssign] Phase 3 開始... 対象:${unassigned.length}名`);
+    console.log(\`[AutoAssign] Phase 3 開始... 対象:\${unassigned.length}名\`);
     let phase3Unassigned: ChildMagnet[] = [];
 
     for (const child of unassigned) {
@@ -285,7 +290,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
         for (const col of columns) {
           let existingTrip = col.trips.find(t => t.tripIndex === tripIndex);
           if (!existingTrip) {
-            const trip = { id: `${col.shiftId}-trip-${tripIndex}`, tripIndex, children: [child] };
+            const trip = { id: \`\${col.shiftId}-trip-\${tripIndex}\`, tripIndex, children: [child] };
             col.trips.push(trip);
             assigned = true;
             break;
@@ -313,7 +318,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   // UI互換性のため、1便も作られなかった車両に空の1便目をセット
   for (const col of columns) {
     if (col.trips.length === 0) {
-      col.trips.push({ id: `${col.shiftId}-trip-1`, tripIndex: 1, children: [] });
+      col.trips.push({ id: \`\${col.shiftId}-trip-1\`, tripIndex: 1, children: [] });
     }
     // ソート (tripIndex昇順)
     col.trips.sort((a, b) => a.tripIndex - b.tripIndex);
@@ -323,7 +328,11 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   const assignedCount = total - unassigned.length;
   const unassignedCount = unassigned.length;
   
-  console.log(`【配車完了】総出席児童: ${total} 配車済み: ${assignedCount} 未割り当て残数: ${unassignedCount}`);
+  console.log(\`【配車完了】総出席児童: \${total} 配車済み: \${assignedCount} 未割り当て残数: \${unassignedCount}\`);
 
   return { columns, unassigned };
 }
+`;
+
+fs.writeFileSync('lib/autoAssignVehicles.ts', code);
+console.log("Written 3-phase autoAssignVehicles.ts");
