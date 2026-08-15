@@ -27,17 +27,32 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   inboundBoard: { ...emptyBoard },
   outboundBoard: { ...emptyBoard },
 
-  setBoard: (mode, board) => set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: board }),
+  setBoard: (mode, board) => {
+    const migratedColumns = (board.columns || []).map(col => {
+      if (!col.trips || col.trips.length === 0) {
+        return {
+          ...col,
+          trips: [{
+            id: `${col.shiftId || col.id}-trip-1`,
+            tripIndex: 1,
+            children: col.children || []
+          }]
+        };
+      }
+      return col;
+    });
+    set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: migratedColumns } });
+  },
 
   moveChild: (mode, childId, fromDropZoneId, toDropZoneId, toIndex) => {
     const state = get();
     const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
 
     let movedChild: ChildMagnet | undefined;
-    let newUnassigned = [...board.unassigned.children];
+    let newUnassigned = [...(board.unassigned?.children || [])];
     let newColumns = board.columns.map((col) => ({
       ...col,
-      trips: col.trips.map(t => ({ ...t, children: [...t.children] }))
+      trips: (col.trips || []).map(t => ({ ...t, children: [...t.children] }))
     }));
 
     if (fromDropZoneId === "unassigned") {
@@ -47,7 +62,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       }
     } else {
       for (const col of newColumns) {
-        const trip = col.trips.find(t => t.id === fromDropZoneId);
+        const trip = (col.trips || []).find(t => t.id === fromDropZoneId);
         if (trip) {
           const idx = trip.children.findIndex((c) => c.id === childId);
           if (idx !== -1) {
@@ -68,7 +83,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       }
     } else {
       for (const col of newColumns) {
-        const trip = col.trips.find(t => t.id === toDropZoneId);
+        const trip = (col.trips || []).find(t => t.id === toDropZoneId);
         if (trip) {
           if (toIndex !== undefined) {
             trip.children.splice(toIndex, 0, movedChild);
@@ -92,9 +107,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const state = get();
     const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
     for (const col of board.columns) {
-      const trip = col.trips.find(t => t.id === tripId);
+      const trip = (col.trips || []).find(t => t.id === tripId);
       if (trip) {
-        return trip.children.length > col.capacity;
+        return (trip.children || []).length > col.capacity;
       }
     }
     return false;
@@ -104,11 +119,11 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const state = get();
     const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
     const newColumns = board.columns.map((col) => {
-      const hasTrip = col.trips.some(t => t.id === tripId);
+      const hasTrip = (col.trips || []).some(t => t.id === tripId);
       if (!hasTrip) return col;
       return {
         ...col,
-        trips: col.trips.map(t => {
+        trips: (col.trips || []).map(t => {
           if (t.id === tripId) {
             return {
               ...t,
@@ -127,16 +142,16 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
     const newColumns = board.columns.map((col) => ({
       ...col,
-      trips: col.trips.map(t => ({ ...t, children: [...t.children] }))
+      trips: (col.trips || []).map(t => ({ ...t, children: [...t.children] }))
     }));
     
     for (const col of newColumns) {
-      const trip = col.trips.find(t => t.id === tripId);
+      const trip = (col.trips || []).find(t => t.id === tripId);
       if (trip) {
         const idx = trip.children.findIndex(c => c.id === childId);
         if (idx !== -1) {
           const newIdx = idx + direction;
-          if (newIdx >= 0 && newIdx < trip.children.length) {
+          if (newIdx >= 0 && newIdx < (trip.children || []).length) {
             const temp = trip.children[idx];
             trip.children[idx] = trip.children[newIdx];
             trip.children[newIdx] = temp;
@@ -159,11 +174,11 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
     const newColumns = board.columns.map((col) => {
       if (col.id === columnId) {
-        const tripIndex = col.trips.length + 1;
+        const tripIndex = (col.trips || []).length + 1;
         return {
           ...col,
           trips: [
-            ...col.trips,
+            ...(col.trips || []),
             {
               id: `${col.shiftId}-trip-${tripIndex}`,
               tripIndex,

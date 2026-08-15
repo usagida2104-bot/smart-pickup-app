@@ -132,8 +132,8 @@ export default function BoardPage() {
 
       // 現在ボード上（カラム＋未割り当て）にいる児童を対象とする
       const allChildrenOnBoard = [
-        ...board.unassigned.children,
-        ...board.columns.flatMap(c => c.trips.flatMap((t: any) => t.children))
+        ...(board.unassigned?.children || []),
+        ...(board?.columns || []).flatMap(c => c.trips.flatMap((t: any) => t.children))
       ];
 
       const currentAttendances = allChildrenOnBoard.map(c => ({
@@ -179,7 +179,7 @@ export default function BoardPage() {
         );
         // APIからの返り値が multiple trips (col.trips) を持っていると仮定するか、ここで変換するか
         // api/auto-assign が trips を返すように後で修正するため、ここでそのまま受け取る
-        const trips = assignment?.trips?.map((t: any) => ({
+        const trips = (assignment?.trips || []).map((t: any) => ({
           ...t,
           children: t.childrenIds.filter((id: string) => allExpectedIds.has(id)).map((id: string) => {
             allExpectedIds.delete(id);
@@ -338,7 +338,7 @@ export default function BoardPage() {
   }));
 
   // ボード表示用カラム: Zustandが空ならMOCK初期値を使用
-  const displayColumns = board.columns.length > 0 ? board.columns : initialColumns;
+  const displayColumns = (board?.columns || []).length > 0 ? board.columns : initialColumns;
 
   // Initialize board on mount and date change
   useEffect(() => {
@@ -441,19 +441,27 @@ export default function BoardPage() {
     if (children.length === 0 || attendances.length === 0) return;
 
     const syncBoard = (boardState: any, mode: "inbound" | "outbound") => {
-      const newCols = boardState.columns
+      const newCols = (boardState.columns || [])
         .filter((col: any) => {
           // シフトが存在しなくなったら除外（dynamicShiftsにあるか）
           return dynamicShifts.some(shift => shift.id === col.shiftId || (shift.vehicle_id === col.vehicleId && !shift.id));
         })
         .map((col: any) => {
           const driver = dailyStaff.find(ds => ds.staff_id === col.driverId);
+          // Migrate old data on-the-fly if trips is missing
+          const tripsToUse = (col.trips && col.trips.length > 0) ? col.trips : [
+            {
+              id: `${col.shiftId || col.id}-trip-1`,
+              tripIndex: 1,
+              children: col.children || []
+            }
+          ];
           return {
             ...col,
             driverStatus: driver?.status,
             driverStatusTime: driver?.status_time,
             driverRole: driver?.role || driver?.staff?.role,
-            trips: col.trips.map((trip: any) => ({
+            trips: tripsToUse.map((trip: any) => ({
               ...trip,
               children: trip.children
                 .filter((m: any) => {
@@ -487,7 +495,7 @@ export default function BoardPage() {
           };
         });
       
-      const newUnassignedChildren = boardState.unassigned.children
+      const newUnassignedChildren = (boardState.unassigned?.children || [])
         .filter((m: any) => {
           const child = children.find((c: any) => c.id === m.id);
           const att = attendances.find(a => a.child_id === m.id);
@@ -518,7 +526,7 @@ export default function BoardPage() {
 
       // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して未割り当てに追加
       const currentIds = new Set([
-        ...newCols.flatMap((col: any) => col.trips.flatMap((t: any) => t.children.map((c: any) => c.id))),
+        ...newCols.flatMap((col: any) => (col.trips || []).flatMap((t: any) => (t.children || []).map((c: any) => c.id))),
         ...newUnassignedChildren.map((c: any) => c.id)
       ]);
 
@@ -555,12 +563,12 @@ export default function BoardPage() {
   });
 
   const totalPresent = displayColumns.reduce(
-    (sum, col) => sum + col.trips.reduce((tsum, t) => tsum + t.children.length, 0),
+    (sum, col) => sum + (col.trips || []).reduce((tsum, t) => tsum + (t.children || []).length, 0),
     0
-  ) + board.unassigned.children.length;
+  ) + (board.unassigned?.children || []).length;
 
   const overCapacityCols = displayColumns.filter(
-    (col) => col.trips.some((t: any) => t.children.length > col.capacity)
+    (col) => (col.trips || []).some((t: any) => (t.children || []).length > col.capacity)
   );
 
   const handlePrint = () => {
@@ -663,7 +671,7 @@ export default function BoardPage() {
         <div className="flex gap-4 min-h-full pb-4 print:flex-wrap print:gap-6 print:pb-0 items-start">
           {/* Unassigned pool */}
           <div className="print:hidden">
-            <UnassignedPool children={board.unassigned.children} mode={activeTab} onChildClick={handleChildClick} />
+            <UnassignedPool children={(board.unassigned?.children || [])} mode={activeTab} onChildClick={handleChildClick} />
           </div>
 
           {/* Vehicle columns */}
@@ -703,7 +711,7 @@ export default function BoardPage() {
 
         <div className="space-y-6">
           {displayColumns
-            .filter((col: any) => col.trips.some((t: any) => t.children.length > 0))
+            .filter((col: any) => (col.trips || []).some((t: any) => (t.children || []).length > 0))
             .map((col: any) => {
               return (
                 <div key={col.id} className="print-vehicle-table mb-6 break-inside-avoid">
@@ -714,9 +722,9 @@ export default function BoardPage() {
                     </div>
                   </div>
                   
-                  {col.trips.filter((t: any) => t.children.length > 0).map((trip: any, tripIdx: any) => {
+                  {(col.trips || []).filter((t: any) => (t.children || []).length > 0).map((trip: any, tripIdx: any) => {
                     // 児童を時間順にソート (nullや空は最後)
-                    const sortedChildren = [...trip.children].sort((a, b) => {
+                    const sortedChildren = [...(trip.children || [])].sort((a, b) => {
                       const timeA = a.pickup_time || "99:99";
                       const timeB = b.pickup_time || "99:99";
                       return timeA.localeCompare(timeB);
@@ -726,7 +734,7 @@ export default function BoardPage() {
                       <div key={trip.id} className="mb-4">
                         <div className="mb-2 text-base font-bold flex gap-4 items-center">
                           <span className="px-2 py-1 bg-gray-200 border border-black rounded text-sm">
-                            {col.trips.length > 1 ? `【${trip.tripIndex}便目】 ` : ""}{activeTab === "inbound" ? "各所 ➔ 施設" : "施設 ➔ 各所"}
+                            {(col.trips || []).length > 1 ? `【${trip.tripIndex}便目】 ` : ""}{activeTab === "inbound" ? "各所 ➔ 施設" : "施設 ➔ 各所"}
                           </span>
                         </div>
                         <table className="w-full text-left border-collapse border-2 border-black text-sm">
@@ -791,9 +799,9 @@ export default function BoardPage() {
                 <h3 className="text-sm font-semibold text-gray-500">別の車両・便へ移動 (最後尾に追加)</h3>
                 <div className="flex flex-col gap-2">
                   {displayColumns.flatMap((col) => 
-                    col.trips.map(trip => {
+                    (col.trips || []).map(trip => {
                       const isCurrent = trip.id === selectedChild.columnId;
-                      const isFull = trip.children.length >= col.capacity;
+                      const isFull = (trip.children || []).length >= col.capacity;
                       return (
                         <Button
                           key={trip.id}
@@ -807,7 +815,7 @@ export default function BoardPage() {
                         >
                           <div className="flex flex-col items-start gap-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold">{col.vehicleName} {col.trips.length > 1 ? `(${trip.tripIndex}便)` : ""}</span>
+                              <span className="font-bold">{col.vehicleName} {(col.trips || []).length > 1 ? `(${trip.tripIndex}便)` : ""}</span>
                               {isCurrent && <span className="text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">現在</span>}
                               {!isCurrent && isFull && <span className="text-xs text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded">満員</span>}
                             </div>
