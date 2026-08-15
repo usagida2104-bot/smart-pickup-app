@@ -26,10 +26,20 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
 
   // pickup_time でソート（nullは最後）
   const sorted = [...presentAttendances].sort((a, b) => {
-    if (!a.pickup_time && !b.pickup_time) return 0;
-    if (!a.pickup_time) return 1;
-    if (!b.pickup_time) return -1;
-    return a.pickup_time.localeCompare(b.pickup_time);
+    const getPickupTime = (att: typeof a) => {
+      if (att.pickup_time && att.pickup_time.trim() !== "") return att.pickup_time;
+      if (att.child?.default_dismissal_time && att.child.default_dismissal_time.trim() !== "") return att.child.default_dismissal_time;
+      if (att.child?.school?.default_dismissal_time && att.child.school.default_dismissal_time.trim() !== "") return att.child.school.default_dismissal_time;
+      return null;
+    };
+    
+    const aTime = getPickupTime(a);
+    const bTime = getPickupTime(b);
+
+    if (!aTime && !bTime) return 0;
+    if (!aTime) return 1;
+    if (!bTime) return -1;
+    return aTime.localeCompare(bTime);
   });
 
   // 車両カラムを初期化（capacity降順）
@@ -57,7 +67,13 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       name: child.name,
       color: child.school?.color_code ?? "#6B7280",
       has_caution: child.has_caution,
-      pickup_time: attendance.pickup_time,
+      pickup_time: (attendance.pickup_time && attendance.pickup_time.trim() !== "")
+        ? attendance.pickup_time
+        : (child.default_dismissal_time && child.default_dismissal_time.trim() !== "")
+          ? child.default_dismissal_time
+          : (child.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
+            ? child.school.default_dismissal_time
+            : null,
       school_name: child.school?.name ?? "",
       school_area: child.school?.area ?? null,
       unit_name: child.unit_name,

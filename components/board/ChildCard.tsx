@@ -63,7 +63,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       {mode === "inbound" && (
         <div className="flex items-center gap-1 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
           <Clock className="w-3 h-3 text-gray-400" />
-          <span className="text-xs font-bold font-mono text-gray-600">{magnet.pickup_time || "未定"}</span>
+          <span className="text-xs font-bold font-mono text-gray-600">{magnet.pickup_time || "-"}</span>
         </div>
       )}
 

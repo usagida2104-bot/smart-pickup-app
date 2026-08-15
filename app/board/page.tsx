@@ -133,6 +133,7 @@ export default function BoardPage() {
       const currentAttendances = allChildrenOnBoard.map(c => ({
         child_id: c.id,
         status: c.transportMode,
+        pickup_time: c.pickup_time,
         child: children.find(masterC => masterC.id === c.id)
       }));
 
@@ -351,7 +352,7 @@ export default function BoardPage() {
               target_date: targetDateStr,
               child_id: child.id,
               status: "both" as any,
-              pickup_time: child.school?.default_dismissal_time ?? "14:30",
+              pickup_time: child.default_dismissal_time || child.school?.default_dismissal_time || null,
               attendance_status: "present" as const,
               attendance_time: null,
               child,
@@ -438,7 +439,13 @@ export default function BoardPage() {
                   status: child?.status, 
                   status_time: child?.status_time, 
                   has_caution: child?.has_caution ?? false,
-                  pickup_time: att?.pickup_time ?? child?.school?.default_dismissal_time ?? null
+                  pickup_time: (att?.pickup_time && att.pickup_time.trim() !== "")
+                    ? att.pickup_time
+                    : (child?.default_dismissal_time && child.default_dismissal_time.trim() !== "")
+                      ? child.default_dismissal_time
+                      : (child?.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
+                        ? child.school.default_dismissal_time
+                        : null
                 };
               })
           };
@@ -462,7 +469,13 @@ export default function BoardPage() {
             status: child?.status, 
             status_time: child?.status_time, 
             has_caution: child?.has_caution ?? false,
-            pickup_time: att?.pickup_time ?? child?.school?.default_dismissal_time ?? null
+            pickup_time: (att?.pickup_time && att.pickup_time.trim() !== "")
+              ? att.pickup_time
+              : (child?.default_dismissal_time && child.default_dismissal_time.trim() !== "")
+                ? child.default_dismissal_time
+                : (child?.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
+                  ? child.school.default_dismissal_time
+                  : null
           };
         });
 

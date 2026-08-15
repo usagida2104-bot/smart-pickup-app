@@ -151,7 +151,13 @@ export function toMagnet(childId: string, allChildren?: Child[] | any, allAttend
     name: child.name,
     color: child.school?.color_code ?? "#ccc",
     has_caution: child.has_caution,
-    pickup_time: att?.pickup_time ?? child.school?.default_dismissal_time ?? null,
+    pickup_time: (att?.pickup_time && att.pickup_time.trim() !== "") 
+      ? att.pickup_time 
+      : (child.default_dismissal_time && child.default_dismissal_time.trim() !== "")
+        ? child.default_dismissal_time
+        : (child.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
+          ? child.school.default_dismissal_time
+          : null,
     school_name: child.school?.name ?? "",
     school_area: child.school?.area ?? null,
     unit_name: child.unit_name,
