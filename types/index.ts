@@ -137,6 +137,7 @@ export interface Trip {
   endLocation?: LocationOption;
   routeInfo?: string;
   estimatedTime?: number;
+  isNew?: boolean;
   children: ChildMagnet[];
 }
 

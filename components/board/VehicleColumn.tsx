@@ -70,7 +70,9 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
 
       {/* Trips Container */}
       <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-y-auto">
-        {(column.trips || []).map((trip) => {
+        {(column.trips || [])
+          .filter(trip => trip.tripIndex === 1 || (trip.children || []).length > 0 || trip.isNew)
+          .map((trip) => {
           const isOverCapacity = (trip.children || []).length > column.capacity;
           const isFull = (trip.children || []).length >= column.capacity;
           const fillPct = Math.min(((trip.children || []).length / column.capacity) * 100, 100);

@@ -90,10 +90,16 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
           } else {
             trip.children.push(movedChild);
           }
+          trip.isNew = false;
           break;
         }
       }
     }
+
+    newColumns = newColumns.map(col => ({
+      ...col,
+      trips: (col.trips || []).filter(t => t.tripIndex === 1 || t.children.length > 0 || t.isNew)
+    }));
 
     set({
       [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: {
@@ -183,6 +189,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
               id: `${col.shiftId}-trip-${tripIndex}`,
               tripIndex,
               children: [],
+              isNew: true,
             }
           ]
         };
