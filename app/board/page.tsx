@@ -117,12 +117,13 @@ export default function BoardPage() {
         const driver = staff.find(s => s.id === shift.driver_id);
         
         let startAddress = OFFICE_ADDRESS;
-        if (col?.startLocation === "home" && driver?.homeAddress) {
+        const trip1 = col?.trips?.[0];
+        if (trip1?.startLocation === "home" && driver?.homeAddress) {
           startAddress = driver.homeAddress;
         }
 
         let endAddress = OFFICE_ADDRESS;
-        if (col?.endLocation === "home" && driver?.homeAddress) {
+        if (trip1?.endLocation === "home" && driver?.homeAddress) {
           endAddress = driver.homeAddress;
         }
 
@@ -132,7 +133,7 @@ export default function BoardPage() {
       // 現在ボード上（カラム＋未割り当て）にいる児童を対象とする
       const allChildrenOnBoard = [
         ...board.unassigned.children,
-        ...board.columns.flatMap(c => c.children)
+        ...board.columns.flatMap(c => c.trips.flatMap(t => t.children))
       ];
 
       const currentAttendances = allChildrenOnBoard.map(c => ({
@@ -176,22 +177,25 @@ export default function BoardPage() {
         const assignment = data.assignments?.find((a: any) => 
           a.shiftId === col.shiftId || (a.vehicleId === col.vehicleId && !a.shiftId)
         );
-        let colChildren: ChildMagnet[] = [];
-        
-        if (assignment && Array.isArray(assignment.childrenIds)) {
-          // ボード上に実在する児童IDだけを安全に抽出
-          const validIds = assignment.childrenIds.filter((id: string) => allExpectedIds.has(id));
-          colChildren = validIds.map((id: string) => toMagnet(id, children, attendances));
-          
-          // 割り当て済みのIDを未割り当て候補から削除
-          validIds.forEach((id: string) => allExpectedIds.delete(id));
-        }
+        // APIからの返り値が multiple trips (col.trips) を持っていると仮定するか、ここで変換するか
+        // api/auto-assign が trips を返すように後で修正するため、ここでそのまま受け取る
+        const trips = assignment?.trips?.map((t: any) => ({
+          ...t,
+          children: t.childrenIds.filter((id: string) => allExpectedIds.has(id)).map((id: string) => {
+            allExpectedIds.delete(id);
+            return toMagnet(id, children, attendances);
+          })
+        })) || [
+          {
+            id: `${col.shiftId}-trip-1`,
+            tripIndex: 1,
+            children: []
+          }
+        ];
 
         return {
           ...col,
-          routeInfo: assignment?.routeInfo,
-          estimatedTime: assignment?.estimatedTime,
-          children: colChildren
+          trips
         };
       });
 
@@ -272,7 +276,13 @@ export default function BoardPage() {
           driverStatus: shift.driver?.status,
           driverStatusTime: shift.driver?.status_time,
           capacity: shift.vehicle?.capacity ?? 0,
-          children: [],
+          trips: [
+            {
+              id: `${shift.id}-trip-1`,
+              tripIndex: 1,
+              children: [],
+            }
+          ],
         })),
         unassigned: { id: "unassigned", children: inboundChildren },
       });
@@ -288,7 +298,13 @@ export default function BoardPage() {
           driverStatus: shift.driver?.status,
           driverStatusTime: shift.driver?.status_time,
           capacity: shift.vehicle?.capacity ?? 0,
-          children: [],
+          trips: [
+            {
+              id: `${shift.id}-trip-1`,
+              tripIndex: 1,
+              children: [],
+            }
+          ],
         })),
         unassigned: { id: "unassigned", children: outboundChildren },
       });
@@ -312,7 +328,13 @@ export default function BoardPage() {
     driverStatus: shift.driver?.status,
     driverStatusTime: shift.driver?.status_time,
     capacity: shift.vehicle?.capacity ?? 0,
-    children: [] as ChildMagnet[],
+    trips: [
+      {
+        id: `${shift.id}-trip-1`,
+        tripIndex: 1,
+        children: [],
+      }
+    ],
   }));
 
   // ボード表示用カラム: Zustandが空ならMOCK初期値を使用
@@ -495,7 +517,7 @@ export default function BoardPage() {
 
       // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して未割り当てに追加
       const currentIds = new Set([
-        ...newCols.flatMap(col => col.children.map(c => c.id)),
+        ...newCols.flatMap(col => col.trips.flatMap(t => t.children.map(c => c.id))),
         ...newUnassignedChildren.map(c => c.id)
       ]);
 
@@ -532,12 +554,12 @@ export default function BoardPage() {
   });
 
   const totalPresent = displayColumns.reduce(
-    (sum, col) => sum + col.children.length,
+    (sum, col) => sum + col.trips.reduce((tsum, t) => tsum + t.children.length, 0),
     0
   ) + board.unassigned.children.length;
 
   const overCapacityCols = displayColumns.filter(
-    (col) => col.children.length > col.capacity
+    (col) => col.trips.some(t => t.children.length > col.capacity)
   );
 
   const handlePrint = () => {
@@ -680,15 +702,8 @@ export default function BoardPage() {
 
         <div className="space-y-6">
           {displayColumns
-            .filter(col => col.children.length > 0)
+            .filter(col => col.trips.some(t => t.children.length > 0))
             .map(col => {
-              // 児童を時間順にソート (nullや空は最後)
-              const sortedChildren = [...col.children].sort((a, b) => {
-                const timeA = a.pickup_time || "99:99";
-                const timeB = b.pickup_time || "99:99";
-                return timeA.localeCompare(timeB);
-              });
-
               return (
                 <div key={col.id} className="print-vehicle-table mb-6 break-inside-avoid">
                   <div className="flex items-center gap-4 mb-2 border-b-2 border-black pb-1">
@@ -697,38 +712,54 @@ export default function BoardPage() {
                       <p><strong>運転手:</strong> {col.driverName}</p>
                     </div>
                   </div>
-                  <div className="mb-2 text-base font-bold flex gap-4 items-center">
-                    <span className="px-2 py-1 bg-gray-200 border border-black rounded text-sm">
-                      {activeTab === "inbound" ? "各所 ➔ 施設" : "施設 ➔ 各所"}
-                    </span>
-                  </div>
-                  <table className="w-full text-left border-collapse border-2 border-black text-sm">
-                    <thead>
-                      <tr className="bg-gray-100 border-b-2 border-black">
-                        <th className="border border-black p-1.5 w-10 text-center font-bold">順</th>
-                        <th className="border border-black p-1.5 font-bold">児童名</th>
-                        <th className="border border-black p-1.5 font-bold w-48">学校名</th>
-                        <th className="border border-black p-1.5 w-20 text-center font-bold">時間</th>
-                        <th className="border border-black p-1.5 w-24 text-center font-bold">遅刻/早退</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedChildren.map((child, idx) => (
-                        <tr key={child.id} className="border-b border-gray-400">
-                          <td className="border border-black p-1.5 text-center text-base">{idx + 1}</td>
-                          <td className="border border-black p-1.5 text-lg font-bold">{child.name}</td>
-                          <td className="border border-black p-1.5 text-sm">{child.school_name}</td>
-                          <td className="border border-black p-1.5 font-mono text-center text-base">{child.pickup_time || "-"}</td>
-                          <td className="border border-black p-1.5 text-sm font-bold text-center leading-tight">
-                            {child.status === "late" && <span>遅刻 {child.status_time}</span>}
-                            {child.status === "early_leave" && <span>早退 {child.status_time}</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  
+                  {col.trips.filter(t => t.children.length > 0).map((trip, tripIdx) => {
+                    // 児童を時間順にソート (nullや空は最後)
+                    const sortedChildren = [...trip.children].sort((a, b) => {
+                      const timeA = a.pickup_time || "99:99";
+                      const timeB = b.pickup_time || "99:99";
+                      return timeA.localeCompare(timeB);
+                    });
+
+                    return (
+                      <div key={trip.id} className="mb-4">
+                        <div className="mb-2 text-base font-bold flex gap-4 items-center">
+                          <span className="px-2 py-1 bg-gray-200 border border-black rounded text-sm">
+                            {col.trips.length > 1 ? `【${trip.tripIndex}便目】 ` : ""}{activeTab === "inbound" ? "各所 ➔ 施設" : "施設 ➔ 各所"}
+                          </span>
+                        </div>
+                        <table className="w-full text-left border-collapse border-2 border-black text-sm">
+                          <thead>
+                            <tr className="bg-gray-100 border-b-2 border-black">
+                              <th className="border border-black p-1.5 w-10 text-center font-bold">順</th>
+                              <th className="border border-black p-1.5 font-bold">児童名</th>
+                              <th className="border border-black p-1.5 font-bold w-48">学校名</th>
+                              <th className="border border-black p-1.5 w-20 text-center font-bold">時間</th>
+                              <th className="border border-black p-1.5 w-24 text-center font-bold">遅刻/早退</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedChildren.map((child, idx) => (
+                              <tr key={child.id} className="border-b border-gray-400">
+                                <td className="border border-black p-1.5 text-center text-base">{idx + 1}</td>
+                                <td className="border border-black p-1.5 text-lg font-bold">{child.name}</td>
+                                <td className="border border-black p-1.5 text-sm">{child.school_name}</td>
+                                <td className="border border-black p-1.5 font-mono text-center text-base">{child.pickup_time || "-"}</td>
+                                <td className="border border-black p-1.5 text-sm font-bold text-center leading-tight">
+                                  {child.status === "late" && <span>遅刻 {child.status_time}</span>}
+                                  {child.status === "early_leave" && <span>早退 {child.status_time}</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
                 </div>
               );
+            })}
+        </div>
             })}
         </div>
       </div>
@@ -758,33 +789,35 @@ export default function BoardPage() {
 
               {/* 配車先変更セクション */}
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-500">別の車両へ移動 (最後尾に追加)</h3>
+                <h3 className="text-sm font-semibold text-gray-500">別の車両・便へ移動 (最後尾に追加)</h3>
                 <div className="flex flex-col gap-2">
-                  {displayColumns.map((col) => {
-                    const isCurrent = col.id === selectedChild.columnId;
-                    const isFull = col.children.length >= col.capacity;
-                    return (
-                      <Button
-                        key={col.id}
-                        variant="outline"
-                        className={cn(
-                          "justify-start text-left h-auto py-3",
-                          isCurrent && "border-blue-500 bg-blue-50 cursor-default hover:bg-blue-50",
-                          !isCurrent && isFull && "opacity-75"
-                        )}
-                        onClick={() => !isCurrent && handleAssignTo(col.id)}
-                      >
-                        <div className="flex flex-col items-start gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold">{col.vehicleName}</span>
-                            {isCurrent && <span className="text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">現在</span>}
-                            {!isCurrent && isFull && <span className="text-xs text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded">満員</span>}
+                  {displayColumns.flatMap((col) => 
+                    col.trips.map(trip => {
+                      const isCurrent = trip.id === selectedChild.columnId;
+                      const isFull = trip.children.length >= col.capacity;
+                      return (
+                        <Button
+                          key={trip.id}
+                          variant="outline"
+                          className={cn(
+                            "justify-start text-left h-auto py-3",
+                            isCurrent && "border-blue-500 bg-blue-50 cursor-default hover:bg-blue-50",
+                            !isCurrent && isFull && "opacity-75"
+                          )}
+                          onClick={() => !isCurrent && handleAssignTo(trip.id)}
+                        >
+                          <div className="flex flex-col items-start gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold">{col.vehicleName} {col.trips.length > 1 ? `(${trip.tripIndex}便)` : ""}</span>
+                              {isCurrent && <span className="text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">現在</span>}
+                              {!isCurrent && isFull && <span className="text-xs text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded">満員</span>}
+                            </div>
+                            <span className="text-xs text-gray-500">{col.driverName}</span>
                           </div>
-                          <span className="text-xs text-gray-500">{col.driverName}</span>
-                        </div>
-                      </Button>
-                    );
-                  })}
+                        </Button>
+                      );
+                    })
+                  )}
                   <Button
                     variant="outline"
                     className={cn(

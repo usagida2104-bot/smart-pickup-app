@@ -130,6 +130,16 @@ export interface ChildMagnet {
 
 export type LocationOption = "office" | "home";
 
+export interface Trip {
+  id: string; // shiftId + "-trip-" + tripIndex
+  tripIndex: number;
+  startLocation?: LocationOption;
+  endLocation?: LocationOption;
+  routeInfo?: string;
+  estimatedTime?: number;
+  children: ChildMagnet[];
+}
+
 /** ドラッグ先の「車両カラム」 */
 export interface VehicleColumn {
   id: string; // daily_shift.id
@@ -141,11 +151,7 @@ export interface VehicleColumn {
   driverStatus?: "present" | "absent" | "late" | "early_leave";
   driverStatusTime?: string | null;
   capacity: number;
-  startLocation?: LocationOption;
-  endLocation?: LocationOption;
-  routeInfo?: string;
-  estimatedTime?: number;
-  children: ChildMagnet[];
+  trips: Trip[];
 }
 
 /** 未割り当てプール */
