@@ -12,10 +12,10 @@ export async function fetchMasterData() {
     { data: staff, error: errStaff },
     { data: children, error: errChildren },
   ] = await Promise.all([
-    supabase.from("schools").select("*"),
-    supabase.from("vehicles").select("*"),
-    supabase.from("staff").select("*"),
-    supabase.from("children").select("*").order("display_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
+    supabase.from("schools").select("*").limit(1000),
+    supabase.from("vehicles").select("*").limit(1000),
+    supabase.from("staff").select("*").limit(1000),
+    supabase.from("children").select("*").order("display_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }).limit(1000),
   ]);
 
   if (errSchools) console.error("Error fetching schools", errSchools);
@@ -67,10 +67,10 @@ export async function fetchDailyData(targetDate: string) {
     { data: dailyStaff, error: errDailyStaff },
     { data: dailyVehicles, error: errDailyVehicles },
   ] = await Promise.all([
-    supabase.from("daily_attendances").select("*").eq("target_date", targetDate),
+    supabase.from("daily_attendances").select("*").eq("target_date", targetDate).limit(1000),
     supabase.from("board_states").select("*").eq("target_date", targetDate).maybeSingle(),
-    supabase.from("daily_staff").select("*").eq("target_date", targetDate),
-    supabase.from("daily_vehicles").select("*").eq("target_date", targetDate),
+    supabase.from("daily_staff").select("*").eq("target_date", targetDate).limit(1000),
+    supabase.from("daily_vehicles").select("*").eq("target_date", targetDate).limit(1000),
   ]);
 
   if (errAtts) console.error("Error fetching attendances", errAtts);

@@ -503,11 +503,10 @@ export default function BoardPage() {
     weekday: "long",
   });
 
-  const totalPresent = attendances.filter((a) => {
-    const child = children.find((c) => c.id === a.child_id);
-    const isAbsent = a.attendance_status === "absent" || a.status === "absent" || child?.status === "absent";
-    return child && !isAbsent;
-  }).length;
+  const totalPresent = displayColumns.reduce(
+    (sum, col) => sum + col.children.length,
+    0
+  ) + board.unassigned.children.length;
 
   const overCapacityCols = displayColumns.filter(
     (col) => col.children.length > col.capacity
