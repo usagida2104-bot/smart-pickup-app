@@ -41,7 +41,7 @@ function UnassignedPool({ children, mode, onChildClick }: { children: ChildMagne
       </div>
       <div
         data-testid="unassigned-pool"
-        className="flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors"
+        className="flex-1 p-3 min-h-[200px] max-h-[500px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors"
       >
         {children.map((magnet) => (
           <ChildCard key={magnet.id} magnet={magnet} mode={mode} onClick={(m) => onChildClick(m, "unassigned")} />
@@ -649,14 +649,14 @@ export default function BoardPage() {
 
       {/* Auto-assign banner */}
       {isAutoAssigned && (
-        <div className="mb-4 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700 print:hidden">
+        <div className="shrink-0 mb-4 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700 print:hidden">
           ✨ 自動配車が完了しました。マグネットをドラッグして手動調整できます。
         </div>
       )}
 
       {/* Board */}
-      <div className="flex-1 overflow-x-auto print:overflow-visible">
-        <div className="flex gap-4 h-full pb-4 print:flex-wrap print:gap-6 print:pb-0">
+      <div className="flex-1 overflow-auto print:overflow-visible">
+        <div className="flex gap-4 min-h-full pb-4 print:flex-wrap print:gap-6 print:pb-0 items-start">
           {/* Unassigned pool */}
           <div className="print:hidden">
             <UnassignedPool children={board.unassigned.children} mode={activeTab} onChildClick={handleChildClick} />

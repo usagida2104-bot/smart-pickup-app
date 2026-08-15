@@ -144,7 +144,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild }: Ve
       {/* Drop zone / List */}
       <div
         className={cn(
-          "flex-1 p-3 min-h-[160px] max-h-[450px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors duration-150 print:max-h-none print:overflow-visible"
+          "flex-1 p-3 min-h-[200px] max-h-[500px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors duration-150 print:max-h-none print:overflow-visible"
         )}
       >
         {column.children.map((magnet, idx) => (
