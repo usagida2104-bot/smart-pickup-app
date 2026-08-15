@@ -111,36 +111,25 @@ export default function BoardPage() {
   const handleAutoAssign = async () => {
     setIsAutoAssigning(true);
     try {
-      // 各車両の出発地・到着地を計算
-      const shiftsWithLocation = dynamicShifts.map(shift => {
-        const col = board.columns.find(c => c.shiftId === shift.id);
-        const driver = staff.find(s => s.id === shift.driver_id);
-        
-        let startAddress = OFFICE_ADDRESS;
-        const trip1 = col?.trips?.[0];
-        if (trip1?.startLocation === "home" && driver?.homeAddress) {
-          startAddress = driver.homeAddress;
-        }
-
-        let endAddress = OFFICE_ADDRESS;
-        if (trip1?.endLocation === "home" && driver?.homeAddress) {
-          endAddress = driver.homeAddress;
-        }
-
-        return { ...shift, startAddress, endAddress };
-      });
-
       // 現在ボード上（カラム＋未割り当て）にいる児童を対象とする
       const allChildrenOnBoard = [
         ...(board.unassigned?.children || []),
-        ...(board?.columns || []).flatMap(c => c.trips.flatMap((t: any) => t.children))
+        ...(board?.columns || []).flatMap((c: any) => (c.trips || []).flatMap((t: any) => t.children || []))
       ];
 
-      const currentAttendances = allChildrenOnBoard.map(c => ({
+      const currentAttendances = allChildrenOnBoard.map((c: any) => ({
+        id: c.id,
         child_id: c.id,
         status: c.transportMode,
         pickup_time: c.pickup_time,
-        child: children.find(masterC => masterC.id === c.id)
+        attendance_status: "present",
+        child: children.find(masterC => masterC.id === c.id) || {
+          id: c.id,
+          name: c.name,
+          has_caution: c.has_caution,
+          notes: c.notes,
+          school: { name: c.school_name, color_code: c.color, area: c.school_area },
+        }
       }));
 
       if (currentAttendances.length === 0) {
@@ -148,71 +137,45 @@ export default function BoardPage() {
         return;
       }
 
-      const res = await fetch("/api/auto-assign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: activeTab,
-          attendances: currentAttendances,
-          shifts: shiftsWithLocation,
-        }),
-      });
+      const inputShifts = displayColumns.map((col: any) => ({
+        id: col.shiftId || col.id,
+        target_date: formatDate(selectedDate),
+        vehicle_id: col.vehicleId,
+        driver_id: col.driverId,
+        vehicle: { id: col.vehicleId, capacity: col.capacity, name: col.vehicleName },
+        driver: { id: col.driverId, name: col.driverName }
+      })) as any[];
 
-      let data: any;
-      try {
-        data = await res.json();
-      } catch (e) {
-        // ignore
-      }
+      // APIを通さず、直接ローカルでアルゴリズムを実行（最大4便・下校時間順）
+      const result = autoAssignVehicles({ attendances: currentAttendances as any[], shifts: inputShifts });
 
-      if (!res.ok) {
-        throw new Error(data?.error || "自動配車に失敗しました");
-      }
-
-      
-      const allExpectedIds = new Set(allChildrenOnBoard.map((c: any) => c.id));
-      
-      const newColumns = initialColumns.map((col: any) => {
-        // APIレスポンスと画面上のカラム（シフト）を正確にマッピングする
-        const assignment = data.assignments?.find((a: any) => 
-          a.shiftId === col.shiftId || (a.vehicleId === col.vehicleId && !a.shiftId)
-        );
-        // APIからの返り値が multiple trips (col.trips) を持っていると仮定するか、ここで変換するか
-        // api/auto-assign が trips を返すように後で修正するため、ここでそのまま受け取る
-        const trips = (assignment?.trips || []).map((t: any) => ({
-          ...t,
-          children: t.childrenIds.filter((id: string) => allExpectedIds.has(id)).map((id: string) => {
-            allExpectedIds.delete(id);
-            return toMagnet(id, children, attendances);
-          })
-        })) || [
-          {
-            id: `${col.shiftId}-trip-1`,
-            tripIndex: 1,
-            children: []
-          }
-        ];
-
+      const newColumns = result.columns.map((col: any) => {
+        const originalCol = displayColumns.find((c: any) => c.vehicleId === col.vehicleId) || col;
         return {
-          ...col,
-          trips
+          ...originalCol,
+          trips: col.trips,
         };
       });
 
-      // AIが割り当てを忘れた児童、または `data.unassigned` に返された児童はすべて未割り当てに戻す
-      const newUnassignedIds = Array.from(allExpectedIds);
-      const newUnassigned = newUnassignedIds.map(id => toMagnet(id, children, attendances));
+      // === デバッグ用コンソールログ ===
+      console.log("=== 自動配車デバッグログ ===");
+      console.log(`対象児童総数: ${currentAttendances.length}人`);
+      newColumns.forEach((col: any) => {
+        const tripsLog = (col.trips || []).map((t: any) => `${t.tripIndex}便: ${(t.children || []).length}人`).join(", ");
+        console.log(`${col.vehicleName} [${tripsLog}]`);
+      });
+      console.log(`未割り当て残数: ${result.unassigned.length}人`);
+      console.log("============================");
 
       setBoard(activeTab, {
         columns: newColumns,
-        unassigned: { id: "unassigned", children: newUnassigned },
+        unassigned: { id: "unassigned", children: result.unassigned },
       });
       setIsAutoAssigned(true);
 
-      // 自動配車後、即座に Supabase に永続化
-      setTimeout(async () => {
-        await performAutoSave();
-      }, 0);
+      // 自動保存を確実に実行
+      await performAutoSave();
+
     } catch (err: any) {
       console.error(err);
       alert(`エラー: ${err.message}`);

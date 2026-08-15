@@ -35,7 +35,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
           trips: [{
             id: `${col.shiftId || col.id}-trip-1`,
             tripIndex: 1,
-            children: col.children || []
+            children: (col as any).children || []
           }]
         };
       }
