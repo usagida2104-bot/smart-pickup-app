@@ -240,7 +240,7 @@ export default function BoardPage() {
       .filter(a => ["both", "pickup_only"].includes(a.status))
       .filter(a => {
         const child = children.find(c => c.id === a.child_id);
-        const isAbsent = (a.attendance_status || child?.status) === "absent";
+        const isAbsent = (a.attendance_status || child?.status) === "absent" || a.status === "absent";
         return child && !isAbsent;
       })
       .map(a => toMagnet(a.child_id, children, attsToUse));
@@ -249,7 +249,7 @@ export default function BoardPage() {
       .filter(a => ["both", "dropoff_only"].includes(a.status))
       .filter(a => {
         const child = children.find(c => c.id === a.child_id);
-        const isAbsent = (a.attendance_status || child?.status) === "absent";
+        const isAbsent = (a.attendance_status || child?.status) === "absent" || a.status === "absent";
         return child && !isAbsent;
       })
       .map(a => toMagnet(a.child_id, children, attsToUse));
@@ -343,22 +343,11 @@ export default function BoardPage() {
         });
         setDailyVehicles(mergedVehicles);
 
-        // attendance の反映 (未保存の児童もデフォルト設定でマージする)
-        const mergedAtts = children.map((child) => {
-          const existing = fetchedAtts.find((a) => a.child_id === child.id);
-          return (
-            existing ?? {
-              id: `att-${targetDateStr}-${child.id}`,
-              target_date: targetDateStr,
-              child_id: child.id,
-              status: "both" as any,
-              pickup_time: child.default_dismissal_time || child.school?.default_dismissal_time || null,
-              attendance_status: "present" as const,
-              attendance_time: null,
-              child,
-            }
-          );
-        });
+        // attendance の反映 (日別設定に登録されている児童のみ抽出する)
+        const mergedAtts = fetchedAtts.map((a: any) => {
+          const child = children.find((c) => c.id === a.child_id);
+          return { ...a, child };
+        }).filter((a: any) => a.child);
         useMasterStore.getState().setAttendances(mergedAtts);
 
         // board の反映
@@ -428,7 +417,7 @@ export default function BoardPage() {
                 const isValidForMode = mode === "inbound" 
                   ? ["both", "pickup_only"].includes(att?.status || "")
                   : ["both", "dropoff_only"].includes(att?.status || "");
-                const isAbsent = (att?.attendance_status || child?.status) === "absent";
+                const isAbsent = (att?.attendance_status || child?.status) === "absent" || att?.status === "absent";
                 return child && !isAbsent && isValidForMode;
               })
               .map(m => {
@@ -458,7 +447,7 @@ export default function BoardPage() {
           const isValidForMode = mode === "inbound" 
             ? ["both", "pickup_only"].includes(att?.status || "")
             : ["both", "dropoff_only"].includes(att?.status || "");
-          const isAbsent = (att?.attendance_status || child?.status) === "absent";
+          const isAbsent = (att?.attendance_status || child?.status) === "absent" || att?.status === "absent";
           return child && !isAbsent && isValidForMode;
         })
         .map(m => {
@@ -514,10 +503,11 @@ export default function BoardPage() {
     weekday: "long",
   });
 
-  const totalPresent = displayColumns.reduce(
-    (sum, col) => sum + col.children.length,
-    0
-  ) + board.unassigned.children.length;
+  const totalPresent = attendances.filter((a) => {
+    const child = children.find((c) => c.id === a.child_id);
+    const isAbsent = a.attendance_status === "absent" || a.status === "absent" || child?.status === "absent";
+    return child && !isAbsent;
+  }).length;
 
   const overCapacityCols = displayColumns.filter(
     (col) => col.children.length > col.capacity
