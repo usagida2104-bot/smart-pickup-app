@@ -229,50 +229,27 @@ export default function BoardPage() {
 
     if (activeTab === "inbound") {
       setBoard("inbound", {
-        columns: dynamicShifts.map((shift) => ({
-          id: shift.id,
-          shiftId: shift.id,
-          vehicleId: shift.vehicle_id,
-          vehicleName: shift.vehicle?.name ?? "不明",
-          driverId: shift.driver_id,
-          driverName: shift.driver?.name ?? "不明",
-          driverStatus: shift.driver?.status,
-          driverStatusTime: shift.driver?.status_time,
-          capacity: shift.vehicle?.capacity ?? 0,
-          trips: [
-            {
-              id: `${shift.id}-trip-1`,
-              tripIndex: 1,
-              children: [],
-            }
-          ],
+        columns: state.inboundBoard.columns.map((col: any) => ({
+          ...col,
+          trips: (col.trips || []).map((trip: any) => ({
+            ...trip,
+            children: [],
+          })),
         })),
         unassigned: { id: "unassigned", children: inboundChildren },
       });
     } else {
       setBoard("outbound", {
-        columns: dynamicShifts.map((shift) => ({
-          id: shift.id,
-          shiftId: shift.id,
-          vehicleId: shift.vehicle_id,
-          vehicleName: shift.vehicle?.name ?? "不明",
-          driverId: shift.driver_id,
-          driverName: shift.driver?.name ?? "不明",
-          driverStatus: shift.driver?.status,
-          driverStatusTime: shift.driver?.status_time,
-          capacity: shift.vehicle?.capacity ?? 0,
-          trips: [
-            {
-              id: `${shift.id}-trip-1`,
-              tripIndex: 1,
-              children: [],
-            }
-          ],
+        columns: state.outboundBoard.columns.map((col: any) => ({
+          ...col,
+          trips: (col.trips || []).map((trip: any) => ({
+            ...trip,
+            children: [],
+          })),
         })),
         unassigned: { id: "unassigned", children: outboundChildren },
       });
     }
-    setIsAutoAssigned(false);
 
     // リセット後、最新状態をSupabaseに上書き保存
     setTimeout(async () => {
@@ -280,7 +257,7 @@ export default function BoardPage() {
     }, 0);
   };
 
-  // 車両カラムの初期値: dynamicShiftsから即時構築（カラムは常に表示）
+  // 車両カラムの初期値: dynamicShiftsから即時構築
   const initialColumns = dynamicShifts.map((shift) => ({
     id: shift.id,
     shiftId: shift.id,
