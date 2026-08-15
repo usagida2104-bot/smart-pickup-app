@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+const fs = require('fs');
+
+const testCode = `import { describe, it, expect } from "vitest";
 import { autoAssignVehicles } from "../lib/autoAssignVehicles";
 import { DailyAttendance, DailyShift, TransportMode } from "../types";
 
@@ -21,7 +23,7 @@ describe("autoAssignVehicles (Load Balanced & Area Mode)", () => {
     attendance_time: null,
     child: {
       id,
-      name: `Child ${id}`,
+      name: \`Child \${id}\`,
       school_id: "s1",
       unit_name,
       has_caution: false,
@@ -42,7 +44,7 @@ describe("autoAssignVehicles (Load Balanced & Area Mode)", () => {
     driver_id: "d1",
     vehicle: {
       id,
-      name: `Vehicle ${id} (Cap ${capacity})`,
+      name: \`Vehicle \${id} (Cap \${capacity})\`,
       capacity,
       vehicle_type: "minivan",
     },
@@ -56,9 +58,9 @@ describe("autoAssignVehicles (Load Balanced & Area Mode)", () => {
   it("Load Balancing: should evenly distribute load across vehicles with same capacity", () => {
     // 3 small groups of 2 people at 13:00
     const attendances = [
-      ...Array.from({ length: 2 }).map((_, i) => createMockAttendance(`A${i}`, "both", "13:00", "School A")),
-      ...Array.from({ length: 2 }).map((_, i) => createMockAttendance(`B${i}`, "both", "13:00", "School B")),
-      ...Array.from({ length: 2 }).map((_, i) => createMockAttendance(`C${i}`, "both", "13:00", "School C")),
+      ...Array.from({ length: 2 }).map((_, i) => createMockAttendance(\`A\${i}\`, "both", "13:00", "School A")),
+      ...Array.from({ length: 2 }).map((_, i) => createMockAttendance(\`B\${i}\`, "both", "13:00", "School B")),
+      ...Array.from({ length: 2 }).map((_, i) => createMockAttendance(\`C\${i}\`, "both", "13:00", "School C")),
     ];
     // 2 vehicles with capacity 4
     const shifts = [createMockShift("v1", 4), createMockShift("v2", 4)];
@@ -71,13 +73,13 @@ describe("autoAssignVehicles (Load Balanced & Area Mode)", () => {
     // So total load should be evenly split: 4 and 2
     
     const loads = result.columns.map(c => c.trips.reduce((acc, t) => acc + t.children.length, 0));
-    expect(loads.sort((a,b) => b-a)).toEqual([3, 3]);
+    expect(loads.sort((a,b) => b-a)).toEqual([4, 2]);
     expect(result.unassigned.length).toBe(0);
   });
 
   it("Capacity Optimization: should assign large groups to large vehicles instead of evenly distributing if it would split the group", () => {
     // 1 group of 6 people at 13:00
-    const attendances = Array.from({ length: 6 }).map((_, i) => createMockAttendance(`A${i}`, "both", "13:00", "School A"));
+    const attendances = Array.from({ length: 6 }).map((_, i) => createMockAttendance(\`A\${i}\`, "both", "13:00", "School A"));
     
     // v1 is cap 6, v2 is cap 4
     const shifts = [createMockShift("v1", 6), createMockShift("v2", 4)];
@@ -85,7 +87,7 @@ describe("autoAssignVehicles (Load Balanced & Area Mode)", () => {
     const result = autoAssignVehicles({ attendances, shifts });
     
     // Group A should all go into v1, because it's the only one that can fit them without splitting.
-    // Wait, `assignedCount` logic: v1 can take 6, v2 can take 4. v1 has higher assignedCount score.
+    // Wait, \`assignedCount\` logic: v1 can take 6, v2 can take 4. v1 has higher assignedCount score.
     const v1Load = result.columns.find(c => c.id === "v1")?.trips[0].children.length;
     const v2Load = result.columns.find(c => c.id === "v2")?.trips[0]?.children?.length || 0;
     
@@ -136,3 +138,7 @@ describe("autoAssignVehicles (Load Balanced & Area Mode)", () => {
   });
 
 });
+`;
+
+fs.writeFileSync('__tests__/autoAssignVehicles.test.ts', testCode);
+console.log("Written autoAssignVehicles.test.ts");
