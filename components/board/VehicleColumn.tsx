@@ -12,9 +12,10 @@ interface VehicleColumnProps {
   mode: "inbound" | "outbound";
   onChildClick?: (magnet: ChildMagnet, columnId: string) => void;
   onReorderChild?: (columnId: string, childId: string, direction: -1 | 1) => void;
+  onChangeLocation?: (mode: "inbound" | "outbound", columnId: string, type: "start" | "end", val: "office" | "home") => void;
 }
 
-export function VehicleColumn({ column, mode, onChildClick, onReorderChild }: VehicleColumnProps) {
+export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onChangeLocation }: VehicleColumnProps) {
   const isOverCapacity = column.children.length > column.capacity;
   const isFull = column.children.length >= column.capacity;
   const fillPct = Math.min((column.children.length / column.capacity) * 100, 100);
@@ -83,7 +84,11 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild }: Ve
             <label className="text-[10px] text-gray-500 block mb-0.5">出発地</label>
             <select 
               value={column.startLocation || "office"} 
-              onChange={(e) => updateColumnLocation(mode, column.id, "start", e.target.value as "office" | "home")}
+              onChange={(e) => {
+                const val = e.target.value as "office" | "home";
+                updateColumnLocation(mode, column.id, "start", val);
+                onChangeLocation && onChangeLocation(mode, column.id, "start", val);
+              }}
               className="w-full text-xs border-gray-200 rounded px-1 py-0.5 bg-white"
             >
               <option value="office">事業所</option>
@@ -94,7 +99,11 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild }: Ve
             <label className="text-[10px] text-gray-500 block mb-0.5">到着地</label>
             <select 
               value={column.endLocation || "office"} 
-              onChange={(e) => updateColumnLocation(mode, column.id, "end", e.target.value as "office" | "home")}
+              onChange={(e) => {
+                const val = e.target.value as "office" | "home";
+                updateColumnLocation(mode, column.id, "end", val);
+                onChangeLocation && onChangeLocation(mode, column.id, "end", val);
+              }}
               className="w-full text-xs border-gray-200 rounded px-1 py-0.5 bg-white"
             >
               <option value="office">事業所</option>

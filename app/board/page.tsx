@@ -92,18 +92,20 @@ export default function BoardPage() {
     setSelectedChild({ magnet, columnId });
   };
 
-  const handleAssignTo = (targetColumnId: string) => {
+  const handleAssignTo = async (targetColumnId: string) => {
     if (!selectedChild) return;
     if (selectedChild.columnId !== targetColumnId) {
       moveChild(activeTab, selectedChild.magnet.id, selectedChild.columnId, targetColumnId);
+      await performAutoSave();
     }
     setSelectedChild(null);
   };
 
-  const handleReorder = (direction: -1 | 1) => {
+  const handleReorder = async (direction: -1 | 1) => {
     if (!selectedChild) return;
     if (selectedChild.columnId === "unassigned") return;
     reorderChild(activeTab, selectedChild.columnId, selectedChild.magnet.id, direction);
+    await performAutoSave();
   };
 
   const handleAutoAssign = async () => {
@@ -205,9 +207,7 @@ export default function BoardPage() {
 
       // 自動配車後、即座に Supabase に永続化
       setTimeout(async () => {
-        const targetDateStr = formatDate(selectedDate);
-        const state = useBoardStore.getState();
-        await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
+        await performAutoSave();
       }, 0);
     } catch (err: any) {
       console.error(err);
@@ -217,20 +217,17 @@ export default function BoardPage() {
     }
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    setToastMessage(null);
+  const performAutoSave = async () => {
     try {
       const targetDateStr = formatDate(selectedDate);
       const state = useBoardStore.getState();
       
       await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
 
-      setToastMessage({ type: "success", text: "✅ 送迎表を保存しました" });
+      setToastMessage({ type: "success", text: "✓ すべての変更は自動保存されました" });
     } catch (error) {
       setToastMessage({ type: "error", text: "❌ 保存に失敗しました" });
     } finally {
-      setIsSaving(false);
       setTimeout(() => setToastMessage(null), 3000);
     }
   };
@@ -300,13 +297,8 @@ export default function BoardPage() {
 
     // リセット後、最新状態をSupabaseに上書き保存
     setTimeout(async () => {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const state = useBoardStore.getState();
-      await saveBoardState(todayStr, state.inboundBoard, state.outboundBoard);
+      await performAutoSave();
     }, 0);
-
-    setToastMessage({ type: "success", text: "✅ 最新の状態でリセットしました" });
-    setTimeout(() => setToastMessage(null), 3000);
   };
 
   // 車両カラムの初期値: dynamicShiftsから即時構築（カラムは常に表示）
@@ -555,9 +547,7 @@ export default function BoardPage() {
   const handleDirectReorder = async (columnId: string, childId: string, direction: -1 | 1) => {
     try {
       reorderChild(activeTab, columnId, childId, direction);
-      const state = useBoardStore.getState();
-      const targetDateStr = formatDate(selectedDate);
-      await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
+      await performAutoSave();
     } catch (err) {
       console.error("Failed to reorder directly", err);
     }
@@ -617,15 +607,6 @@ export default function BoardPage() {
               <Sparkles className={`w-3.5 h-3.5 ${isAutoAssigning ? "animate-pulse" : ""}`} />
               {isAutoAssigning ? "AI配車中..." : "自動配車"}
             </Button>
-            <Button 
-              size="sm" 
-              onClick={handleSave}
-              disabled={isSaving}
-              className="gap-1.5 h-8 px-4 text-xs font-bold bg-gray-900 hover:bg-gray-800 text-white shrink-0"
-            >
-              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              {isSaving ? "保存中..." : "保存"}
-            </Button>
           </div>
         </div>
 
@@ -664,7 +645,7 @@ export default function BoardPage() {
 
           {/* Vehicle columns */}
           {displayColumns.map((col) => (
-            <VehicleColumn key={col.id} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} />
+            <VehicleColumn key={col.id} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} onChangeLocation={async () => { await performAutoSave(); }} />
           ))}
         </div>
       </div>
