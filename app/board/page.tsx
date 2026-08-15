@@ -229,24 +229,30 @@ export default function BoardPage() {
 
     if (activeTab === "inbound") {
       setBoard("inbound", {
-        columns: state.inboundBoard.columns.map((col: any) => ({
-          ...col,
-          trips: (col.trips || []).map((trip: any) => ({
-            ...trip,
-            children: [],
-          })),
-        })),
+        columns: state.inboundBoard.columns.map((col: any) => {
+          const firstTrip = (col.trips || []).find((t: any) => t.tripIndex === 1) || {
+            id: `${col.shiftId || col.id}-trip-1`,
+            tripIndex: 1,
+          };
+          return {
+            ...col,
+            trips: [{ ...firstTrip, children: [] }],
+          };
+        }),
         unassigned: { id: "unassigned", children: inboundChildren },
       });
     } else {
       setBoard("outbound", {
-        columns: state.outboundBoard.columns.map((col: any) => ({
-          ...col,
-          trips: (col.trips || []).map((trip: any) => ({
-            ...trip,
-            children: [],
-          })),
-        })),
+        columns: state.outboundBoard.columns.map((col: any) => {
+          const firstTrip = (col.trips || []).find((t: any) => t.tripIndex === 1) || {
+            id: `${col.shiftId || col.id}-trip-1`,
+            tripIndex: 1,
+          };
+          return {
+            ...col,
+            trips: [{ ...firstTrip, children: [] }],
+          };
+        }),
         unassigned: { id: "unassigned", children: outboundChildren },
       });
     }
