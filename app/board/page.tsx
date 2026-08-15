@@ -133,7 +133,7 @@ export default function BoardPage() {
       // 現在ボード上（カラム＋未割り当て）にいる児童を対象とする
       const allChildrenOnBoard = [
         ...board.unassigned.children,
-        ...board.columns.flatMap(c => c.trips.flatMap(t => t.children))
+        ...board.columns.flatMap(c => c.trips.flatMap((t: any) => t.children))
       ];
 
       const currentAttendances = allChildrenOnBoard.map(c => ({
@@ -170,9 +170,9 @@ export default function BoardPage() {
       }
 
       
-      const allExpectedIds = new Set(allChildrenOnBoard.map(c => c.id));
+      const allExpectedIds = new Set(allChildrenOnBoard.map((c: any) => c.id));
       
-      const newColumns = initialColumns.map(col => {
+      const newColumns = initialColumns.map((col: any) => {
         // APIレスポンスと画面上のカラム（シフト）を正確にマッピングする
         const assignment = data.assignments?.find((a: any) => 
           a.shiftId === col.shiftId || (a.vehicleId === col.vehicleId && !a.shiftId)
@@ -246,7 +246,7 @@ export default function BoardPage() {
         return ["both", "pickup_only"].includes(status);
       })
       .filter(a => {
-        const child = children.find(c => c.id === a.child_id);
+        const child = children.find((c: any) => c.id === a.child_id);
         const isAbsent = (a.attendance_status || child?.status) === "absent" || a.status === "absent";
         return child && !isAbsent;
       })
@@ -258,7 +258,7 @@ export default function BoardPage() {
         return ["both", "dropoff_only"].includes(status);
       })
       .filter(a => {
-        const child = children.find(c => c.id === a.child_id);
+        const child = children.find((c: any) => c.id === a.child_id);
         const isAbsent = (a.attendance_status || child?.status) === "absent" || a.status === "absent";
         return child && !isAbsent;
       })
@@ -436,59 +436,60 @@ export default function BoardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [children, selectedDate]);
 
-  // 同期用useEffect (児童およびスタッフマスターの変更をボードに反映)
+  // 同期用useEffect (児童およびスタッフ情報が更新されたらボード上の情報を最新化)
   useEffect(() => {
-    const state = useBoardStore.getState();
-    if (state.inboundBoard.columns.length === 0 && state.outboundBoard.columns.length === 0) return;
+    if (children.length === 0 || attendances.length === 0) return;
 
-    const syncBoard = (boardState: typeof inboundBoard, mode: "inbound" | "outbound") => {
+    const syncBoard = (boardState: any, mode: "inbound" | "outbound") => {
       const newCols = boardState.columns
-        .filter(col => {
-          // スタッフが休みの場合は車両カラムごと削除
-          const driver = dailyStaff.find(ds => ds.staff_id === col.driverId);
-          return !driver || driver.status !== "absent";
+        .filter((col: any) => {
+          // シフトが存在しなくなったら除外（dynamicShiftsにあるか）
+          return dynamicShifts.some(shift => shift.id === col.shiftId || (shift.vehicle_id === col.vehicleId && !shift.id));
         })
-        .map(col => {
+        .map((col: any) => {
           const driver = dailyStaff.find(ds => ds.staff_id === col.driverId);
           return {
             ...col,
             driverStatus: driver?.status,
             driverStatusTime: driver?.status_time,
             driverRole: driver?.role || driver?.staff?.role,
-            children: col.children
-              .filter(m => {
-                const child = children.find(c => c.id === m.id);
-                const att = attendances.find(a => a.child_id === m.id);
-                const status = att?.status || "both";
-                const isValidForMode = mode === "inbound" 
-                  ? ["both", "pickup_only"].includes(status)
-                  : ["both", "dropoff_only"].includes(status);
-                const isAbsent = (att?.attendance_status || child?.status) === "absent" || status === "absent";
-                return child && !isAbsent && isValidForMode;
-              })
-              .map(m => {
-                const child = children.find(c => c.id === m.id);
-                const att = attendances.find(a => a.child_id === m.id);
-                return { 
-                  ...m, 
-                  status: child?.status, 
-                  status_time: child?.status_time, 
-                  has_caution: child?.has_caution ?? false,
-                  pickup_time: (att?.pickup_time && att.pickup_time.trim() !== "")
-                    ? att.pickup_time
-                    : (child?.default_dismissal_time && child.default_dismissal_time.trim() !== "")
-                      ? child.default_dismissal_time
-                      : (child?.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
-                        ? child.school.default_dismissal_time
-                        : null
-                };
-              })
+            trips: col.trips.map((trip: any) => ({
+              ...trip,
+              children: trip.children
+                .filter((m: any) => {
+                  const child = children.find((c: any) => c.id === m.id);
+                  const att = attendances.find(a => a.child_id === m.id);
+                  const status = att?.status || "both";
+                  const isValidForMode = mode === "inbound" 
+                    ? ["both", "pickup_only"].includes(status)
+                    : ["both", "dropoff_only"].includes(status);
+                  const isAbsent = (att?.attendance_status || child?.status) === "absent" || status === "absent";
+                  return child && !isAbsent && isValidForMode;
+                })
+                .map((m: any) => {
+                  const child = children.find((c: any) => c.id === m.id);
+                  const att = attendances.find(a => a.child_id === m.id);
+                  return { 
+                    ...m, 
+                    status: child?.status, 
+                    status_time: child?.status_time, 
+                    has_caution: child?.has_caution ?? false,
+                    pickup_time: (att?.pickup_time && att.pickup_time.trim() !== "")
+                      ? att.pickup_time
+                      : (child?.default_dismissal_time && child.default_dismissal_time.trim() !== "")
+                        ? child.default_dismissal_time
+                        : (child?.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
+                          ? child.school.default_dismissal_time
+                          : null
+                  };
+                })
+            }))
           };
         });
       
       const newUnassignedChildren = boardState.unassigned.children
-        .filter(m => {
-          const child = children.find(c => c.id === m.id);
+        .filter((m: any) => {
+          const child = children.find((c: any) => c.id === m.id);
           const att = attendances.find(a => a.child_id === m.id);
           const status = att?.status || "both";
           const isValidForMode = mode === "inbound" 
@@ -497,8 +498,8 @@ export default function BoardPage() {
           const isAbsent = (att?.attendance_status || child?.status) === "absent" || status === "absent";
           return child && !isAbsent && isValidForMode;
         })
-        .map(m => {
-          const child = children.find(c => c.id === m.id);
+        .map((m: any) => {
+          const child = children.find((c: any) => c.id === m.id);
           const att = attendances.find(a => a.child_id === m.id);
           return { 
             ...m, 
@@ -517,8 +518,8 @@ export default function BoardPage() {
 
       // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して未割り当てに追加
       const currentIds = new Set([
-        ...newCols.flatMap(col => col.trips.flatMap(t => t.children.map(c => c.id))),
-        ...newUnassignedChildren.map(c => c.id)
+        ...newCols.flatMap((col: any) => col.trips.flatMap((t: any) => t.children.map((c: any) => c.id))),
+        ...newUnassignedChildren.map((c: any) => c.id)
       ]);
 
       const missingChildren = attendances
@@ -526,7 +527,7 @@ export default function BoardPage() {
           const status = a.status || "both";
           return mode === "inbound" ? ["both", "pickup_only"].includes(status) : ["both", "dropoff_only"].includes(status);
         })
-        .filter(a => children.some(c => c.id === a.child_id && (a.attendance_status || c.status) !== "absent"))
+        .filter(a => children.some((c: any) => c.id === a.child_id && (a.attendance_status || c.status) !== "absent"))
         .filter(a => !currentIds.has(a.child_id))
         .map(a => toMagnet(a.child_id, children, attendances));
 
@@ -535,11 +536,11 @@ export default function BoardPage() {
         children: [...newUnassignedChildren, ...missingChildren]
       };
 
-      state.setBoard(mode, { columns: newCols, unassigned: newUnassigned });
+      useBoardStore.getState().setBoard(mode, { columns: newCols, unassigned: newUnassigned });
     };
 
-    syncBoard(state.inboundBoard, "inbound");
-    syncBoard(state.outboundBoard, "outbound");
+    syncBoard(useBoardStore.getState().inboundBoard, "inbound");
+    syncBoard(useBoardStore.getState().outboundBoard, "outbound");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [children, dailyStaff, attendances]);
 
@@ -559,7 +560,7 @@ export default function BoardPage() {
   ) + board.unassigned.children.length;
 
   const overCapacityCols = displayColumns.filter(
-    (col) => col.trips.some(t => t.children.length > col.capacity)
+    (col) => col.trips.some((t: any) => t.children.length > col.capacity)
   );
 
   const handlePrint = () => {
@@ -702,8 +703,8 @@ export default function BoardPage() {
 
         <div className="space-y-6">
           {displayColumns
-            .filter(col => col.trips.some(t => t.children.length > 0))
-            .map(col => {
+            .filter((col: any) => col.trips.some((t: any) => t.children.length > 0))
+            .map((col: any) => {
               return (
                 <div key={col.id} className="print-vehicle-table mb-6 break-inside-avoid">
                   <div className="flex items-center gap-4 mb-2 border-b-2 border-black pb-1">
@@ -713,7 +714,7 @@ export default function BoardPage() {
                     </div>
                   </div>
                   
-                  {col.trips.filter(t => t.children.length > 0).map((trip, tripIdx) => {
+                  {col.trips.filter((t: any) => t.children.length > 0).map((trip: any, tripIdx: any) => {
                     // 児童を時間順にソート (nullや空は最後)
                     const sortedChildren = [...trip.children].sort((a, b) => {
                       const timeA = a.pickup_time || "99:99";
@@ -758,8 +759,6 @@ export default function BoardPage() {
                   })}
                 </div>
               );
-            })}
-        </div>
             })}
         </div>
       </div>

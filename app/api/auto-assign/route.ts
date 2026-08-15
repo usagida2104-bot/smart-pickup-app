@@ -133,7 +133,7 @@ ${distanceMatrix ? JSON.stringify(distanceMatrix, null, 2) : "取得できませ
       const assignments = fallbackResult.columns.map(col => ({
         shiftId: col.shiftId,
         vehicleId: col.vehicleId,
-        childrenIds: col.children.map(c => c.childId),
+        childrenIds: col.trips.flatMap((t: any) => t.children).map(c => c.childId),
         routeInfo: "標準ルール配車",
         estimatedTime: null
       }));

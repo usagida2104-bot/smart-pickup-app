@@ -61,8 +61,8 @@ describe("autoAssignVehicles", () => {
     const result = autoAssignVehicles({ attendances, shifts });
 
     expect(result.columns.length).toBe(1);
-    expect(result.columns[0].children.length).toBe(1);
-    expect(result.columns[0].children[0].id).toBe("1");
+    expect(result.columns[0].trips[0].children.length).toBe(1);
+    expect(result.columns[0].trips[0].children[0].id).toBe("1");
     expect(result.unassigned.length).toBe(0);
   });
 
@@ -76,9 +76,10 @@ describe("autoAssignVehicles", () => {
 
     const result = autoAssignVehicles({ attendances, shifts });
 
-    expect(result.columns[0].children.length).toBe(2);
-    expect(result.unassigned.length).toBe(1);
-    expect(result.unassigned[0].id).toBe("3"); // Last one due to pickup_time sorting
+    expect(result.columns[0].trips[0].children.length).toBe(2);
+    expect(result.columns[0].trips.length).toBe(2);
+    expect(result.columns[0].trips[1].children[0].id).toBe("3");
+    expect(result.unassigned.length).toBe(0);
   });
 
   it("should return empty columns and empty unassigned when everyone is absent", () => {
@@ -91,8 +92,8 @@ describe("autoAssignVehicles", () => {
     const result = autoAssignVehicles({ attendances, shifts });
 
     expect(result.columns.length).toBe(2);
-    expect(result.columns[0].children.length).toBe(0);
-    expect(result.columns[1].children.length).toBe(0);
+    expect(result.columns[0].trips[0].children.length).toBe(0);
+    expect(result.columns[1].trips[0].children.length).toBe(0);
     expect(result.unassigned.length).toBe(0);
   });
 
@@ -115,11 +116,11 @@ describe("autoAssignVehicles", () => {
 
     // Total 4 kids, 2 vehicles with equal capacity (4).
     // Due to load balancing, they should have 2 kids each.
-    expect(v1?.children.length).toBe(2);
-    expect(v2?.children.length).toBe(2);
+    expect(v1?.trips[0].children.length).toBe(2);
+    expect(v2?.trips[0].children.length).toBe(2);
 
     // School A (1 and 3) should be grouped together via Pass 1.
-    const hasSchoolA = (col: any) => col.children.some((c: any) => c.id === "1") && col.children.some((c: any) => c.id === "3");
+    const hasSchoolA = (col: any) => col.trips[0].children.some((c: any) => c.id === "1") && col.trips[0].children.some((c: any) => c.id === "3");
     
     expect(hasSchoolA(v1) || hasSchoolA(v2)).toBe(true);
   });
@@ -142,8 +143,8 @@ describe("autoAssignVehicles", () => {
     const v2 = result.columns.find((c) => c.id === "v2");
 
     // 1 & 3 should be together (North Area), 2 & 4 should be together (South Area)
-    const hasNorthArea = (col: any) => col.children.some((c: any) => c.id === "1") && col.children.some((c: any) => c.id === "3");
-    const hasSouthArea = (col: any) => col.children.some((c: any) => c.id === "2") && col.children.some((c: any) => c.id === "4");
+    const hasNorthArea = (col: any) => col.trips[0].children.some((c: any) => c.id === "1") && col.trips[0].children.some((c: any) => c.id === "3");
+    const hasSouthArea = (col: any) => col.trips[0].children.some((c: any) => c.id === "2") && col.trips[0].children.some((c: any) => c.id === "4");
 
     expect(
       (hasNorthArea(v1) && hasSouthArea(v2)) ||
