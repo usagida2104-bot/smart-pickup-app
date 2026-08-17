@@ -112,12 +112,18 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   console.log(`\n[AutoAssign] 配車開始... 総出席児童: ${allMagnets.length}名`);
 
   // ==========================================
-  // Step 1: 生徒の完全グループ化（クラスタ作成）
+  // Step 1: 生徒の完全グループ化（クラスタ作成）と学校規模の集計
   // ==========================================
   const schoolGroups = new Map<string, ChildMagnet[]>();
+  const schoolTotals = new Map<string, number>();
+
   for (const mag of allMagnets) {
-    if (!schoolGroups.has(mag.school_name)) schoolGroups.set(mag.school_name, []);
+    if (!schoolGroups.has(mag.school_name)) {
+        schoolGroups.set(mag.school_name, []);
+        schoolTotals.set(mag.school_name, 0);
+    }
     schoolGroups.get(mag.school_name)!.push(mag);
+    schoolTotals.set(mag.school_name, schoolTotals.get(mag.school_name)! + 1);
   }
 
   const missionGroups: MissionGroup[] = [];
@@ -175,13 +181,24 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     missionGroups.push(...currentGroups);
   }
 
-  // Sort groups: 1. Time ASC, 2. Size DESC
+  // ★変更点★ Sort groups: 1. SchoolTotal DESC, 2. Time ASC, 3. Size DESC
   missionGroups.sort((a, b) => {
+    const totalA = schoolTotals.get(a.school_name) || 0;
+    const totalB = schoolTotals.get(b.school_name) || 0;
+    if (totalA !== totalB) return totalB - totalA;
+    
     const timeA = getMinutes(a.base_pickup_time);
     const timeB = getMinutes(b.base_pickup_time);
     if (timeA !== timeB) return timeA - timeB;
+    
     return b.children.length - a.children.length;
   });
+
+  console.log(`\n[AutoAssign] === 評価順序（最大規模校を最優先） ===`);
+  for (const g of missionGroups) {
+      const total = schoolTotals.get(g.school_name);
+      console.log(` - [${g.base_pickup_time}] ${g.school_name}(計${total}名) : グループ${g.children.length}名`);
+  }
 
   // ==========================================
   // Step 2: 車両の定員ソート
@@ -206,7 +223,6 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     const lastTrip = col.internalTrips[col.internalTrips.length - 1];
     if (lastTrip.stops.length === 0) return true;
     const lastStop = lastTrip.stops[lastTrip.stops.length - 1];
-    // 1便目の完了から次便への出動は、最後のピックアップ時刻から +30分 と仮定
     return lastStop.timeMinutes + 30 <= time;
   }
 
@@ -218,7 +234,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   }
 
   // ==========================================
-  // Step 3 & 4: アサインループ (Physical Routing & Bin Packing)
+  // Step 3: アサインループ (Physical Routing & Bin Packing)
   // ==========================================
   
   let finalUnassigned: ChildMagnet[] = [];
@@ -352,7 +368,6 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
                   });
               } else if (appendToTrip) {
                   const lastStop = appendToTrip.stops[appendToTrip.stops.length - 1];
-                  // If same school and exactly same time, just append children to that stop
                   if (lastStop.schoolName === groupSchool && lastStop.timeMinutes === groupTime) {
                       lastStop.children.push(...toTake);
                   } else {
@@ -365,14 +380,72 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
                   }
               }
           } else {
-              // Strategy 4: Fallback
-              // NO VEHICLE HAS SPACE, OR NO VEHICLE CAN REACH IN TIME.
-              // Push to unassigned to NEVER create overcapacity
+              // Push to unassigned to be handled by Final Pass
               finalUnassigned.push(...unassignedChildren);
               unassignedChildren = [];
               break;
           }
       }
+  }
+
+  // ==========================================
+  // Step 4: Final Pass (未割り当てゼロ保証)
+  // ==========================================
+  if (finalUnassigned.length > 0) {
+      console.log(`\n[AutoAssign] Final Pass開始... 未割り当て ${finalUnassigned.length}名 を強制アサイン`);
+      let stillUnassigned: ChildMagnet[] = [];
+      
+      for (const child of finalUnassigned) {
+          let assigned = false;
+          // Look for ANY space in ANY internal trip, relaxing time constraints heavily
+          for (const col of intColumns) {
+              for (const trip of col.internalTrips) {
+                  const currentCount = trip.stops.reduce((acc, s) => acc + s.children.length, 0);
+                  if (col.capacity > currentCount) {
+                      const allExisting = trip.stops.flatMap(s => s.children);
+                      if (canRideTogether(allExisting, [child])) {
+                          const sameSchoolStop = trip.stops.find(s => s.schoolName === child.school_name);
+                          if (sameSchoolStop) {
+                              sameSchoolStop.children.push(child);
+                          } else {
+                              trip.stops.push({
+                                  timeMinutes: getMinutes(child.pickup_time),
+                                  schoolName: child.school_name,
+                                  area: child.school_area,
+                                  children: [child]
+                              });
+                              // Re-sort stops chronologically just in case
+                              trip.stops.sort((a,b) => a.timeMinutes - b.timeMinutes);
+                          }
+                          assigned = true;
+                          break;
+                      }
+                  }
+              }
+              if (assigned) break;
+          }
+          
+          if (!assigned) {
+              // No space anywhere. Start a new trip on the first available vehicle
+              for (const col of intColumns) {
+                  col.internalTrips.push({
+                      id: `temp`,
+                      tripIndex: 0,
+                      startTimeMinutes: getMinutes(child.pickup_time),
+                      stops: [{
+                          timeMinutes: getMinutes(child.pickup_time),
+                          schoolName: child.school_name,
+                          area: child.school_area,
+                          children: [child]
+                      }]
+                  });
+                  assigned = true;
+                  break;
+              }
+          }
+          if (!assigned) stillUnassigned.push(child);
+      }
+      finalUnassigned = stillUnassigned;
   }
 
   // ==========================================
@@ -402,7 +475,6 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
           
           totalChildren += allChildrenInTrip.length;
 
-          // Build Route Log
           let routeStr = `${currentTripIndex}便目 [`;
           for (let i = 0; i < intTrip.stops.length; i++) {
               const stop = intTrip.stops[i];
