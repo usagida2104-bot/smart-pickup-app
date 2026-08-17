@@ -73,13 +73,13 @@ export default function BoardPage() {
 
   // 本日の稼働シフトを日別設定から動的に構築
   const dynamicShifts = dailyStaff
-    .filter((ds) => ds.staff?.is_driver && ds.staff?.assignedVehicleId && ds.status !== "absent")
+    .filter((ds) => ds.staff?.is_driver && ds.assigned_vehicle_id && ds.status !== "absent")
     .map((ds) => {
-      const v = dailyVehicles.find((dv) => dv.vehicle_id === ds.staff?.assignedVehicleId);
+      const v = dailyVehicles.find((dv) => dv.vehicle_id === ds.assigned_vehicle_id);
       return {
         id: `shift-${ds.staff_id}`,
         target_date: formatDate(selectedDate),
-        vehicle_id: ds.staff!.assignedVehicleId!,
+        vehicle_id: ds.assigned_vehicle_id!,
         driver_id: ds.staff_id,
         vehicle: v?.vehicle,
         driver: ds.staff,
@@ -301,7 +301,7 @@ export default function BoardPage() {
         // Merge dailyStaff
         const mergedStaff = staff.map((s) => {
           const existing = fetchedStaff?.find((ds: any) => ds.staff_id === s.id);
-          return existing ? { ...existing, staff: s } : { staff_id: s.id, status: "present", role: s.role, staff: s };
+          return existing ? { ...existing, staff: s } : { staff_id: s.id, status: "present", role: s.role, assigned_vehicle_id: null, staff: s };
         });
         setDailyStaff(mergedStaff);
 

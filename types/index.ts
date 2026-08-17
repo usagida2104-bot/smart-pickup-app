@@ -73,6 +73,7 @@ export interface DailyStaff {
   status: "present" | "absent" | "late" | "early_leave";
   status_time: string | null;
   role?: string | null;
+  assigned_vehicle_id?: string | null;
   // join
   staff?: Staff;
 }

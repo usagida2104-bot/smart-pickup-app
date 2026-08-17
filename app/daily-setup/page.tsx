@@ -120,6 +120,7 @@ export default function DailySetupPage() {
             status: "present",
             status_time: null,
             role: s.role,
+            assigned_vehicle_id: null,
             staff: s,
           };
         });
@@ -345,6 +346,47 @@ export default function DailySetupPage() {
         is_active: updated.is_active
       });
     } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const assignDriverToVehicle = async (staffId: string, vehicleId: string | null) => {
+    const recordsToUpdate: DailyStaff[] = [];
+    
+    const newStaff = dailyStaff.map(s => {
+      if (s.staff_id === staffId) {
+        const updated = { ...s, assigned_vehicle_id: vehicleId };
+        recordsToUpdate.push(updated);
+        return updated;
+      }
+      if (vehicleId && s.assigned_vehicle_id === vehicleId && s.staff_id !== staffId) {
+        const updated = { ...s, assigned_vehicle_id: null };
+        recordsToUpdate.push(updated);
+        return updated;
+      }
+      return s;
+    });
+    
+    setDailyStaff(newStaff);
+    
+    if (recordsToUpdate.length === 0) return;
+    
+    setIsSaving(true);
+    try {
+      await Promise.all(recordsToUpdate.map(ds => 
+        upsertDailyStaff({
+          id: ds.id,
+          target_date: ds.target_date,
+          staff_id: ds.staff_id,
+          status: ds.status,
+          status_time: ds.status_time,
+          role: ds.role,
+          assigned_vehicle_id: ds.assigned_vehicle_id
+        })
+      ));
+    } catch(err) {
       console.error(err);
     } finally {
       setIsSaving(false);
@@ -651,12 +693,20 @@ export default function DailySetupPage() {
                   <TableHead className="whitespace-nowrap">職員名</TableHead>
                   <TableHead className="whitespace-nowrap">役職</TableHead>
                   <TableHead className="whitespace-nowrap">出勤ステータス</TableHead>
+                  <TableHead className="whitespace-nowrap">担当車両</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {dailyStaff.map(ds => {
                   const s = ds.staff;
                   if (!s) return null;
+                  const isDriver = s.is_driver;
+                  const isPresent = ds.status === "present" || ds.status === "late" || ds.status === "early_leave";
+                  const canDrive = isDriver && isPresent;
+                  const currentlyUsedVehicleIds = dailyStaff
+                    .filter(other => other.staff_id !== s.id && other.status !== "absent" && other.assigned_vehicle_id)
+                    .map(other => other.assigned_vehicle_id);
+                  const availableVehicles = dailyVehicles.filter(dv => dv.is_active);
                   return (
                     <TableRow key={ds.staff_id} className={cn(ds.status === "absent" && "bg-gray-50 opacity-70")}>
                       <TableCell className="font-medium whitespace-nowrap">{s.name}</TableCell>
@@ -719,6 +769,74 @@ export default function DailySetupPage() {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {canDrive ? (
+                          <Select
+                            value={ds.assigned_vehicle_id || "none"}
+                            onValueChange={(val) => assignDriverToVehicle(ds.staff_id, val === "none" ? null : val)}
+                          >
+                            <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
+                              <SelectValue placeholder="担当車両を選択" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">（未割り当て / 運転なし）</SelectItem>
+                              {availableVehicles.map((dv) => (
+                                <SelectItem 
+                                  key={dv.vehicle_id} 
+                                  value={dv.vehicle_id}
+                                  disabled={currentlyUsedVehicleIds.includes(dv.vehicle_id)}
+                                >
+                                  {dv.vehicle?.name} {currentlyUsedVehicleIds.includes(dv.vehicle_id) ? "(使用中)" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-xs text-gray-400 font-medium">
+                            {ds.status === "absent" ? "-" : "添乗のみ（設定不可）"}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {dv.is_active ? (
+                          <Select
+                            value={driver ? driver.staff_id : "none"}
+                            onValueChange={(val) => {
+                              const newDriverId = val === "none" ? null : val;
+                              if (driver && driver.staff_id !== newDriverId) {
+                                assignDriverToVehicle(driver.staff_id, null);
+                              }
+                              if (newDriverId) {
+                                assignDriverToVehicle(newDriverId, dv.vehicle_id);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
+                              <SelectValue placeholder="未割り当て" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">未割り当て</SelectItem>
+                              {dailyStaff
+                                .filter(ds => ds.staff?.is_driver && ds.status !== "absent")
+                                .map(ds => {
+                                  const isAssignedToOther = ds.assigned_vehicle_id && ds.assigned_vehicle_id !== dv.vehicle_id;
+                                  return (
+                                    <SelectItem 
+                                      key={ds.staff_id} 
+                                      value={ds.staff_id}
+                                      disabled={!!isAssignedToOther}
+                                    >
+                                      {ds.staff?.name} {isAssignedToOther ? "(他車両)" : ""}
+                                    </SelectItem>
+                                  );
+                                })
+                              }
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-xs text-gray-400 font-medium">-</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -736,12 +854,14 @@ export default function DailySetupPage() {
                 <TableRow className="bg-gray-50">
                   <TableHead className="whitespace-nowrap">車両名</TableHead>
                   <TableHead className="whitespace-nowrap">稼働ステータス</TableHead>
+                  <TableHead className="whitespace-nowrap">ドライバー (担当職員)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {dailyVehicles.map(dv => {
                   const v = dv.vehicle;
                   if (!v) return null;
+                  const driver = dailyStaff.find(ds => ds.assigned_vehicle_id === dv.vehicle_id && ds.status !== "absent");
                   return (
                     <TableRow key={dv.vehicle_id} className={cn(!dv.is_active && "bg-gray-100 opacity-60")}>
                       <TableCell className="font-medium whitespace-nowrap">{v.name}</TableCell>
