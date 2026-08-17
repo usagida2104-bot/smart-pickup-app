@@ -684,6 +684,7 @@ export default function DailySetupPage() {
       </>
       )}
 
+      
       {activeTab === "staff" && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -697,149 +698,119 @@ export default function DailySetupPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dailyStaff.map(ds => {
-                  const s = ds.staff;
-                  if (!s) return null;
-                  const isDriver = s.is_driver;
-                  const isPresent = ds.status === "present" || ds.status === "late" || ds.status === "early_leave";
-                  const canDrive = isDriver && isPresent;
-                  const currentlyUsedVehicleIds = dailyStaff
-                    .filter(other => other.staff_id !== s.id && other.status !== "absent" && other.assigned_vehicle_id)
-                    .map(other => other.assigned_vehicle_id);
-                  const availableVehicles = dailyVehicles.filter(dv => dv.is_active);
-                  return (
-                    <TableRow key={ds.staff_id} className={cn(ds.status === "absent" && "bg-gray-50 opacity-70")}>
-                      <TableCell className="font-medium whitespace-nowrap">{s.name}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <Select
-                          value={ds.role || "一般スタッフ"}
-                          onValueChange={(v) => updateDailyStaffRole(ds.staff_id, v)}
-                        >
-                          <SelectTrigger 
-                            className={cn(
-                              "w-[140px] h-8 text-xs font-bold border",
-                              ds.role?.includes("リーダー") ? (
-                                ds.role === "ぽっけリーダー" ? "bg-blue-600 text-white" :
-                                ds.role === "ぽっけⅡリーダー" ? "bg-purple-600 text-white" :
-                                ds.role === "日中一時リーダー" ? "bg-orange-500 text-white" : ""
-                              ) : "bg-gray-100 text-gray-700"
-                            )}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="一般スタッフ">一般スタッフ</SelectItem>
-                            <SelectItem value="ぽっけリーダー">ぽっけリーダー</SelectItem>
-                            <SelectItem value="ぽっけⅡリーダー">ぽっけⅡリーダー</SelectItem>
-                            <SelectItem value="日中一時リーダー">日中一時リーダー</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={ds.status}
-                            onValueChange={(v: any) => updateDailyStaffStatus(ds.staff_id, v)}
-                          >
-                            <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(ds.status))}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="present"><span className="text-pink-700 font-bold">出勤</span></SelectItem>
-                              <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
-                              <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
-                              <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
-                            </SelectContent>
-                          </Select>
-
-                          {(ds.status === "late" || ds.status === "early_leave") && (
+                {(() => {
+                  try {
+                    return (dailyStaff || []).map(ds => {
+                      const s = ds?.staff;
+                      if (!s) return null;
+                      const isDriver = s?.is_driver;
+                      const isPresent = ds?.status === "present" || ds?.status === "late" || ds?.status === "early_leave";
+                      const canDrive = isDriver && isPresent;
+                      
+                      const currentlyUsedVehicleIds = (dailyStaff || [])
+                        .filter(other => other?.staff_id !== s?.id && other?.status !== "absent" && other?.assigned_vehicle_id)
+                        .map(other => other?.assigned_vehicle_id);
+                        
+                      const availableVehicles = (dailyVehicles || []).filter(dv => dv?.is_active);
+                      
+                      return (
+                        <TableRow key={ds?.staff_id} className={cn(ds?.status === "absent" && "bg-gray-50 opacity-70")}>
+                          <TableCell className="font-medium whitespace-nowrap">{s?.name}</TableCell>
+                          <TableCell className="whitespace-nowrap">
                             <Select
-                              value={ds.status_time || "14:00"}
-                              onValueChange={(v) => updateDailyStaffStatus(ds.staff_id, ds.status as any, v)}
+                              value={ds?.role || "一般スタッフ"}
+                              onValueChange={(v) => updateDailyStaffRole(ds?.staff_id, v)}
                             >
-                              <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
+                              <SelectTrigger 
+                                className={cn(
+                                  "w-[140px] h-8 text-xs font-bold border",
+                                  ds?.role?.includes("リーダー") ? (
+                                    ds?.role === "ぽっけリーダー" ? "bg-blue-600 text-white" :
+                                    ds?.role === "ぽっけⅡリーダー" ? "bg-purple-600 text-white" :
+                                    ds?.role === "日中一時リーダー" ? "bg-orange-500 text-white" : ""
+                                  ) : "bg-gray-100 text-gray-700"
+                                )}
+                              >
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="max-h-[200px]">
-                                {TIME_OPTIONS.map((time) => (
-                                  <SelectItem key={time} value={time}>{time}</SelectItem>
-                                ))}
+                              <SelectContent>
+                                <SelectItem value="一般スタッフ">一般スタッフ</SelectItem>
+                                <SelectItem value="ぽっけリーダー">ぽっけリーダー</SelectItem>
+                                <SelectItem value="ぽっけⅡリーダー">ぽっけⅡリーダー</SelectItem>
+                                <SelectItem value="日中一時リーダー">日中一時リーダー</SelectItem>
                               </SelectContent>
                             </Select>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {canDrive ? (
-                          <Select
-                            value={ds.assigned_vehicle_id || "none"}
-                            onValueChange={(val) => assignDriverToVehicle(ds.staff_id, val === "none" ? null : val)}
-                          >
-                            <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
-                              <SelectValue placeholder="担当車両を選択" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">（未割り当て / 運転なし）</SelectItem>
-                              {availableVehicles.map((dv) => (
-                                <SelectItem 
-                                  key={dv.vehicle_id} 
-                                  value={dv.vehicle_id}
-                                  disabled={currentlyUsedVehicleIds.includes(dv.vehicle_id)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={ds?.status || "present"}
+                                onValueChange={(v: any) => updateDailyStaffStatus(ds?.staff_id, v)}
+                              >
+                                <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(ds?.status))}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="present"><span className="text-pink-700 font-bold">出勤</span></SelectItem>
+                                  <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
+                                  <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
+                                  <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              {(ds?.status === "late" || ds?.status === "early_leave") && (
+                                <Select
+                                  value={ds?.status_time || "14:00"}
+                                  onValueChange={(v) => updateDailyStaffStatus(ds?.staff_id, ds?.status as any, v)}
                                 >
-                                  {dv.vehicle?.name} {currentlyUsedVehicleIds.includes(dv.vehicle_id) ? "(使用中)" : ""}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <span className="text-xs text-gray-400 font-medium">
-                            {ds.status === "absent" ? "-" : "添乗のみ（設定不可）"}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {dv.is_active ? (
-                          <Select
-                            value={driver ? driver.staff_id : "none"}
-                            onValueChange={(val) => {
-                              const newDriverId = val === "none" ? null : val;
-                              if (driver && driver.staff_id !== newDriverId) {
-                                assignDriverToVehicle(driver.staff_id, null);
-                              }
-                              if (newDriverId) {
-                                assignDriverToVehicle(newDriverId, dv.vehicle_id);
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
-                              <SelectValue placeholder="未割り当て" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">未割り当て</SelectItem>
-                              {dailyStaff
-                                .filter(ds => ds.staff?.is_driver && ds.status !== "absent")
-                                .map(ds => {
-                                  const isAssignedToOther = ds.assigned_vehicle_id && ds.assigned_vehicle_id !== dv.vehicle_id;
-                                  return (
+                                  <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-[200px]">
+                                    {TIME_OPTIONS.map((time) => (
+                                      <SelectItem key={time} value={time}>{time}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {canDrive ? (
+                              <Select
+                                value={ds?.assigned_vehicle_id || "none"}
+                                onValueChange={(val) => assignDriverToVehicle(ds?.staff_id, val === "none" ? null : val)}
+                              >
+                                <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
+                                  <SelectValue placeholder="担当車両を選択" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">（未割り当て / 運転なし）</SelectItem>
+                                  {availableVehicles.map((dv) => (
                                     <SelectItem 
-                                      key={ds.staff_id} 
-                                      value={ds.staff_id}
-                                      disabled={!!isAssignedToOther}
+                                      key={dv?.vehicle_id} 
+                                      value={dv?.vehicle_id}
+                                      disabled={currentlyUsedVehicleIds.includes(dv?.vehicle_id)}
                                     >
-                                      {ds.staff?.name} {isAssignedToOther ? "(他車両)" : ""}
+                                      {dv?.vehicle?.name} {currentlyUsedVehicleIds.includes(dv?.vehicle_id) ? "(使用中)" : ""}
                                     </SelectItem>
-                                  );
-                                })
-                              }
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <span className="text-xs text-gray-400 font-medium">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-xs text-gray-400 font-medium">
+                                {ds?.status === "absent" ? "-" : "添乗のみ（設定不可）"}
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                  } catch (e) {
+                    console.error("Error rendering staff tab:", e);
+                    return <TableRow><TableCell colSpan={4} className="text-center text-red-500 py-4">スタッフデータの読み込みに失敗しました。</TableCell></TableRow>;
+                  }
+                })()}
               </TableBody>
             </Table>
           </div>
@@ -858,30 +829,77 @@ export default function DailySetupPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dailyVehicles.map(dv => {
-                  const v = dv.vehicle;
-                  if (!v) return null;
-                  const driver = dailyStaff.find(ds => ds.assigned_vehicle_id === dv.vehicle_id && ds.status !== "absent");
-                  return (
-                    <TableRow key={dv.vehicle_id} className={cn(!dv.is_active && "bg-gray-100 opacity-60")}>
-                      <TableCell className="font-medium whitespace-nowrap">{v.name}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <Select
-                          value={dv.is_active ? "active" : "inactive"}
-                          onValueChange={(val) => updateDailyVehicleActive(dv.vehicle_id, val === "active")}
-                        >
-                          <SelectTrigger className="w-[140px] h-8 text-xs font-bold border">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">使用可能</SelectItem>
-                            <SelectItem value="inactive">使用不可</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {(() => {
+                  try {
+                    return (dailyVehicles || []).map(dv => {
+                      const v = dv?.vehicle;
+                      if (!v) return null;
+                      const driver = (dailyStaff || []).find(ds => ds?.assigned_vehicle_id === dv?.vehicle_id && ds?.status !== "absent");
+                      return (
+                        <TableRow key={dv?.vehicle_id} className={cn(!dv?.is_active && "bg-gray-100 opacity-60")}>
+                          <TableCell className="font-medium whitespace-nowrap">{v?.name}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Select
+                              value={dv?.is_active ? "active" : "inactive"}
+                              onValueChange={(val) => updateDailyVehicleActive(dv?.vehicle_id, val === "active")}
+                            >
+                              <SelectTrigger className="w-[140px] h-8 text-xs font-bold border">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="active">使用可能</SelectItem>
+                                <SelectItem value="inactive">使用不可</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {dv?.is_active ? (
+                              <Select
+                                value={driver ? driver?.staff_id : "none"}
+                                onValueChange={(val) => {
+                                  const newDriverId = val === "none" ? null : val;
+                                  if (driver && driver?.staff_id !== newDriverId) {
+                                    assignDriverToVehicle(driver.staff_id, null);
+                                  }
+                                  if (newDriverId) {
+                                    assignDriverToVehicle(newDriverId, dv.vehicle_id);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
+                                  <SelectValue placeholder="未割り当て" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">未割り当て</SelectItem>
+                                  {(dailyStaff || [])
+                                    .filter(ds => ds?.staff?.is_driver && ds?.status !== "absent")
+                                    .map(ds => {
+                                      const isAssignedToOther = ds?.assigned_vehicle_id && ds?.assigned_vehicle_id !== dv?.vehicle_id;
+                                      return (
+                                        <SelectItem 
+                                          key={ds?.staff_id} 
+                                          value={ds?.staff_id}
+                                          disabled={!!isAssignedToOther}
+                                        >
+                                          {ds?.staff?.name} {isAssignedToOther ? "(他車両)" : ""}
+                                        </SelectItem>
+                                      );
+                                    })
+                                  }
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-xs text-gray-400 font-medium">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                  } catch (e) {
+                    console.error("Error rendering vehicles tab:", e);
+                    return <TableRow><TableCell colSpan={3} className="text-center text-red-500 py-4">車両データの読み込みに失敗しました。</TableCell></TableRow>;
+                  }
+                })()}
               </TableBody>
             </Table>
           </div>
