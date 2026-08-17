@@ -208,9 +208,13 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   // Step 2 & 3: グループ単位での一括投入 (Bin Packing)
   // ==========================================
   
-  // Sort groups by size descending (largest clusters first)
-  missionGroups.sort((a, b) => b.children.length - a.children.length);
-
+  // Sort groups by: 1. Pickup Time (Ascending), 2. Size (Descending)
+  missionGroups.sort((a, b) => {
+    const timeA = getMinutes(a.base_pickup_time);
+    const timeB = getMinutes(b.base_pickup_time);
+    if (timeA !== timeB) return timeA - timeB;
+    return b.children.length - a.children.length;
+  });
   for (const group of missionGroups) {
       let unassignedChildren = [...group.children];
 
