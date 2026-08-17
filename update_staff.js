@@ -1,4 +1,6 @@
-"use client";
+const fs = require('fs');
+
+const content = `"use client";
 
 import { useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -58,7 +60,7 @@ export default function StaffPage() {
       if (editing) {
         await updateStaff(editing.id, form);
       } else {
-        await addStaff({ id: `staff-${Date.now()}`, ...form });
+        await addStaff({ id: \`staff-\${Date.now()}\`, ...form });
       }
       setDialogOpen(false);
     } catch (e) {
@@ -171,11 +173,11 @@ export default function StaffPage() {
             </div>
 
             <div 
-              className={`flex items-center gap-3 p-3 mt-4 rounded-lg border transition-colors duration-200 ${
+              className={\`flex items-center gap-3 p-3 mt-4 rounded-lg border transition-colors duration-200 \${
                 form.is_driver 
                   ? "bg-blue-50 border-blue-300 shadow-sm" 
                   : "bg-gray-50 border-gray-200"
-              }`}
+              }\`}
             >
               <Switch
                 id="is-driver"
@@ -223,3 +225,7 @@ export default function StaffPage() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('app/admin/staff/page.tsx', content);
+console.log("Updated app/admin/staff/page.tsx");
