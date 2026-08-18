@@ -45,13 +45,11 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   }));
 
   // ============================================
-  // 以下、ご提供いただいたロジックを完全適応
+  // ラウンドロビン（負荷分散）と全車並行稼働アルゴリズム
   // ============================================
 
-  // 1. 車両の初期化とソート（定員の大きい順）
-  const sortedCols = [...columns]
-    .map(col => ({ ...col, trips: [] }))
-    .sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
+  // 1. 車両の初期化（ソートは後で動的に行う）
+  const cols = [...columns].map(col => ({ ...col, trips: [] }));
 
   // 時間を分に変換するヘルパー関数
   const parseTime = (t: string) => {
@@ -79,7 +77,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
 
   let unassigned: any[] = [];
 
-  // 4. 配車・はしご（相乗り）アサイン
+  // 4. 配車・ラウンドロビンアサイン
   for (const group of groups) {
     let remaining = [...group];
     const gTime = parseTime(remaining[0].time);
@@ -87,11 +85,19 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     while (remaining.length > 0) {
       let placed = false;
 
-      // パターンA: 既存の便に空きがあり、かつ時間差が「30分以内」なら相乗り（はしご）させる
-      for (const col of sortedCols) {
+      // パターンA: 同一学校の合流
+      // 既に存在する便の中で、同じ学校かつ時間差30分以内で空きがあるものを探す
+      // （※別学校の相乗りはここでは行わず、なるべく新しい便として別車両に回す）
+      for (const col of cols) {
         for (const trip of col.trips) {
-          const tripTime = parseTime(trip.children[0]?.time);
-          if (trip.children.length < col.capacity && Math.abs(tripTime - gTime) <= 30) {
+          if (trip.children.length === 0) continue;
+          if (trip.children.length >= col.capacity) continue;
+          
+          const firstChild = trip.children[0];
+          const tripTime = parseTime(firstChild.time);
+          
+          // 同一学校の場合は積極的に合流させる
+          if (firstChild.schoolName === remaining[0].schoolName && Math.abs(tripTime - gTime) <= 30) {
             const space = col.capacity - trip.children.length;
             const chunk = remaining.splice(0, space);
             trip.children.push(...chunk);
@@ -103,14 +109,28 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       }
       if (placed) continue;
 
-      // パターンB: はしごできない場合は、定員が大きい空き車両に新しい便を作る
-      let bestCol = sortedCols.find(col => col.trips.length < 4);
+      // パターンB: 新規便の作成（ラウンドロビン）
+      // ①便数が少ない ➔ ②乗車人数が少ない ➔ ③定員が大きい 車両の順で探す
+      const candidates = [...cols].sort((a, b) => {
+         // ① まずは便数が少ない車（全員が1便目に出ることを保証）
+         if (a.trips.length !== b.trips.length) return a.trips.length - b.trips.length;
+         
+         // ② 次に合計乗車人数が少ない車（特定の人への過労を防ぐ）
+         const totalA = a.trips.reduce((sum, t) => sum + t.children.length, 0);
+         const totalB = b.trips.reduce((sum, t) => sum + t.children.length, 0);
+         if (totalA !== totalB) return totalA - totalB;
+         
+         // ③ 同じ条件なら定員の大きい車を優先
+         return (b.capacity || 0) - (a.capacity || 0);
+      });
+
+      const bestCol = candidates.find(col => col.trips.length < 4);
       if (bestCol) {
         const chunk = remaining.splice(0, bestCol.capacity);
         bestCol.trips.push({ children: chunk });
         placed = true;
       } else {
-        // 車が足りない場合は一旦未割り当てへ
+        // 全車フル稼働（各4便）で乗せられない場合は一旦未割り当て配列へ逃がす
         unassigned.push(...remaining);
         remaining = [];
       }
@@ -121,7 +141,8 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   const finalUnassigned: any[] = [];
   for (const child of unassigned) {
     let placed = false;
-    for (const col of sortedCols) {
+    // まず空き枠がある便にねじ込む
+    for (const col of cols) {
       for (const trip of col.trips) {
         if (trip.children.length < col.capacity) {
           trip.children.push(child);
@@ -131,19 +152,27 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       }
       if (placed) break;
     }
+    // それでもダメなら空きのある車に新しい便を作る
     if (!placed) {
-      const bestCol = sortedCols.find(c => c.trips.length < 4);
+      // ①便数が少ない ➔ ③定員が大きい 車両の順で探す
+      const candidates = [...cols].sort((a, b) => {
+         if (a.trips.length !== b.trips.length) return a.trips.length - b.trips.length;
+         return (b.capacity || 0) - (a.capacity || 0);
+      });
+      const bestCol = candidates.find(c => c.trips.length < 4);
       if (bestCol) {
         bestCol.trips.push({ children: [child] });
         placed = true;
-      } else {
-        finalUnassigned.push(child);
       }
+    }
+    // 完全に限界の場合は最終未割り当てへ
+    if (!placed) {
+      finalUnassigned.push(child);
     }
   }
 
   // 6. 便の「時間順ソート」と連番正規化 ★ここで逆転バグを修正★
-  const finalColumns = sortedCols.map(col => {
+  const finalColumns = cols.map(col => {
     // 児童が0名の便を除外
     const validTrips = col.trips.filter((t: any) => t.children && t.children.length > 0);
 
@@ -171,6 +200,8 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
 
     return { ...col, trips: validTrips };
   });
+
+  console.log(`【完全上書き版 自動配車(ラウンドロビン)】総出席: ${allMagnets.length}名 / 最終未割り当て: ${finalUnassigned.length}名`);
 
   return { columns: finalColumns as VehicleColumn[], unassigned: finalUnassigned as ChildMagnet[] };
 }
