@@ -52,7 +52,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   const cols = [...columns].map(col => ({ ...col, trips: [] }));
 
   const parseTime = (t: string) => {
-    if (!t || t === '-') return 9999;
+    if (!t || t === '-' || t.trim() === '') return 9999;
     const [h, m] = t.split(':').map(Number);
     return (h || 0) * 60 + (m || 0);
   };

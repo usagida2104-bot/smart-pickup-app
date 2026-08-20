@@ -94,13 +94,15 @@ export default function DailySetupPage() {
 
         const mergedAtts = relevantChildren.map((child) => {
           const existing = fetchedAtts.find((a) => a.child_id === child.id);
+          const isAbukuma = (child.school?.name || '').includes('あぶくま');
+          const defaultPickup = isAbukuma ? (child.default_dismissal_time || child.school?.default_dismissal_time || "14:30") : null;
           return (
             existing ?? {
               id: `att-${targetDateStr}-${child.id}`,
               target_date: targetDateStr,
               child_id: child.id,
               status: "both" as TransportMode,
-              pickup_time: child.default_dismissal_time || null,
+              pickup_time: defaultPickup,
               attendance_status: "present" as const,
               attendance_time: null,
               child,
@@ -191,7 +193,7 @@ export default function DailySetupPage() {
       target_date: targetDateStr,
       child_id: childId,
       status: "both" as TransportMode,
-      pickup_time: "14:30",
+      pickup_time: null,
       attendance_status: "excluded" as any,
       attendance_time: null
     };
@@ -221,7 +223,7 @@ export default function DailySetupPage() {
       target_date: targetDateStr,
       child_id: child.id,
       status: "both" as TransportMode,
-      pickup_time: child.school?.default_dismissal_time ?? "14:30",
+      pickup_time: (child.school?.name || '').includes('あぶくま') ? (child.default_dismissal_time || child.school?.default_dismissal_time || "14:30") : null,
       attendance_status: "present" as const,
       attendance_time: null,
       child,
@@ -595,17 +597,24 @@ export default function DailySetupPage() {
                       
                       {/* Hour Select */}
                       <select
-                        value={att.pickup_time ? att.pickup_time.split(":")[0] : "14"}
+                        value={att.pickup_time ? att.pickup_time.split(":")[0] : ""}
                         onChange={(e) => {
-                          const min = att.pickup_time ? att.pickup_time.split(":")[1] : "30";
-                          updatePickupTime(att.child_id, `${e.target.value}:${min}`);
+                          const h = e.target.value;
+                          const min = att.pickup_time ? att.pickup_time.split(":")[1] : "00";
+                          if (!h) {
+                            updatePickupTime(att.child_id, "");
+                          } else {
+                            updatePickupTime(att.child_id, `${h}:${min}`);
+                          }
                         }}
                         disabled={!["both", "pickup_only"].includes(att.status)}
                         className={cn(
-                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none cursor-pointer bg-white text-center font-medium focus:ring-2 focus:ring-blue-500",
+                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none cursor-pointer text-center font-medium focus:ring-2 focus:ring-blue-500",
+                          !att.pickup_time ? "bg-gray-50 text-gray-400 border-dashed" : "bg-white",
                           !["both", "pickup_only"].includes(att.status) && "opacity-40 cursor-not-allowed bg-gray-50 text-gray-400"
                         )}
                       >
+                        <option value="">--</option>
                         {HOURS.map(h => {
                           const hStr = h.toString().padStart(2, "0");
                           return <option key={hStr} value={hStr}>{hStr}</option>;
@@ -616,17 +625,24 @@ export default function DailySetupPage() {
                       
                       {/* Minute Select */}
                       <select
-                        value={att.pickup_time ? att.pickup_time.split(":")[1] : "30"}
+                        value={att.pickup_time ? att.pickup_time.split(":")[1] : ""}
                         onChange={(e) => {
+                          const m = e.target.value;
                           const hr = att.pickup_time ? att.pickup_time.split(":")[0] : "14";
-                          updatePickupTime(att.child_id, `${hr}:${e.target.value}`);
+                          if (!m) {
+                            updatePickupTime(att.child_id, "");
+                          } else {
+                            updatePickupTime(att.child_id, `${hr}:${m}`);
+                          }
                         }}
                         disabled={!["both", "pickup_only"].includes(att.status)}
                         className={cn(
-                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none cursor-pointer bg-white text-center font-medium focus:ring-2 focus:ring-blue-500",
+                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none cursor-pointer text-center font-medium focus:ring-2 focus:ring-blue-500",
+                          !att.pickup_time ? "bg-gray-50 text-gray-400 border-dashed" : "bg-white",
                           !["both", "pickup_only"].includes(att.status) && "opacity-40 cursor-not-allowed bg-gray-50 text-gray-400"
                         )}
                       >
+                        <option value="">--</option>
                         {MINUTES.map(m => (
                           <option key={m} value={m}>{m}</option>
                         ))}

@@ -328,13 +328,15 @@ export default function BoardPage() {
 
         const mergedAtts = relevantChildren.map((child) => {
           const existing = fetchedAtts.find((a) => a.child_id === child.id);
+          const isAbukuma = (child.school?.name || '').includes('あぶくま');
+          const defaultPickup = isAbukuma ? (child.default_dismissal_time || child.school?.default_dismissal_time || "14:30") : null;
           return (
             existing ?? {
               id: `att-${targetDateStr}-${child.id}`,
               target_date: targetDateStr,
               child_id: child.id,
               status: "both" as any,
-              pickup_time: child.default_dismissal_time || child.school?.default_dismissal_time || null,
+              pickup_time: defaultPickup,
               attendance_status: "present" as const,
               attendance_time: null,
               child,
@@ -432,13 +434,7 @@ export default function BoardPage() {
                     status: child?.status, 
                     status_time: child?.status_time, 
                     has_caution: child?.has_caution ?? false,
-                    pickup_time: (att?.pickup_time && att.pickup_time.trim() !== "")
-                      ? att.pickup_time
-                      : (child?.default_dismissal_time && child.default_dismissal_time.trim() !== "")
-                        ? child.default_dismissal_time
-                        : (child?.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
-                          ? child.school.default_dismissal_time
-                          : null
+                    pickup_time: att ? att.pickup_time : null
                   };
                 })
             }))
@@ -464,13 +460,7 @@ export default function BoardPage() {
             status: child?.status, 
             status_time: child?.status_time, 
             has_caution: child?.has_caution ?? false,
-            pickup_time: (att?.pickup_time && att.pickup_time.trim() !== "")
-              ? att.pickup_time
-              : (child?.default_dismissal_time && child.default_dismissal_time.trim() !== "")
-                ? child.default_dismissal_time
-                : (child?.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
-                  ? child.school.default_dismissal_time
-                  : null
+            pickup_time: att ? att.pickup_time : null
           };
         });
 
