@@ -265,7 +265,7 @@ export default function DailySetupPage() {
       attendance_time: time !== undefined ? time : target.attendance_time
     };
     if (status === "late" || status === "early_leave") {
-      updated.attendance_time = updated.attendance_time || "14:00";
+      updated.attendance_time = updated.attendance_time || "13:45";
     } else {
       updated.attendance_time = null;
     }
@@ -285,7 +285,7 @@ export default function DailySetupPage() {
       status_time: time !== undefined ? time : target.status_time
     };
     if (status === "late" || status === "early_leave") {
-      updated.status_time = updated.status_time || "14:00";
+      updated.status_time = updated.status_time || "13:45";
     } else {
       updated.status_time = null;
     }
@@ -751,10 +751,9 @@ export default function DailySetupPage() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="present"><span className="text-pink-700 font-bold">出勤</span></SelectItem>
+                                  <SelectItem value="present"><span className="text-pink-700 font-bold">出勤（通常）</span></SelectItem>
+                                  <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻（遅番）</span></SelectItem>
                                   <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
-                                  <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
-                                  <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
                                 </SelectContent>
                               </Select>
 

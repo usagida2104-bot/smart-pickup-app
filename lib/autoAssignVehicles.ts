@@ -39,12 +39,14 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       vehicleName: shift.vehicle?.name ?? "不明な車両",
       driverId: shift.driver_id,
       driverName: shift.driver?.name ?? "不明なドライバー",
+      driverStatus: (shift as any).driverStatus,
+      driverStatusTime: (shift as any).driverStatusTime,
       capacity: shift.vehicle?.capacity ?? 0,
       trips: [], 
   }));
 
   // ============================================
-  // ラウンドロビン（負荷分散）＋ 個別出勤制約
+  // ラウンドロビン（負荷分散）＋ 動的・遅刻出勤制約
   // ============================================
 
   const cols = [...columns].map(col => ({ ...col, trips: [] }));
@@ -55,12 +57,23 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     return (h || 0) * 60 + (m || 0);
   };
 
-  // ★高宮さんの稼働判定ヘルパー★
-  const canTakamiyaTake = (schoolName: string, timeMinutes: number) => {
-    if ((schoolName || '').includes('あぶくま')) {
-      return timeMinutes >= 14 * 60 + 10; // 14:10以降
+  // ★動的・遅刻ドライバーの稼働判定ヘルパー★
+  const canLateDriverTake = (col: any, schoolName: string, timeMinutes: number) => {
+    // 遅刻（遅番）以外のステータスの人は全時間帯OK
+    if (col.driverStatus !== 'late') return true;
+
+    // 遅刻（遅番）の場合、出勤時刻（デフォルト13:45）を基準にする
+    const arrivalTime = parseTime(col.driverStatusTime || '13:45');
+    const isAbukuma = (schoolName || '').includes('あぶくま');
+
+    // 出勤時刻が13:45の場合：
+    // 一般校は 14:00以降 (arrivalTime + 15)
+    // あぶくま支援学校は 14:10以降 (arrivalTime + 25)
+    if (isAbukuma) {
+      return timeMinutes >= arrivalTime + 25;
+    } else {
+      return timeMinutes >= arrivalTime + 15;
     }
-    return timeMinutes >= 14 * 60; // その他は14:00以降
   };
 
   const groupsMap: Record<string, any[]> = {};
@@ -88,8 +101,8 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
 
       // パターンA: 同一学校の合流
       for (const col of cols) {
-        // ★高宮さん制約チェック★
-        if (col.driverName?.includes('高宮') && !canTakamiyaTake(remaining[0].schoolName, gTime)) {
+        // ★遅刻スタッフの出勤時刻制約チェック★
+        if (!canLateDriverTake(col, remaining[0].schoolName, gTime)) {
            continue;
         }
 
@@ -123,8 +136,8 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
 
       const bestCol = candidates.find(col => {
          if (col.trips.length >= 4) return false;
-         // ★高宮さん制約チェック★
-         if (col.driverName?.includes('高宮') && !canTakamiyaTake(remaining[0].schoolName, gTime)) {
+         // ★遅刻スタッフの出勤時刻制約チェック★
+         if (!canLateDriverTake(col, remaining[0].schoolName, gTime)) {
             return false;
          }
          return true;
@@ -149,7 +162,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     
     // まず空き枠がある便にねじ込む
     for (const col of cols) {
-      if (col.driverName?.includes('高宮') && !canTakamiyaTake(child.schoolName, childTime)) {
+      if (!canLateDriverTake(col, child.schoolName, childTime)) {
          continue;
       }
       for (const trip of col.trips) {
@@ -170,7 +183,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       });
       const bestCol = candidates.find(col => {
          if (col.trips.length >= 4) return false;
-         if (col.driverName?.includes('高宮') && !canTakamiyaTake(child.schoolName, childTime)) return false;
+         if (!canLateDriverTake(col, child.schoolName, childTime)) return false;
          return true;
       });
       if (bestCol) {
@@ -211,7 +224,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     return { ...col, trips: validTrips };
   });
 
-  console.log(`【高宮さん制約追加版 自動配車】総出席: ${allMagnets.length}名 / 最終未割り当て: ${finalUnassigned.length}名`);
+  console.log(`【動的・遅刻出勤対応版 自動配車】総出席: ${allMagnets.length}名 / 最終未割り当て: ${finalUnassigned.length}名`);
 
   return { columns: finalColumns as VehicleColumn[], unassigned: finalUnassigned as ChildMagnet[] };
 }

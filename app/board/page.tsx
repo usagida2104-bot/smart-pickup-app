@@ -84,6 +84,8 @@ export default function BoardPage() {
         vehicle: v?.vehicle,
         driver: ds.staff,
         is_active: v?.is_active ?? true,
+        daily_status: ds.status,
+        daily_status_time: ds.status_time,
       };
     })
     .filter((shift) => shift.vehicle && shift.is_active);
@@ -143,7 +145,9 @@ export default function BoardPage() {
         vehicle_id: col.vehicleId,
         driver_id: col.driverId,
         vehicle: { id: col.vehicleId, capacity: col.capacity, name: col.vehicleName },
-        driver: { id: col.driverId, name: col.driverName }
+        driver: { id: col.driverId, name: col.driverName },
+        driverStatus: col.driverStatus,
+        driverStatusTime: col.driverStatusTime
       })) as any[];
 
       // APIを通さず、直接ローカルでアルゴリズムを実行（最大4便・下校時間順）
@@ -271,8 +275,8 @@ export default function BoardPage() {
     vehicleName: shift.vehicle?.name ?? "不明",
     driverId: shift.driver_id,
     driverName: shift.driver?.name ?? "不明",
-    driverStatus: shift.driver?.status,
-    driverStatusTime: shift.driver?.status_time,
+    driverStatus: (shift as any).daily_status,
+    driverStatusTime: (shift as any).daily_status_time,
     capacity: shift.vehicle?.capacity ?? 0,
     trips: [
       {
