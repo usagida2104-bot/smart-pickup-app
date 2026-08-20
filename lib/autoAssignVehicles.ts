@@ -58,22 +58,26 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   };
 
   // ★動的・遅刻ドライバーの稼働判定ヘルパー★
-  const canLateDriverTake = (col: any, schoolName: string, timeMinutes: number) => {
-    // 遅刻（遅番）以外のステータスの人は全時間帯OK
-    if (col.driverStatus !== 'late') return true;
-
-    // 遅刻（遅番）の場合、出勤時刻（デフォルト13:45）を基準にする
-    const arrivalTime = parseTime(col.driverStatusTime || '13:45');
-    const isAbukuma = (schoolName || '').includes('あぶくま');
-
-    // 出勤時刻が13:45の場合：
-    // 一般校は 14:00以降 (arrivalTime + 15)
-    // あぶくま支援学校は 14:10以降 (arrivalTime + 25)
-    if (isAbukuma) {
-      return timeMinutes >= arrivalTime + 25;
-    } else {
-      return timeMinutes >= arrivalTime + 15;
+  const canDriverTake = (col: any, schoolName: string, timeMinutes: number) => {
+    // 遅刻（遅番）の場合
+    if (col.driverStatus === 'late') {
+      const arrivalTime = parseTime(col.driverStatusTime || '13:45');
+      const isAbukuma = (schoolName || '').includes('あぶくま');
+      if (isAbukuma) {
+        if (timeMinutes < arrivalTime + 25) return false;
+      } else {
+        if (timeMinutes < arrivalTime + 15) return false;
+      }
     }
+    
+    // 早退の場合
+    if (col.driverStatus === 'early_leave') {
+      const leaveTime = parseTime(col.driverStatusTime || '15:00');
+      // 送迎に約30分かかると想定し、退勤時刻の30分前までをアサイン可能限界とする
+      if (timeMinutes > leaveTime - 30) return false;
+    }
+
+    return true;
   };
 
   const groupsMap: Record<string, any[]> = {};
@@ -102,7 +106,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       // パターンA: 同一学校の合流
       for (const col of cols) {
         // ★遅刻スタッフの出勤時刻制約チェック★
-        if (!canLateDriverTake(col, remaining[0].schoolName, gTime)) {
+        if (!canDriverTake(col, remaining[0].schoolName, gTime)) {
            continue;
         }
 
@@ -137,7 +141,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       const bestCol = candidates.find(col => {
          if (col.trips.length >= 4) return false;
          // ★遅刻スタッフの出勤時刻制約チェック★
-         if (!canLateDriverTake(col, remaining[0].schoolName, gTime)) {
+         if (!canDriverTake(col, remaining[0].schoolName, gTime)) {
             return false;
          }
          return true;
@@ -162,7 +166,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
     
     // まず空き枠がある便にねじ込む
     for (const col of cols) {
-      if (!canLateDriverTake(col, child.schoolName, childTime)) {
+      if (!canDriverTake(col, child.schoolName, childTime)) {
          continue;
       }
       for (const trip of col.trips) {
@@ -183,7 +187,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       });
       const bestCol = candidates.find(col => {
          if (col.trips.length >= 4) return false;
-         if (!canLateDriverTake(col, child.schoolName, childTime)) return false;
+         if (!canDriverTake(col, child.schoolName, childTime)) return false;
          return true;
       });
       if (bestCol) {

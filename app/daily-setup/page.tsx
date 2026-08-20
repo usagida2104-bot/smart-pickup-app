@@ -264,8 +264,10 @@ export default function DailySetupPage() {
       attendance_status: status,
       attendance_time: time !== undefined ? time : target.attendance_time
     };
-    if (status === "late" || status === "early_leave") {
+    if (status === "late") {
       updated.attendance_time = updated.attendance_time || "13:45";
+    } else if (status === "early_leave") {
+      updated.attendance_time = updated.attendance_time || "15:00";
     } else {
       updated.attendance_time = null;
     }
@@ -284,8 +286,10 @@ export default function DailySetupPage() {
       status,
       status_time: time !== undefined ? time : target.status_time
     };
-    if (status === "late" || status === "early_leave") {
+    if (status === "late") {
       updated.status_time = updated.status_time || "13:45";
+    } else if (status === "early_leave") {
+      updated.status_time = updated.status_time || "15:00";
     } else {
       updated.status_time = null;
     }
@@ -753,6 +757,7 @@ export default function DailySetupPage() {
                                 <SelectContent>
                                   <SelectItem value="present"><span className="text-pink-700 font-bold">出勤（通常）</span></SelectItem>
                                   <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻（遅番）</span></SelectItem>
+                                  <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
                                   <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
                                 </SelectContent>
                               </Select>
