@@ -261,3 +261,36 @@ export async function upsertDailyVehicle(dv: {
     throw error;
   }
 }
+
+// =====================
+// 月間スケジュール
+// =====================
+
+export async function fetchMonthlySchedule(monthStr: string) {
+  const { data, error } = await supabase
+    .from("monthly_schedules")
+    .select("schedule_data")
+    .eq("month", monthStr)
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error("Error fetching monthly schedule", error);
+  }
+
+  return data ? (data.schedule_data as Record<string, Record<string, string>>) : null;
+}
+
+export async function saveMonthlySchedule(monthStr: string, scheduleData: Record<string, Record<string, string>>) {
+  const { error } = await supabase
+    .from("monthly_schedules")
+    .upsert({
+      month: monthStr,
+      schedule_data: scheduleData,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error("Error saving monthly schedule", error);
+    throw error;
+  }
+}

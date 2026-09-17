@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { CalendarIcon, Printer, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { fetchMonthlySchedule, saveMonthlySchedule } from "@/lib/supabase/service";
+import { Loader2 } from "lucide-react";
+
 const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
 
 const ROLES = [
@@ -20,30 +23,48 @@ export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [scheduleData, setScheduleData] = useState<Record<string, Record<string, string>>>({});
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
+  const monthStr = `${year}-${String(month).padStart(2, '0')}`;
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Load from localStorage
+  // Load from Supabase
   useEffect(() => {
-    const saved = localStorage.getItem("staff-schedule");
-    if (saved) {
+    let isMounted = true;
+    setIsLoaded(false);
+
+    async function loadData() {
       try {
-        setScheduleData(JSON.parse(saved));
+        const data = await fetchMonthlySchedule(monthStr);
+        if (isMounted) {
+          setScheduleData(data || {});
+          setIsLoaded(true);
+        }
       } catch (e) {
-        console.error("Failed to parse schedule data", e);
+        console.error("Failed to load schedule data", e);
+        if (isMounted) setIsLoaded(true);
       }
     }
-    setIsLoaded(true);
-  }, []);
+    loadData();
 
-  // Save to localStorage
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem("staff-schedule", JSON.stringify(scheduleData));
+    return () => {
+      isMounted = false;
+    };
+  }, [monthStr]);
+
+  const saveToSupabase = async (newData: Record<string, Record<string, string>>) => {
+    setIsSaving(true);
+    try {
+      await saveMonthlySchedule(monthStr, newData);
+    } catch (e) {
+      console.error("Failed to save schedule data", e);
+      alert("保存に失敗しました");
+    } finally {
+      setIsSaving(false);
     }
-  }, [scheduleData, isLoaded]);
+  };
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 2, 1));
@@ -54,13 +75,15 @@ export default function SchedulePage() {
   };
 
   const updateCell = (dateStr: string, staff: string, role: string) => {
-    setScheduleData(prev => ({
-      ...prev,
+    const newData = {
+      ...scheduleData,
       [dateStr]: {
-        ...(prev[dateStr] || {}),
+        ...(scheduleData[dateStr] || {}),
         [staff]: role
       }
-    }));
+    };
+    setScheduleData(newData);
+    saveToSupabase(newData);
   };
 
   const generateSchedule = () => {
@@ -131,6 +154,7 @@ export default function SchedulePage() {
     }
 
     setScheduleData(newData);
+    saveToSupabase(newData);
   };
 
   const handlePrint = () => {
@@ -154,7 +178,10 @@ export default function SchedulePage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 md:mb-6 gap-4 print:hidden">
           <div className="flex items-center gap-3">
             <CalendarIcon className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">担当スケジュール</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900">担当スケジュール</h1>
+              {isSaving && <span className="text-sm text-gray-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> 保存中...</span>}
+            </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             <Button onClick={generateSchedule} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4">
