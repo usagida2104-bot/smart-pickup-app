@@ -151,35 +151,35 @@ export default function SchedulePage() {
     <div className="min-h-screen bg-gray-50 flex">
       <Sidebar className="print:hidden" />
       
-      <main className="flex-1 ml-64 p-8 print:m-0 print:p-0 print:w-full">
+      <main className="flex-1 md:ml-64 p-4 md:p-8 print:m-0 print:p-0 print:w-full">
         {/* Header - Hidden on print */}
-        <div className="flex items-center justify-between mb-6 print:hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 md:mb-6 gap-4 print:hidden">
           <div className="flex items-center gap-3">
-            <CalendarIcon className="w-8 h-8 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">担当スケジュール</h1>
+            <CalendarIcon className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">担当スケジュール</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <Button onClick={generateSchedule} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2">
+          <div className="flex items-center gap-2 md:gap-3">
+            <Button onClick={generateSchedule} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4">
               <Sparkles className="w-4 h-4" />
-              スケジュール自動生成
+              自動生成
             </Button>
-            <Button onClick={handlePrint} variant="outline" className="gap-2 border-gray-300">
+            <Button onClick={handlePrint} variant="outline" className="gap-1 md:gap-2 border-gray-300 text-xs md:text-sm px-2 md:px-4">
               <Printer className="w-4 h-4" />
-              スケジュール印刷
+              印刷
             </Button>
           </div>
         </div>
 
         {/* Date Selector - Hidden on print */}
-        <div className="flex items-center justify-center gap-6 mb-6 print:hidden">
+        <div className="flex items-center justify-center gap-4 md:gap-6 mb-4 md:mb-6 print:hidden">
           <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="rounded-full hover:bg-gray-200">
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
           </Button>
-          <div className="text-2xl font-bold w-48 text-center tracking-wider">
+          <div className="text-lg md:text-2xl font-bold w-32 md:w-48 text-center tracking-wider">
             {year}年 {month}月
           </div>
           <Button variant="ghost" size="icon" onClick={handleNextMonth} className="rounded-full hover:bg-gray-200">
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
           </Button>
         </div>
 
@@ -189,8 +189,8 @@ export default function SchedulePage() {
         </div>
 
         {/* Schedule Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-none print:w-full schedule-print-container">
-          <table className="w-full text-sm text-left border-collapse print:text-[9px]">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto print:overflow-visible print:shadow-none print:border-none print:w-full schedule-print-container">
+          <table className="w-full text-sm text-left border-collapse print:text-[9px] min-w-[600px] md:min-w-0">
             <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
               <tr>
                 <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-0.5 print:px-1">日付</th>

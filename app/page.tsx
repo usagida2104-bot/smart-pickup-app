@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bus, Calendar, Car, GraduationCap, Users, UserSquare2, ArrowRight } from "lucide-react";
+import { Bus, Calendar, CalendarDays, Car, GraduationCap, Users, UserSquare2, ArrowRight } from "lucide-react";
 
 const cards = [
   {
@@ -19,6 +19,15 @@ const cards = [
     color: "from-green-500 to-emerald-600",
     bg: "bg-green-50",
     textColor: "text-green-600",
+  },
+  {
+    title: "担当スケジュール",
+    desc: "月間のリーダー・担当割り当てを確認",
+    href: "/schedule",
+    icon: CalendarDays,
+    color: "from-sky-500 to-cyan-600",
+    bg: "bg-sky-50",
+    textColor: "text-sky-600",
   },
   {
     title: "児童管理",
