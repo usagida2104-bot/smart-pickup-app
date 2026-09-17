@@ -207,28 +207,28 @@ export default function BoardPage() {
     const state = useBoardStore.getState();
     const attsToUse = overrideAtts || attendances;
     
+    // 出席かつ迎え利用の児童のみ（欠席・no_transport・送りのみを除外）
     const inboundChildren = attsToUse
       .filter(a => {
-        const status = a.status || "both";
-        return ["both", "pickup_only"].includes(status);
+        const transportStatus = a.status || "both";
+        const attendanceStatus = a.attendance_status || "present";
+        const isAbsent = attendanceStatus === "absent";
+        const wantsPickup = ["both", "pickup_only"].includes(transportStatus);
+        return !isAbsent && wantsPickup;
       })
-      .filter(a => {
-        const child = children.find((c: any) => c.id === a.child_id);
-        const isAbsent = (a.attendance_status || child?.status) === "absent" || a.status === "absent";
-        return child && !isAbsent;
-      })
+      .filter(a => children.some((c: any) => c.id === a.child_id))
       .map(a => toMagnet(a.child_id, children, attsToUse));
       
+    // 出席の児童（送迎車利用・家族迎えを含む、欠席のみ除外）
     const outboundChildren = attsToUse
       .filter(a => {
-        const status = a.status || "both";
-        return ["both", "dropoff_only"].includes(status);
+        const transportStatus = a.status || "both";
+        const attendanceStatus = a.attendance_status || "present";
+        const isAbsent = attendanceStatus === "absent";
+        const wantsDropoff = ["both", "dropoff_only"].includes(transportStatus);
+        return !isAbsent && wantsDropoff;
       })
-      .filter(a => {
-        const child = children.find((c: any) => c.id === a.child_id);
-        const isAbsent = (a.attendance_status || child?.status) === "absent" || a.status === "absent";
-        return child && !isAbsent;
-      })
+      .filter(a => children.some((c: any) => c.id === a.child_id))
       .map(a => toMagnet(a.child_id, children, attsToUse));
 
     if (activeTab === "inbound") {
@@ -419,11 +419,12 @@ export default function BoardPage() {
                 .filter((m: any) => {
                   const child = children.find((c: any) => c.id === m.id);
                   const att = attendances.find(a => a.child_id === m.id);
-                  const status = att?.status || "both";
-                  const isValidForMode = mode === "inbound" 
-                    ? ["both", "pickup_only"].includes(status)
-                    : ["both", "dropoff_only"].includes(status);
-                  const isAbsent = (att?.attendance_status || child?.status) === "absent" || status === "absent";
+                  const transportStatus = att?.status || "both";
+                  const attendanceStatus = att?.attendance_status || "present";
+                  const isAbsent = attendanceStatus === "absent";
+                  const isValidForMode = mode === "inbound"
+                    ? ["both", "pickup_only"].includes(transportStatus)
+                    : ["both", "dropoff_only"].includes(transportStatus);
                   return child && !isAbsent && isValidForMode;
                 })
                 .map((m: any) => {
@@ -445,11 +446,12 @@ export default function BoardPage() {
         .filter((m: any) => {
           const child = children.find((c: any) => c.id === m.id);
           const att = attendances.find(a => a.child_id === m.id);
-          const status = att?.status || "both";
-          const isValidForMode = mode === "inbound" 
-            ? ["both", "pickup_only"].includes(status)
-            : ["both", "dropoff_only"].includes(status);
-          const isAbsent = (att?.attendance_status || child?.status) === "absent" || status === "absent";
+          const transportStatus = att?.status || "both";
+          const attendanceStatus = att?.attendance_status || "present";
+          const isAbsent = attendanceStatus === "absent";
+          const isValidForMode = mode === "inbound"
+            ? ["both", "pickup_only"].includes(transportStatus)
+            : ["both", "dropoff_only"].includes(transportStatus);
           return child && !isAbsent && isValidForMode;
         })
         .map((m: any) => {
@@ -472,10 +474,15 @@ export default function BoardPage() {
 
       const missingChildren = attendances
         .filter(a => {
-          const status = a.status || "both";
-          return mode === "inbound" ? ["both", "pickup_only"].includes(status) : ["both", "dropoff_only"].includes(status);
+          const transportStatus = a.status || "both";
+          const attendanceStatus = a.attendance_status || "present";
+          const isAbsent = attendanceStatus === "absent";
+          const isValidForMode = mode === "inbound"
+            ? ["both", "pickup_only"].includes(transportStatus)
+            : ["both", "dropoff_only"].includes(transportStatus);
+          return !isAbsent && isValidForMode;
         })
-        .filter(a => children.some((c: any) => c.id === a.child_id && (a.attendance_status || c.status) !== "absent"))
+        .filter(a => children.some((c: any) => c.id === a.child_id))
         .filter(a => !currentIds.has(a.child_id))
         .map(a => toMagnet(a.child_id, children, attendances));
 

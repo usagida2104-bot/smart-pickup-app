@@ -273,6 +273,13 @@ export default function DailySetupPage() {
     } else {
       updated.attendance_time = null;
     }
+    // 欠席の場合、送迎区分を自動的に no_transport に設定する
+    if (status === "absent") {
+      updated.status = "no_transport" as any;
+    } else if (target.attendance_status === "absent" && target.status === "no_transport") {
+      // 欠席から復帰した場合、デフォルトで往復に戻す
+      updated.status = "both" as any;
+    }
 
     const newAtts = attendances.map((a) => (a.child_id === childId ? updated : a));
     setAttendances(newAtts);
@@ -525,10 +532,10 @@ export default function DailySetupPage() {
           <TableHeader>
             <TableRow className="bg-gray-50">
               <TableHead className="w-[200px] whitespace-nowrap">児童名</TableHead>
-              <TableHead className="min-w-[220px] whitespace-nowrap">ステータス</TableHead>
+              <TableHead className="min-w-[160px] whitespace-nowrap">① 出欠</TableHead>
               <TableHead className="w-[180px] whitespace-nowrap">下校時間</TableHead>
               <TableHead className="whitespace-nowrap">学校</TableHead>
-              <TableHead className="w-[220px] whitespace-nowrap">送迎区分</TableHead>
+              <TableHead className="min-w-[240px] whitespace-nowrap">② 送迎区分（迎え / 送り）</TableHead>
               <TableHead className="w-[60px] text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -540,7 +547,8 @@ export default function DailySetupPage() {
               return (
                 <TableRow key={att.child_id} className={cn(
                   "hover:bg-gray-50/50",
-                  child.has_caution && "bg-green-50 hover:bg-green-100/50"
+                  att.attendance_status === "absent" && "bg-gray-50 opacity-60",
+                  att.attendance_status !== "absent" && child.has_caution && "bg-green-50 hover:bg-green-100/50"
                 )}>
                   {/* Name column */}
                   <TableCell className="whitespace-nowrap">
@@ -663,23 +671,64 @@ export default function DailySetupPage() {
                     </div>
                   </TableCell>
 
-                  {/* Status column */}
+                  {/* Transport mode columns: 迎え / 送り */}
                   <TableCell>
-                    <select
-                      value={att.status}
-                      onChange={(e) => updateStatus(att.child_id, e.target.value as TransportMode)}
-                      className={cn(
-                        "w-full px-3 py-2 rounded-lg text-sm font-semibold border outline-none cursor-pointer",
-                        config.bg,
-                        config.color
+                    <div className="flex items-center gap-3">
+                      {/* 迎え */}
+                      <label className={cn(
+                        "flex items-center gap-1.5 cursor-pointer select-none",
+                        att.attendance_status === "absent" ? "opacity-40 cursor-not-allowed" : ""
+                      )}>
+                        <input
+                          type="checkbox"
+                          disabled={att.attendance_status === "absent"}
+                          checked={att.status === "both" || att.status === "pickup_only"}
+                          onChange={(e) => {
+                            if (att.attendance_status === "absent") return;
+                            const wantsDropoff = att.status === "both" || att.status === "dropoff_only";
+                            if (e.target.checked) {
+                              updateStatus(att.child_id, wantsDropoff ? "both" : "pickup_only");
+                            } else {
+                              updateStatus(att.child_id, wantsDropoff ? "dropoff_only" : "no_transport");
+                            }
+                          }}
+                          className="w-4 h-4 accent-blue-600"
+                        />
+                        <span className="text-sm font-semibold text-blue-700">迎え</span>
+                      </label>
+
+                      <div className="w-px h-4 bg-gray-300" />
+
+                      {/* 送り */}
+                      <label className={cn(
+                        "flex items-center gap-1.5 cursor-pointer select-none",
+                        att.attendance_status === "absent" ? "opacity-40 cursor-not-allowed" : ""
+                      )}>
+                        <input
+                          type="checkbox"
+                          disabled={att.attendance_status === "absent"}
+                          checked={att.status === "both" || att.status === "dropoff_only"}
+                          onChange={(e) => {
+                            if (att.attendance_status === "absent") return;
+                            const wantsPickup = att.status === "both" || att.status === "pickup_only";
+                            if (e.target.checked) {
+                              updateStatus(att.child_id, wantsPickup ? "both" : "dropoff_only");
+                            } else {
+                              updateStatus(att.child_id, wantsPickup ? "pickup_only" : "no_transport");
+                            }
+                          }}
+                          className="w-4 h-4 accent-indigo-600"
+                        />
+                        <span className="text-sm font-semibold text-indigo-700">送り</span>
+                      </label>
+
+                      {att.status === "no_transport" && att.attendance_status !== "absent" && (
+                        <span className="text-xs text-gray-400 font-medium">（自家送迎）</span>
                       )}
-                    >
-                      <option value="both">往復（迎え・送り）</option>
-                      <option value="pickup_only">迎えのみ</option>
-                      <option value="dropoff_only">送りのみ</option>
-                      <option value="no_transport">送迎不要</option>
-                      <option value="absent">欠席</option>
-                    </select>
+                      {att.attendance_status === "absent" && (
+                        <span className="text-xs text-gray-400 font-medium">（欠席）</span>
+                      )}
+                    </div>
                   </TableCell>
                   
                   {/* Action column */}
