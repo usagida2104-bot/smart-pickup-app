@@ -714,77 +714,158 @@ export default function BoardPage() {
       </div>
     </div>
       
-    {/* 印刷用専用レイアウト */}
-    <div className="hidden print:block p-0 bg-white text-black">
-        <div className="mb-6 border-b-2 border-black pb-2">
-          <h1 className="text-3xl font-bold mb-2">放デイ 送迎運行表 ({activeTab === "inbound" ? "迎え" : "送り"})</h1>
-          <div className="flex justify-between items-end">
-            <p className="text-xl font-bold">{displayDate}</p>
-            <p className="text-sm">出力日時: {new Date().toLocaleString("ja-JP")}</p>
-          </div>
-        </div>
+    {/* ===== 印刷用専用レイアウト ===== */}
+    <div className="hidden print:block p-6 bg-white text-black text-[13px]">
 
-        <div className="space-y-6">
-          {displayColumns
-            .filter((col: any) => (col.trips || []).some((t: any) => (t.children || []).length > 0))
-            .map((col: any) => {
-              return (
-                <div key={col.id} className="print-vehicle-table mb-6 break-inside-avoid">
-                  <div className="flex items-center gap-4 mb-2 border-b-2 border-black pb-1">
-                    <h2 className="text-2xl font-bold flex-1">{col.vehicleName}</h2>
-                    <div className="text-base flex gap-6">
-                      <p><strong>運転手:</strong> {col.driverName}</p>
-                    </div>
-                  </div>
-                  
-                  {(col.trips || []).filter((t: any) => (t.children || []).length > 0).map((trip: any, tripIdx: any) => {
-                    // 児童を時間順にソート (nullや空は最後)
-                    const sortedChildren = [...(trip.children || [])].sort((a, b) => {
-                      const timeA = a.pickup_time || "99:99";
-                      const timeB = b.pickup_time || "99:99";
-                      return timeA.localeCompare(timeB);
-                    });
-
-                    return (
-                      <div key={trip.id} className="mb-4">
-                        <div className="mb-2 text-base font-bold flex gap-4 items-center">
-                          <span className="px-2 py-1 bg-gray-200 border border-black rounded text-sm">
-                            {(col.trips || []).length > 1 ? `【${trip.tripIndex}便目】 ` : ""}{activeTab === "inbound" ? "各所 ➔ 施設" : "施設 ➔ 各所"}
-                          </span>
-                        </div>
-                        <table className="w-full text-left border-collapse border-2 border-black text-sm">
-                          <thead>
-                            <tr className="bg-gray-100 border-b-2 border-black">
-                              <th className="border border-black p-1.5 w-10 text-center font-bold">順</th>
-                              <th className="border border-black p-1.5 font-bold">児童名</th>
-                              <th className="border border-black p-1.5 font-bold w-48">学校名</th>
-                              <th className="border border-black p-1.5 w-20 text-center font-bold">時間</th>
-                              <th className="border border-black p-1.5 w-24 text-center font-bold">遅刻/早退</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sortedChildren.map((child, idx) => (
-                              <tr key={child.id} className="border-b border-gray-400">
-                                <td className="border border-black p-1.5 text-center text-base">{idx + 1}</td>
-                                <td className="border border-black p-1.5 text-lg font-bold">{child.name}</td>
-                                <td className="border border-black p-1.5 text-sm">{child.school_name}</td>
-                                <td className="border border-black p-1.5 font-mono text-center text-base">{child.pickup_time || "-"}</td>
-                                <td className="border border-black p-1.5 text-sm font-bold text-center leading-tight">
-                                  {child.status === "late" && <span>遅刻 {child.status_time}</span>}
-                                  {child.status === "early_leave" && <span>早退 {child.status_time}</span>}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+      {/* 印刷ヘッダー */}
+      <div className="mb-5 border-b-2 border-black pb-3">
+        <h1 className="text-2xl font-bold mb-1">
+          放デイ 送迎運行表（{activeTab === "inbound" ? "迎え" : "送り"}）
+        </h1>
+        <div className="flex justify-between items-end">
+          <p className="text-lg font-bold">{displayDate}</p>
+          <p className="text-xs text-gray-600">出力日時: {new Date().toLocaleString("ja-JP")}</p>
         </div>
       </div>
+
+      {/* 車両別運行表 */}
+      <div className="space-y-5">
+        {displayColumns
+          .filter((col: any) => (col.trips || []).some((t: any) => (t.children || []).length > 0))
+          .map((col: any) => (
+            <div key={col.id} className="break-inside-avoid">
+              {/* 車両ヘッダー */}
+              <div className="flex items-center gap-4 mb-1.5 border-b-2 border-black pb-1">
+                <h2 className="text-xl font-bold flex-1">
+                  🚗 {col.vehicleName}
+                </h2>
+                <div className="text-sm flex gap-6 font-semibold">
+                  <span>運転手: {col.driverName}</span>
+                  <span>定員: {col.capacity}名</span>
+                </div>
+              </div>
+
+              {/* 便別テーブル */}
+              {(col.trips || [])
+                .filter((t: any) => (t.children || []).length > 0)
+                .map((trip: any) => {
+                  const sortedChildren = [...(trip.children || [])].sort((a, b) => {
+                    const timeA = a.pickup_time || "99:99";
+                    const timeB = b.pickup_time || "99:99";
+                    return timeA.localeCompare(timeB);
+                  });
+                  const hasMultipleTrips = (col.trips || []).filter((t: any) => (t.children || []).length > 0).length > 1;
+                  return (
+                    <div key={trip.id} className="mb-3 break-inside-avoid">
+                      {hasMultipleTrips && (
+                        <div className="mb-1 text-sm font-bold">
+                          <span className="px-2 py-0.5 bg-gray-200 border border-black rounded text-xs">
+                            【{trip.tripIndex}便目】 {activeTab === "inbound" ? "各所 ➔ 施設" : "施設 ➔ 各所"}
+                          </span>
+                        </div>
+                      )}
+                      {!hasMultipleTrips && (
+                        <div className="mb-1">
+                          <span className="px-2 py-0.5 bg-gray-100 border border-gray-400 rounded text-xs font-semibold text-gray-600">
+                            {activeTab === "inbound" ? "各所 ➔ 施設" : "施設 ➔ 各所"}
+                          </span>
+                        </div>
+                      )}
+                      <table className="w-full text-left border-collapse border border-black text-sm">
+                        <thead>
+                          <tr className="bg-gray-100 border-b border-black">
+                            <th className="border border-black px-1.5 py-1 w-8 text-center font-bold text-xs">順</th>
+                            <th className="border border-black px-1.5 py-1 font-bold text-xs">児童名</th>
+                            <th className="border border-black px-1.5 py-1 font-bold w-40 text-xs">学校名</th>
+                            <th className="border border-black px-1.5 py-1 w-16 text-center font-bold text-xs">時間</th>
+                            <th className="border border-black px-1.5 py-1 w-20 text-center font-bold text-xs">備考</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedChildren.map((child: any, idx: number) => (
+                            <tr key={child.id} className="border-b border-gray-300">
+                              <td className="border border-black px-1.5 py-1 text-center font-semibold">{idx + 1}</td>
+                              <td className="border border-black px-1.5 py-1 font-bold text-base">{child.name}</td>
+                              <td className="border border-black px-1.5 py-1 text-xs">{child.school_name}</td>
+                              <td className="border border-black px-1.5 py-1 font-mono text-center">{child.pickup_time || "—"}</td>
+                              <td className="border border-black px-1.5 py-1 text-xs text-center font-bold">
+                                {child.status === "late" && <span className="text-amber-700">遅刻 {child.status_time}</span>}
+                                {child.status === "early_leave" && <span className="text-purple-700">早退 {child.status_time}</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+            </div>
+          ))}
+
+        {/* ===== 家族迎え枠（送りのみ） ===== */}
+        {activeTab === "outbound" && (board.familyPickup?.children || []).length > 0 && (
+          <div className="break-inside-avoid mt-4">
+            {/* 区切り線 */}
+            <div className="border-t-2 border-dashed border-gray-500 mb-4 pt-2">
+              <div className="flex items-center gap-3 mb-2 border-b-2 border-black pb-1">
+                <h2 className="text-xl font-bold flex-1">🏠 家族迎え／来所受取</h2>
+                <span className="text-sm font-semibold text-gray-600">
+                  {(board.familyPickup?.children || []).length}名（保護者が直接迎えに来る児童）
+                </span>
+              </div>
+            </div>
+            <table className="w-full text-left border-collapse border border-black text-sm">
+              <thead>
+                <tr className="bg-gray-100 border-b border-black">
+                  <th className="border border-black px-1.5 py-1 w-8 text-center font-bold text-xs">順</th>
+                  <th className="border border-black px-1.5 py-1 font-bold text-xs">児童名</th>
+                  <th className="border border-black px-1.5 py-1 font-bold w-40 text-xs">学校名</th>
+                  <th className="border border-black px-1.5 py-1 w-16 text-center font-bold text-xs">予定時刻</th>
+                  <th className="border border-black px-1.5 py-1 font-bold text-xs">備考</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...(board.familyPickup?.children || [])].sort((a: any, b: any) => {
+                  const timeA = a.pickup_time || "99:99";
+                  const timeB = b.pickup_time || "99:99";
+                  return timeA.localeCompare(timeB);
+                }).map((child: any, idx: number) => (
+                  <tr key={child.id} className="border-b border-gray-300">
+                    <td className="border border-black px-1.5 py-1 text-center font-semibold">{idx + 1}</td>
+                    <td className="border border-black px-1.5 py-1 font-bold text-base">{child.name}</td>
+                    <td className="border border-black px-1.5 py-1 text-xs">{child.school_name}</td>
+                    <td className="border border-black px-1.5 py-1 font-mono text-center">{child.pickup_time || "—"}</td>
+                    <td className="border border-black px-1.5 py-1 text-xs">
+                      {child.status === "late" && <span className="text-amber-700 font-bold">遅刻 {child.status_time}</span>}
+                      {child.status === "early_leave" && <span className="text-purple-700 font-bold">早退 {child.status_time}</span>}
+                      {child.notes && <span className="text-gray-600">{child.notes}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-1.5 text-xs text-gray-500 text-right">
+              ※ 保護者来所予定。送迎車には乗りません。
+            </p>
+          </div>
+        )}
+
+        {/* 送りで「家族迎え」児童がいない場合も小さく明示 */}
+        {activeTab === "outbound" && (board.familyPickup?.children || []).length === 0 && (
+          <div className="break-inside-avoid mt-4 border-t-2 border-dashed border-gray-300 pt-3">
+            <p className="text-sm text-gray-400 font-semibold">
+              🏠 家族迎え: 本日なし
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* フッター */}
+      <div className="mt-8 pt-3 border-t border-gray-300 flex justify-between text-xs text-gray-400">
+        <span>放課後等デイサービス 送迎運行表</span>
+        <span>{displayDate} — {activeTab === "inbound" ? "迎え" : "送り"}</span>
+      </div>
+    </div>
       {/* Assignment Modal */}
       <Dialog open={!!selectedChild} onOpenChange={(open) => !open && setSelectedChild(null)}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto print:hidden">
