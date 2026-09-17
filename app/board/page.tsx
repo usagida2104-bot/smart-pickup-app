@@ -717,28 +717,28 @@ export default function BoardPage() {
     {/* ===== 印刷用レイアウト（通常は非表示） ===== */}
     <div className="hidden print:block font-sans text-black board-print-container">
       {/* 印刷ヘッダー */}
-      <div className="mb-3 border-b-2 border-black pb-2">
-        <h1 className="text-lg font-bold mb-0.5">
+      <div className="mb-4 border-b-2 border-gray-400 pb-2">
+        <h1 className="text-xl font-bold mb-1">
           放デイ 送迎運行表（{activeTab === "inbound" ? "迎え" : "送り"}）
         </h1>
         <div className="flex justify-between items-end">
-          <p className="text-base font-bold">{displayDate}</p>
-          <p className="text-[10px] text-gray-600">出力日時: {new Date().toLocaleString("ja-JP")}</p>
+          <p className="text-lg font-bold">{displayDate}</p>
+          <p className="text-[11px] text-gray-600">出力日時: {new Date().toLocaleString("ja-JP")}</p>
         </div>
       </div>
 
       {/* 車両別運行表 */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-4">
         {displayColumns
           .filter((col: any) => (col.trips || []).some((t: any) => (t.children || []).length > 0))
           .map((col: any) => (
-            <div key={col.id} className="break-inside-avoid">
+            <div key={col.id} className="break-inside-avoid mb-2">
               {/* 車両ヘッダー */}
-              <div className="flex items-center gap-2 mb-1 border-b-2 border-black pb-0.5">
-                <h2 className="text-sm font-bold flex-1">
+              <div className="flex items-center gap-2 mb-1.5 border-b-2 border-gray-400 pb-0.5">
+                <h2 className="text-[13px] font-bold flex-1">
                   🚗 {col.vehicleName}
                 </h2>
-                <div className="text-[10px] flex gap-3 font-semibold">
+                <div className="text-[11px] flex gap-3 font-semibold">
                   <span>運転: {col.driverName}</span>
                   <span>定員: {col.capacity}</span>
                 </div>
@@ -755,32 +755,32 @@ export default function BoardPage() {
                   });
                   const hasMultipleTrips = (col.trips || []).filter((t: any) => (t.children || []).length > 0).length > 1;
                   return (
-                    <div key={trip.id} className="mb-2 break-inside-avoid">
+                    <div key={trip.id} className="mb-3 break-inside-avoid">
                       {hasMultipleTrips && (
-                        <div className="mb-0.5 text-[10px] font-bold">
-                          <span className="px-1 py-0.5 bg-gray-200 border border-black rounded">
+                        <div className="mb-1 text-[11px] font-bold">
+                          <span className="px-1.5 py-0.5 bg-gray-200 border border-gray-400 rounded">
                             【{trip.tripIndex}便】 {activeTab === "inbound" ? "各所➔施設" : "施設➔各所"}
                           </span>
                         </div>
                       )}
-                      <table className="w-full text-left border-collapse border border-black text-[8.5px] leading-[1.1]">
+                      <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-snug">
                         <thead>
-                          <tr className="bg-gray-100 border-b border-black">
-                            <th className="border border-black px-1 py-0 w-5 text-center font-bold">順</th>
-                            <th className="border border-black px-1 py-0 font-bold">児童名</th>
-                            <th className="border border-black px-1 py-0 font-bold w-20">学校名</th>
-                            <th className="border border-black px-1 py-0 w-10 text-center font-bold">時間</th>
-                            <th className="border border-black px-1 py-0 w-12 text-center font-bold">備考</th>
+                          <tr className="bg-gray-100 border-b border-gray-400">
+                            <th className="border border-gray-400 px-1.5 py-1 w-6 text-center font-bold">順</th>
+                            <th className="border border-gray-400 px-1.5 py-1 font-bold">児童名</th>
+                            <th className="border border-gray-400 px-1.5 py-1 font-bold w-24">学校名</th>
+                            <th className="border border-gray-400 px-1.5 py-1 w-12 text-center font-bold">時間</th>
+                            <th className="border border-gray-400 px-1.5 py-1 w-16 text-center font-bold">備考</th>
                           </tr>
                         </thead>
                         <tbody>
                           {sortedChildren.map((child: any, idx: number) => (
                             <tr key={child.id} className="border-b border-gray-300">
-                              <td className="border border-black px-1 py-0 text-center font-semibold">{idx + 1}</td>
-                              <td className="border border-black px-1 py-0 font-bold text-[9px]">{child.name}</td>
-                              <td className="border border-black px-1 py-0 truncate max-w-[5rem]">{child.school_name}</td>
-                              <td className="border border-black px-1 py-0 font-mono text-center">{child.pickup_time || "—"}</td>
-                              <td className="border border-black px-1 py-0 text-[8.5px] text-center font-bold">
+                              <td className="border border-gray-400 px-1.5 py-1 text-center font-semibold">{idx + 1}</td>
+                              <td className="border border-gray-400 px-1.5 py-1 font-bold">{child.name}</td>
+                              <td className="border border-gray-400 px-1.5 py-1 truncate max-w-[6rem]">{child.school_name}</td>
+                              <td className="border border-gray-400 px-1.5 py-1 font-mono text-center">{child.pickup_time || "—"}</td>
+                              <td className="border border-gray-400 px-1.5 py-1 text-center font-bold">
                                 {child.status === "late" && <span className="text-amber-700">遅刻 {child.status_time}</span>}
                                 {child.status === "early_leave" && <span className="text-purple-700">早退 {child.status_time}</span>}
                               </td>
@@ -799,21 +799,21 @@ export default function BoardPage() {
       {activeTab === "outbound" && (board.familyPickup?.children || []).length > 0 && (
         <div className="break-inside-avoid mt-2">
           <div className="border-t border-dashed border-gray-500 mb-1 pt-1">
-            <div className="flex items-center gap-2 mb-1 border-b-2 border-black pb-0.5">
-              <h2 className="text-[11px] font-bold flex-1">🏠 家族迎え／来所受取</h2>
-              <span className="text-[9px] font-semibold text-gray-600">
+            <div className="flex items-center gap-2 mb-1 border-b-2 border-gray-400 pb-0.5">
+              <h2 className="text-[13px] font-bold flex-1">🏠 家族迎え／来所受取</h2>
+              <span className="text-[11px] font-semibold text-gray-600">
                 {(board.familyPickup?.children || []).length}名
               </span>
             </div>
           </div>
-          <table className="w-full text-left border-collapse border border-black text-[8.5px] leading-[1.1]">
+          <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-snug">
             <thead>
-              <tr className="bg-gray-100 border-b border-black">
-                <th className="border border-black px-1 py-0 w-5 text-center font-bold">順</th>
-                <th className="border border-black px-1 py-0 font-bold">児童名</th>
-                <th className="border border-black px-1 py-0 font-bold w-20">学校名</th>
-                <th className="border border-black px-1 py-0 w-10 text-center font-bold">時間</th>
-                <th className="border border-black px-1 py-0 font-bold">備考</th>
+              <tr className="bg-gray-100 border-b border-gray-400">
+                <th className="border border-gray-400 px-1.5 py-1 w-6 text-center font-bold">順</th>
+                <th className="border border-gray-400 px-1.5 py-1 font-bold">児童名</th>
+                <th className="border border-gray-400 px-1.5 py-1 font-bold w-24">学校名</th>
+                <th className="border border-gray-400 px-1.5 py-1 w-12 text-center font-bold">時間</th>
+                <th className="border border-gray-400 px-1.5 py-1 font-bold">備考</th>
               </tr>
             </thead>
             <tbody>
@@ -823,11 +823,11 @@ export default function BoardPage() {
                 return timeA.localeCompare(timeB);
               }).map((child: any, idx: number) => (
                 <tr key={child.id} className="border-b border-gray-300">
-                  <td className="border border-black px-1 py-0 text-center font-semibold">{idx + 1}</td>
-                  <td className="border border-black px-1 py-0 font-bold text-[9px]">{child.name}</td>
-                  <td className="border border-black px-1 py-0 truncate max-w-[5rem]">{child.school_name}</td>
-                  <td className="border border-black px-1 py-0 font-mono text-center">{child.pickup_time || "—"}</td>
-                  <td className="border border-black px-1 py-0">
+                  <td className="border border-gray-400 px-1.5 py-1 text-center font-semibold">{idx + 1}</td>
+                  <td className="border border-gray-400 px-1.5 py-1 font-bold">{child.name}</td>
+                  <td className="border border-gray-400 px-1.5 py-1 truncate max-w-[6rem]">{child.school_name}</td>
+                  <td className="border border-gray-400 px-1.5 py-1 font-mono text-center">{child.pickup_time || "—"}</td>
+                  <td className="border border-gray-400 px-1.5 py-1">
                     {child.status === "late" && <span className="text-amber-700 font-bold">遅刻 {child.status_time}</span>}
                     {child.status === "early_leave" && <span className="text-purple-700 font-bold">早退 {child.status_time}</span>}
                     {child.notes && <span className="text-gray-600 pl-1">{child.notes}</span>}
