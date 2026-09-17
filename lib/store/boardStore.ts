@@ -60,16 +60,16 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
     // --- 移動元から取り出す ---
     if (fromDropZoneId === "unassigned") {
-      const idx = newUnassigned.findIndex((c) => c.id === childId);
+      const idx = newUnassigned.findIndex((c) => String(c.id) === String(childId));
       if (idx !== -1) movedChild = newUnassigned.splice(idx, 1)[0];
     } else if (fromDropZoneId === "family-pickup") {
-      const idx = newFamilyPickup.findIndex((c) => c.id === childId);
+      const idx = newFamilyPickup.findIndex((c) => String(c.id) === String(childId));
       if (idx !== -1) movedChild = newFamilyPickup.splice(idx, 1)[0];
     } else {
       for (const col of newColumns) {
-        const trip = (col.trips || []).find(t => t.id === fromDropZoneId);
+        const trip = (col.trips || []).find(t => String(t.id) === String(fromDropZoneId));
         if (trip) {
-          const idx = trip.children.findIndex((c) => c.id === childId);
+          const idx = trip.children.findIndex((c) => String(c.id) === String(childId));
           if (idx !== -1) {
             movedChild = trip.children.splice(idx, 1)[0];
             break;
@@ -77,6 +77,8 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         }
       }
     }
+
+    console.log("moveChild: movedChild extracted:", movedChild, "childId:", childId, "fromDropZoneId:", fromDropZoneId);
 
     if (!movedChild) return;
 
@@ -94,9 +96,11 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         newFamilyPickup.push(movedChild);
       }
     } else {
+      let foundTargetTrip = false;
       for (const col of newColumns) {
-        const trip = (col.trips || []).find(t => t.id === toDropZoneId);
+        const trip = (col.trips || []).find(t => String(t.id) === String(toDropZoneId));
         if (trip) {
+          foundTargetTrip = true;
           if (toIndex !== undefined) {
             trip.children.splice(toIndex, 0, movedChild);
           } else {
@@ -106,15 +110,18 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
           break;
         }
       }
+      console.log("moveChild: Target trip found?", foundTargetTrip, "toDropZoneId:", toDropZoneId);
     }
 
     newColumns = newColumns.map(col => ({
       ...col,
       trips: (col.trips || []).filter(t => t.tripIndex === 1 || t.children.length > 0 || t.isNew)
     }));
+    console.log("moveChild: finished updating arrays", { newUnassigned, newFamilyPickup });
 
     set({
       [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: {
+        ...board,
         columns: newColumns,
         unassigned: { id: "unassigned", children: newUnassigned },
         familyPickup: { id: "family-pickup", children: newFamilyPickup },

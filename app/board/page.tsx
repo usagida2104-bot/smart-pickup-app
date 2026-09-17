@@ -97,8 +97,10 @@ export default function BoardPage() {
 
   const handleAssignTo = async (targetColumnId: string) => {
     if (!selectedChild) return;
+    console.log("=== handleAssignTo ===", { selectedChild, targetColumnId });
     if (selectedChild.columnId !== targetColumnId) {
       moveChild(activeTab, selectedChild.magnet.id, selectedChild.columnId, targetColumnId);
+      console.log("State after moveChild:", useBoardStore.getState().inboundBoard, useBoardStore.getState().outboundBoard);
       await performAutoSave();
     }
     setSelectedChild(null);

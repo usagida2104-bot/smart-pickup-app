@@ -206,15 +206,26 @@ export async function upsertDailyAttendance(attendance: DailyAttendance) {
 }
 
 export async function saveBoardState(target_date: string, inbound_board: any, outbound_board: any) {
-  const { error } = await supabase.from("board_states").upsert({
+  let res = await supabase.from("board_states").upsert({
     target_date,
     inbound_board,
     outbound_board,
     updated_at: new Date().toISOString(),
-  });
-  if (error) {
-    console.error("Supabase Save Error:", error);
-    throw error;
+  }, { onConflict: "target_date" });
+
+  if (res.error) {
+    console.warn("First upsert failed, retrying without onConflict:", res.error);
+    res = await supabase.from("board_states").upsert({
+      target_date,
+      inbound_board,
+      outbound_board,
+      updated_at: new Date().toISOString(),
+    });
+  }
+  
+  if (res.error) {
+    console.error("Supabase Save Error:", res.error);
+    throw res.error;
   }
 }
 
