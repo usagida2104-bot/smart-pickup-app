@@ -74,8 +74,8 @@
 
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 8mm;
+    size: A4 landscape;
+    margin: 6mm;
   }
 
   * {
@@ -87,8 +87,8 @@
     background-color: white !important;
   }
 
-  /* Prevent page breaks inside vehicle columns */
-  .vehicle-column, .print-vehicle-table {
+  /* Prevent page breaks inside items */
+  .break-inside-avoid, .board-print-container {
     page-break-inside: avoid;
     break-inside: avoid;
   }
