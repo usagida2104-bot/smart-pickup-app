@@ -67,44 +67,57 @@ export default function SchedulePage() {
     if (!confirm("現在の「休み」設定を残して、それ以外のシフトを自動生成します。よろしいですか？")) return;
 
     const newData = { ...scheduleData };
-    const counts = { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 };
-
-    // 既存の回数をカウント（今月の休み以外の既存割り当てをリセットするため、既存のカウントはしない）
-    // 自動生成では当月の「休み」以外を上書きする
     
+    // 各役職ごとの担当回数をカウント
+    const roleCounts: Record<string, Record<string, number>> = {
+      "ぽっけリーダー": { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 },
+      "日中リーダー": { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 },
+      "集団担当": { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 },
+    };
+
+    // 役割をシャッフルする関数
+    const shuffleArray = (array: any[]) => {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    };
+
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const dayData = newData[dateStr] || {};
       
       const availableStaff = STAFF_LIST.filter(s => dayData[s] !== "休み");
-      const rolesToAssign = ["ぽっけリーダー", "日中リーダー", "集団担当"];
+      
+      // 役職の割り当て順も毎日シャッフルして偏りを防ぐ
+      const rolesToAssign = shuffleArray(["ぽっけリーダー", "日中リーダー", "集団担当"]);
       const assignedRoles: Record<string, string> = {};
 
       for (const role of rolesToAssign) {
-        // 割り当て可能なスタッフ: 休みでない & この日未割り当て & 前日同じ役割でない
-        const candidates = availableStaff.filter(s => {
+        let candidates = availableStaff.filter(s => {
           if (assignedRoles[s]) return false;
+          // 前日と同じ役職は禁止
           const prevDate = new Date(year, month - 1, d - 1);
           const pStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2, '0')}-${String(prevDate.getDate()).padStart(2, '0')}`;
           if (newData[pStr] && newData[pStr][s] === role) return false;
           return true;
         });
 
+        if (candidates.length === 0) {
+           // 前日制限で誰もいない場合は、前日制限を解除
+           candidates = availableStaff.filter(s => !assignedRoles[s]);
+        }
+
         if (candidates.length > 0) {
-          // 月間担当回数が少ない人を優先
-          candidates.sort((a, b) => counts[a] - counts[b]);
+          // シャッフルしてからソートすることで、同回数の場合にランダムになる
+          shuffleArray(candidates);
+          // その役職の担当回数が少ない人を優先
+          candidates.sort((a, b) => roleCounts[role][a] - roleCounts[role][b]);
+          
           const selected = candidates[0];
           assignedRoles[selected] = role;
-          counts[selected]++;
-        } else {
-          // 候補がいない場合（前日制限で全員ダメなど）、制限を緩めて割り当て
-          const fallbackCandidates = availableStaff.filter(s => !assignedRoles[s]);
-          if (fallbackCandidates.length > 0) {
-            fallbackCandidates.sort((a, b) => counts[a] - counts[b]);
-            const selected = fallbackCandidates[0];
-            assignedRoles[selected] = role;
-            counts[selected]++;
-          }
+          roleCounts[role][selected]++;
         }
       }
 
@@ -171,18 +184,18 @@ export default function SchedulePage() {
         </div>
 
         {/* Print Header - Visible only on print */}
-        <div className="hidden print:block text-center mb-4">
-          <h1 className="text-2xl font-bold">{year}年 {month}月 担当スケジュール</h1>
+        <div className="hidden print:block text-center mb-2">
+          <h1 className="text-xl font-bold">{year}年 {month}月 担当スケジュール</h1>
         </div>
 
         {/* Schedule Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-none print:w-full schedule-print-container">
-          <table className="w-full text-sm text-left border-collapse print:text-[10px]">
+          <table className="w-full text-sm text-left border-collapse print:text-[9px]">
             <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-1 print:px-1">日付</th>
+                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-0.5 print:px-1">日付</th>
                 {STAFF_LIST.map(staff => (
-                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-1 print:px-1">
+                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-0.5 print:px-1">
                     {staff}
                   </th>
                 ))}
@@ -192,10 +205,10 @@ export default function SchedulePage() {
               {days.map(({ day, dateStr, dayOfWeek, isWeekend }) => {
                 const dayData = scheduleData[dateStr] || {};
                 return (
-                  <tr key={dateStr} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={dateStr} className="border-b border-gray-100 hover:bg-gray-50 transition-colors print:border-gray-300">
                     <td className={cn(
-                      "py-2 px-4 border-r border-gray-200 text-center font-medium print:py-1 print:px-1",
-                      isWeekend && "text-red-500 bg-red-50/30"
+                      "border-r border-gray-200 text-center font-medium print:py-0.5 print:px-1",
+                      isWeekend ? "text-red-500 bg-red-50/30 print:bg-red-50" : "py-2 px-4"
                     )}>
                       {month}/{day} ({dayOfWeek})
                     </td>
@@ -204,11 +217,12 @@ export default function SchedulePage() {
                       const roleDef = ROLES.find(r => r.id === currentRole) || ROLES[3];
 
                       return (
-                        <td key={staff} className="border-r border-gray-200 p-1 print:p-0">
+                        <td key={staff} className="border-r border-gray-200 p-1 print:p-0.5">
                           {/* Print view: simple colored div */}
                           <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full min-h-[24px] rounded-sm",
-                            roleDef.colorClass
+                            "hidden print:flex items-center justify-center w-full h-full min-h-[14px] rounded-sm text-[9px] font-bold tracking-tighter leading-none py-0.5 border border-transparent",
+                            roleDef.colorClass,
+                            roleDef.id === "集団担当" && "border-gray-800"
                           )}>
                             {roleDef.id === "休み" ? "休み" : roleDef.id}
                           </div>
@@ -246,11 +260,22 @@ export default function SchedulePage() {
         @media print {
           @page {
             size: A4 landscape;
-            margin: 10mm;
+            margin: 6mm;
           }
           body {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+          .schedule-print-container {
+            width: 100%;
+          }
+          .schedule-print-container table {
+            page-break-inside: avoid;
+            width: 100%;
+          }
+          .schedule-print-container tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
           }
         }
       `}</style>
