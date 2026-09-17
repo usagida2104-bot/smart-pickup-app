@@ -148,10 +148,8 @@ export default function SchedulePage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar className="print:hidden" />
-      
-      <main className="flex-1 md:ml-64 p-4 md:p-8 print:m-0 print:p-0 print:w-full">
+    <div className="flex flex-col w-full h-full min-h-[calc(100vh-64px)]">
+      <main className="flex-1 p-4 md:p-8 print:m-0 print:p-0 print:w-full">
         {/* Header - Hidden on print */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 md:mb-6 gap-4 print:hidden">
           <div className="flex items-center gap-3">

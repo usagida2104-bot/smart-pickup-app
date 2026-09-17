@@ -26,7 +26,7 @@ export default function RootLayout({
       <body className="antialiased bg-gray-50">
         <AuthProvider>
           <SupabaseProvider>
-            <Sidebar className="hidden md:flex print:hidden" />
+            <Sidebar className="print:hidden" />
             <Header className="flex print:hidden" />
             <main className="pt-16 md:ml-64 min-h-screen print:ml-0 print:pt-0">
               {children}
