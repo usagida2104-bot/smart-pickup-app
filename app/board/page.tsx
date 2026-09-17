@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DateSelector } from "@/components/ui/date-selector";
 import { VehicleColumn } from "@/components/board/VehicleColumn";
 import { ChildCard } from "@/components/board/ChildCard";
+import { FamilyPickupColumn } from "@/components/board/FamilyPickupColumn";
 import { useBoardStore } from "@/lib/store/boardStore";
 import { autoAssignVehicles } from "@/lib/autoAssignVehicles";
 import { MOCK_WHITEBOARD_STATE, toMagnet, MOCK_STAFF, OFFICE_ADDRESS } from "@/lib/mockData";
@@ -105,7 +106,7 @@ export default function BoardPage() {
 
   const handleReorder = async (direction: -1 | 1) => {
     if (!selectedChild) return;
-    if (selectedChild.columnId === "unassigned") return;
+    if (selectedChild.columnId === "unassigned" || selectedChild.columnId === "family-pickup") return;
     reorderChild(activeTab, selectedChild.columnId, selectedChild.magnet.id, direction);
     await performAutoSave();
   };
@@ -114,6 +115,7 @@ export default function BoardPage() {
     setIsAutoAssigning(true);
     try {
       // 現在ボード上（カラム＋未割り当て）にいる児童を対象とする
+      // ★家族迎えプールの児童は自動配車の対象外★
       const allChildrenOnBoard = [
         ...(board.unassigned?.children || []),
         ...(board?.columns || []).flatMap((c: any) => (c.trips || []).flatMap((t: any) => t.children || []))
@@ -171,9 +173,13 @@ export default function BoardPage() {
       console.log(`未割り当て残数: ${result.unassigned.length}人`);
       console.log("============================");
 
+      // 家族迎えプールは自動配車後も保持する
+      const currentFamilyPickup = board.familyPickup ?? { id: "family-pickup" as const, children: [] };
+
       setBoard(activeTab, {
         columns: newColumns,
         unassigned: { id: "unassigned", children: result.unassigned },
+        familyPickup: currentFamilyPickup,
       });
       setIsAutoAssigned(true);
 
@@ -207,7 +213,7 @@ export default function BoardPage() {
     const state = useBoardStore.getState();
     const attsToUse = overrideAtts || attendances;
     
-    // 出席かつ迎え利用の児童のみ（欠席・no_transport・送りのみを除外）
+    // 出席かつ迎え利用の児童のみ
     const inboundChildren = attsToUse
       .filter(a => {
         const transportStatus = a.status || "both";
@@ -218,15 +224,24 @@ export default function BoardPage() {
       })
       .filter(a => children.some((c: any) => c.id === a.child_id))
       .map(a => toMagnet(a.child_id, children, attsToUse));
-      
-    // 出席の児童（送迎車利用・家族迎えを含む、欠席のみ除外）
+
+    // 送り: "both" → 未割り当てプール, "dropoff_only" → 家族迎えプール
     const outboundChildren = attsToUse
       .filter(a => {
         const transportStatus = a.status || "both";
         const attendanceStatus = a.attendance_status || "present";
         const isAbsent = attendanceStatus === "absent";
-        const wantsDropoff = ["both", "dropoff_only"].includes(transportStatus);
-        return !isAbsent && wantsDropoff;
+        return !isAbsent && transportStatus === "both";
+      })
+      .filter(a => children.some((c: any) => c.id === a.child_id))
+      .map(a => toMagnet(a.child_id, children, attsToUse));
+
+    const familyPickupChildren = attsToUse
+      .filter(a => {
+        const transportStatus = a.status || "both";
+        const attendanceStatus = a.attendance_status || "present";
+        const isAbsent = attendanceStatus === "absent";
+        return !isAbsent && transportStatus === "dropoff_only";
       })
       .filter(a => children.some((c: any) => c.id === a.child_id))
       .map(a => toMagnet(a.child_id, children, attsToUse));
@@ -244,6 +259,7 @@ export default function BoardPage() {
           };
         }),
         unassigned: { id: "unassigned", children: inboundChildren },
+        familyPickup: { id: "family-pickup", children: [] },
       });
     } else {
       setBoard("outbound", {
@@ -258,6 +274,7 @@ export default function BoardPage() {
           };
         }),
         unassigned: { id: "unassigned", children: outboundChildren },
+        familyPickup: { id: "family-pickup", children: familyPickupChildren },
       });
     }
 
@@ -466,10 +483,33 @@ export default function BoardPage() {
           };
         });
 
-      // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して未割り当てに追加
+      // 家族迎えプールを同期（送りタブのみ）
+      const newFamilyPickupChildren = mode === "outbound"
+        ? (boardState.familyPickup?.children || [])
+            .filter((m: any) => {
+              const child = children.find((c: any) => c.id === m.id);
+              const att = attendances.find(a => a.child_id === m.id);
+              const attendanceStatus = att?.attendance_status || "present";
+              return child && attendanceStatus !== "absent";
+            })
+            .map((m: any) => {
+              const child = children.find((c: any) => c.id === m.id);
+              const att = attendances.find(a => a.child_id === m.id);
+              return {
+                ...m,
+                status: child?.status,
+                status_time: child?.status_time,
+                has_caution: child?.has_caution ?? false,
+                pickup_time: att ? att.pickup_time : null
+              };
+            })
+        : [];
+
+      // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して適切なプールに追加
       const currentIds = new Set([
         ...newCols.flatMap((col: any) => (col.trips || []).flatMap((t: any) => (t.children || []).map((c: any) => c.id))),
-        ...newUnassignedChildren.map((c: any) => c.id)
+        ...newUnassignedChildren.map((c: any) => c.id),
+        ...newFamilyPickupChildren.map((c: any) => c.id),
       ]);
 
       const missingChildren = attendances
@@ -477,21 +517,39 @@ export default function BoardPage() {
           const transportStatus = a.status || "both";
           const attendanceStatus = a.attendance_status || "present";
           const isAbsent = attendanceStatus === "absent";
+          // 送りタブ: "both" のみが unassigned 対象、"dropoff_only" は家族迎えへ
           const isValidForMode = mode === "inbound"
             ? ["both", "pickup_only"].includes(transportStatus)
-            : ["both", "dropoff_only"].includes(transportStatus);
+            : transportStatus === "both";
           return !isAbsent && isValidForMode;
         })
         .filter(a => children.some((c: any) => c.id === a.child_id))
         .filter(a => !currentIds.has(a.child_id))
         .map(a => toMagnet(a.child_id, children, attendances));
 
+      // 送りタブ: dropoff_only で未登録の児童を家族迎えプールに追加
+      const missingFamilyPickup = mode === "outbound"
+        ? attendances
+            .filter(a => {
+              const transportStatus = a.status || "both";
+              const attendanceStatus = a.attendance_status || "present";
+              return attendanceStatus !== "absent" && transportStatus === "dropoff_only" && !currentIds.has(a.child_id);
+            })
+            .filter(a => children.some((c: any) => c.id === a.child_id))
+            .map(a => toMagnet(a.child_id, children, attendances))
+        : [];
+
       const newUnassigned = {
         ...boardState.unassigned,
         children: [...newUnassignedChildren, ...missingChildren]
       };
 
-      useBoardStore.getState().setBoard(mode, { columns: newCols, unassigned: newUnassigned });
+      const newFamilyPickup = {
+        id: "family-pickup" as const,
+        children: [...newFamilyPickupChildren, ...missingFamilyPickup]
+      };
+
+      useBoardStore.getState().setBoard(mode, { columns: newCols, unassigned: newUnassigned, familyPickup: newFamilyPickup });
     };
 
     syncBoard(useBoardStore.getState().inboundBoard, "inbound");
@@ -625,6 +683,16 @@ export default function BoardPage() {
           {displayColumns.map((col) => (
             <VehicleColumn key={col.id} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} onChangeLocation={async () => { await performAutoSave(); }} />
           ))}
+
+          {/* 家族迎え専用列（送りタブのみ） */}
+          {activeTab === "outbound" && (
+            <div className="print:hidden">
+              <FamilyPickupColumn
+                children={board.familyPickup?.children || []}
+                onChildClick={handleChildClick}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -782,6 +850,25 @@ export default function BoardPage() {
                   >
                     <div className="font-bold">📋 未割り当てに戻す</div>
                   </Button>
+
+                  {/* 家族迎えボタン（送りタブのみ） */}
+                  {activeTab === "outbound" && (
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "justify-start text-left h-auto py-3 mt-1 border-emerald-300 text-emerald-800 hover:bg-emerald-50",
+                        selectedChild.columnId === "family-pickup" && "border-emerald-500 bg-emerald-50 cursor-default hover:bg-emerald-50"
+                      )}
+                      onClick={() => selectedChild.columnId !== "family-pickup" && handleAssignTo("family-pickup")}
+                    >
+                      <div className="flex flex-col items-start gap-0.5">
+                        <div className="font-bold">🏠 家族迎えへ移動</div>
+                        {selectedChild.columnId === "family-pickup" && (
+                          <span className="text-xs text-emerald-600 font-bold">現在ここにいます</span>
+                        )}
+                      </div>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

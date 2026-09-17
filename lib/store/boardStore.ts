@@ -21,6 +21,7 @@ interface BoardStore {
 const emptyBoard: BoardState = {
   columns: [],
   unassigned: { id: "unassigned", children: [] },
+  familyPickup: { id: "family-pickup", children: [] },
 };
 
 export const useBoardStore = create<BoardStore>((set, get) => ({
@@ -41,7 +42,8 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       }
       return col;
     });
-    set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: migratedColumns } });
+    const familyPickup = board.familyPickup ?? { id: "family-pickup" as const, children: [] };
+    set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: migratedColumns, familyPickup } });
   },
 
   moveChild: (mode, childId, fromDropZoneId, toDropZoneId, toIndex) => {
@@ -50,16 +52,19 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
     let movedChild: ChildMagnet | undefined;
     let newUnassigned = [...(board.unassigned?.children || [])];
+    let newFamilyPickup = [...(board.familyPickup?.children || [])];
     let newColumns = board.columns.map((col) => ({
       ...col,
       trips: (col.trips || []).map(t => ({ ...t, children: [...t.children] }))
     }));
 
+    // --- 移動元から取り出す ---
     if (fromDropZoneId === "unassigned") {
       const idx = newUnassigned.findIndex((c) => c.id === childId);
-      if (idx !== -1) {
-        movedChild = newUnassigned.splice(idx, 1)[0];
-      }
+      if (idx !== -1) movedChild = newUnassigned.splice(idx, 1)[0];
+    } else if (fromDropZoneId === "family-pickup") {
+      const idx = newFamilyPickup.findIndex((c) => c.id === childId);
+      if (idx !== -1) movedChild = newFamilyPickup.splice(idx, 1)[0];
     } else {
       for (const col of newColumns) {
         const trip = (col.trips || []).find(t => t.id === fromDropZoneId);
@@ -75,11 +80,18 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
     if (!movedChild) return;
 
+    // --- 移動先に追加する ---
     if (toDropZoneId === "unassigned") {
       if (toIndex !== undefined) {
         newUnassigned.splice(toIndex, 0, movedChild);
       } else {
         newUnassigned.push(movedChild);
+      }
+    } else if (toDropZoneId === "family-pickup") {
+      if (toIndex !== undefined) {
+        newFamilyPickup.splice(toIndex, 0, movedChild);
+      } else {
+        newFamilyPickup.push(movedChild);
       }
     } else {
       for (const col of newColumns) {
@@ -105,6 +117,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: {
         columns: newColumns,
         unassigned: { id: "unassigned", children: newUnassigned },
+        familyPickup: { id: "family-pickup", children: newFamilyPickup },
       },
     });
   },

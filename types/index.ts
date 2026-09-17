@@ -156,6 +156,12 @@ export interface VehicleColumn {
   trips: Trip[];
 }
 
+/** 家族迎えプール（送りタブのみ） */
+export interface FamilyPickupPool {
+  id: "family-pickup";
+  children: ChildMagnet[];
+}
+
 /** 未割り当てプール */
 export interface UnassignedPool {
   id: "unassigned";
@@ -166,6 +172,7 @@ export interface UnassignedPool {
 export interface BoardState {
   columns: VehicleColumn[];
   unassigned: UnassignedPool;
+  familyPickup?: FamilyPickupPool; // 送りタブのみ使用
 }
 
 // =====================
