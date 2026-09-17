@@ -1,0 +1,259 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { Button } from "@/components/ui/button";
+import { CalendarIcon, Printer, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
+
+const ROLES = [
+  { id: "ぽっけリーダー", label: "ぽっけリーダー", colorClass: "bg-[#dbeafe] text-[#1d4ed8]" },
+  { id: "日中リーダー", label: "日中リーダー", colorClass: "bg-[#dcfce7] text-[#15803d]" },
+  { id: "集団担当", label: "集団担当", colorClass: "bg-[#f3f4f6] text-[#111827] font-bold border border-[#111827]" },
+  { id: "フリー", label: "フリー", colorClass: "bg-gray-100 text-gray-500" },
+  { id: "休み", label: "休み / 担当不可", colorClass: "bg-[#fee2e2] text-[#b91c1c]" },
+];
+
+export default function SchedulePage() {
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [scheduleData, setScheduleData] = useState<Record<string, Record<string, string>>>({});
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth() + 1;
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // Load from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("staff-schedule");
+    if (saved) {
+      try {
+        setScheduleData(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse schedule data", e);
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Save to localStorage
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem("staff-schedule", JSON.stringify(scheduleData));
+    }
+  }, [scheduleData, isLoaded]);
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(year, month - 2, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(year, month, 1));
+  };
+
+  const updateCell = (dateStr: string, staff: string, role: string) => {
+    setScheduleData(prev => ({
+      ...prev,
+      [dateStr]: {
+        ...(prev[dateStr] || {}),
+        [staff]: role
+      }
+    }));
+  };
+
+  const generateSchedule = () => {
+    if (!confirm("現在の「休み」設定を残して、それ以外のシフトを自動生成します。よろしいですか？")) return;
+
+    const newData = { ...scheduleData };
+    const counts = { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 };
+
+    // 既存の回数をカウント（今月の休み以外の既存割り当てをリセットするため、既存のカウントはしない）
+    // 自動生成では当月の「休み」以外を上書きする
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayData = newData[dateStr] || {};
+      
+      const availableStaff = STAFF_LIST.filter(s => dayData[s] !== "休み");
+      const rolesToAssign = ["ぽっけリーダー", "日中リーダー", "集団担当"];
+      const assignedRoles: Record<string, string> = {};
+
+      for (const role of rolesToAssign) {
+        // 割り当て可能なスタッフ: 休みでない & この日未割り当て & 前日同じ役割でない
+        const candidates = availableStaff.filter(s => {
+          if (assignedRoles[s]) return false;
+          const prevDate = new Date(year, month - 1, d - 1);
+          const pStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2, '0')}-${String(prevDate.getDate()).padStart(2, '0')}`;
+          if (newData[pStr] && newData[pStr][s] === role) return false;
+          return true;
+        });
+
+        if (candidates.length > 0) {
+          // 月間担当回数が少ない人を優先
+          candidates.sort((a, b) => counts[a] - counts[b]);
+          const selected = candidates[0];
+          assignedRoles[selected] = role;
+          counts[selected]++;
+        } else {
+          // 候補がいない場合（前日制限で全員ダメなど）、制限を緩めて割り当て
+          const fallbackCandidates = availableStaff.filter(s => !assignedRoles[s]);
+          if (fallbackCandidates.length > 0) {
+            fallbackCandidates.sort((a, b) => counts[a] - counts[b]);
+            const selected = fallbackCandidates[0];
+            assignedRoles[selected] = role;
+            counts[selected]++;
+          }
+        }
+      }
+
+      for (const s of availableStaff) {
+        if (!assignedRoles[s]) {
+          assignedRoles[s] = "フリー";
+        }
+      }
+
+      newData[dateStr] = { ...dayData, ...assignedRoles };
+    }
+
+    setScheduleData(newData);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  if (!isLoaded) return null;
+
+  const days = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = i + 1;
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dateObj = new Date(year, month - 1, d);
+    const dayOfWeek = ["日", "月", "火", "水", "木", "金", "土"][dateObj.getDay()];
+    return { day: d, dateStr, dayOfWeek, isWeekend: dateObj.getDay() === 0 || dateObj.getDay() === 6 };
+  });
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex">
+      <Sidebar className="print:hidden" />
+      
+      <main className="flex-1 ml-64 p-8 print:m-0 print:p-0 print:w-full">
+        {/* Header - Hidden on print */}
+        <div className="flex items-center justify-between mb-6 print:hidden">
+          <div className="flex items-center gap-3">
+            <CalendarIcon className="w-8 h-8 text-blue-600" />
+            <h1 className="text-2xl font-bold text-gray-900">担当スケジュール</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button onClick={generateSchedule} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2">
+              <Sparkles className="w-4 h-4" />
+              スケジュール自動生成
+            </Button>
+            <Button onClick={handlePrint} variant="outline" className="gap-2 border-gray-300">
+              <Printer className="w-4 h-4" />
+              スケジュール印刷
+            </Button>
+          </div>
+        </div>
+
+        {/* Date Selector - Hidden on print */}
+        <div className="flex items-center justify-center gap-6 mb-6 print:hidden">
+          <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="rounded-full hover:bg-gray-200">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+          <div className="text-2xl font-bold w-48 text-center tracking-wider">
+            {year}年 {month}月
+          </div>
+          <Button variant="ghost" size="icon" onClick={handleNextMonth} className="rounded-full hover:bg-gray-200">
+            <ChevronRight className="w-6 h-6" />
+          </Button>
+        </div>
+
+        {/* Print Header - Visible only on print */}
+        <div className="hidden print:block text-center mb-4">
+          <h1 className="text-2xl font-bold">{year}年 {month}月 担当スケジュール</h1>
+        </div>
+
+        {/* Schedule Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-none print:w-full schedule-print-container">
+          <table className="w-full text-sm text-left border-collapse print:text-[10px]">
+            <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
+              <tr>
+                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-1 print:px-1">日付</th>
+                {STAFF_LIST.map(staff => (
+                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-1 print:px-1">
+                    {staff}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {days.map(({ day, dateStr, dayOfWeek, isWeekend }) => {
+                const dayData = scheduleData[dateStr] || {};
+                return (
+                  <tr key={dateStr} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className={cn(
+                      "py-2 px-4 border-r border-gray-200 text-center font-medium print:py-1 print:px-1",
+                      isWeekend && "text-red-500 bg-red-50/30"
+                    )}>
+                      {month}/{day} ({dayOfWeek})
+                    </td>
+                    {STAFF_LIST.map(staff => {
+                      const currentRole = dayData[staff] || "フリー";
+                      const roleDef = ROLES.find(r => r.id === currentRole) || ROLES[3];
+
+                      return (
+                        <td key={staff} className="border-r border-gray-200 p-1 print:p-0">
+                          {/* Print view: simple colored div */}
+                          <div className={cn(
+                            "hidden print:flex items-center justify-center w-full h-full min-h-[24px] rounded-sm",
+                            roleDef.colorClass
+                          )}>
+                            {roleDef.id === "休み" ? "休み" : roleDef.id}
+                          </div>
+
+                          {/* Screen view: select dropdown */}
+                          <div className="print:hidden h-full">
+                            <select
+                              value={currentRole}
+                              onChange={(e) => updateCell(dateStr, staff, e.target.value)}
+                              className={cn(
+                                "w-full h-10 px-2 rounded-lg text-sm font-semibold appearance-none cursor-pointer outline-none transition-colors text-center",
+                                roleDef.colorClass
+                              )}
+                            >
+                              {ROLES.map(r => (
+                                <option key={r.id} value={r.id} className="bg-white text-gray-900 font-normal">
+                                  {r.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+      </main>
+
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 10mm;
+          }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}

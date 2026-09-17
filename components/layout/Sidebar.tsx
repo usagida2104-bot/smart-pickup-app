@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Bus,
   Calendar,
+  CalendarDays,
   Car,
   GraduationCap,
   LayoutDashboard,
@@ -33,7 +34,11 @@ const navItems = [
     href: "/daily-setup",
     icon: Calendar,
   },
-
+  {
+    label: "担当スケジュール",
+    href: "/schedule",
+    icon: CalendarDays,
+  },
   {
     label: "─── マスター管理",
     href: "#",
