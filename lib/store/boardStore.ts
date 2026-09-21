@@ -60,16 +60,16 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
     // --- 移動元から取り出す ---
     if (fromDropZoneId === "unassigned") {
-      const idx = newUnassigned.findIndex((c) => String(c.id) === String(childId));
+      const idx = newUnassigned.findIndex((c) => String(c?.id ?? '') === String(childId ?? ''));
       if (idx !== -1) movedChild = newUnassigned.splice(idx, 1)[0];
     } else if (fromDropZoneId === "family-pickup") {
-      const idx = newFamilyPickup.findIndex((c) => String(c.id) === String(childId));
+      const idx = newFamilyPickup.findIndex((c) => String(c?.id ?? '') === String(childId ?? ''));
       if (idx !== -1) movedChild = newFamilyPickup.splice(idx, 1)[0];
     } else {
       for (const col of newColumns) {
-        const trip = (col.trips || []).find(t => String(t.id) === String(fromDropZoneId));
+        const trip = (col.trips || []).find(t => String(t?.id ?? '') === String(fromDropZoneId ?? ''));
         if (trip) {
-          const idx = trip.children.findIndex((c) => String(c.id) === String(childId));
+          const idx = (trip.children || []).findIndex((c) => String(c?.id ?? '') === String(childId ?? ''));
           if (idx !== -1) {
             movedChild = trip.children.splice(idx, 1)[0];
             break;
@@ -98,7 +98,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     } else {
       let foundTargetTrip = false;
       for (const col of newColumns) {
-        const trip = (col.trips || []).find(t => String(t.id) === String(toDropZoneId));
+        const trip = (col.trips || []).find(t => String(t?.id ?? '') === String(toDropZoneId ?? ''));
         if (trip) {
           foundTargetTrip = true;
           if (toIndex !== undefined) {
@@ -112,7 +112,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
             childId: movedChild.id,
             targetVehicleId: col.vehicleId,
             targetTripIndex: trip.tripIndex,
-            newPassengers: [...trip.children]
+            newPassengers: [...(trip.children || [])]
           });
           
           break;
@@ -123,7 +123,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
     newColumns = newColumns.map(col => ({
       ...col,
-      trips: (col.trips || []).filter(t => t.tripIndex === 1 || t.children.length > 0 || t.isNew)
+      trips: (col.trips || []).filter(t => t?.tripIndex === 1 || (t?.children || []).length > 0 || t?.isNew)
     }));
     console.log("moveChild: finished updating arrays", { newUnassigned, newFamilyPickup });
 

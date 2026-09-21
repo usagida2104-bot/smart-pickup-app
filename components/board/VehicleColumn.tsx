@@ -70,19 +70,20 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
 
       {/* Trips Container */}
       <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-y-auto">
-        {(column.trips || [])
-          .filter(trip => trip.tripIndex === 1 || (trip.children || []).length > 0 || trip.isNew)
+        {(column?.trips || [])
+          .filter(trip => trip?.tripIndex === 1 || (trip?.children || []).length > 0 || trip?.isNew)
           .map((trip) => {
-          const isOverCapacity = (trip.children || []).length > column.capacity;
-          const isFull = (trip.children || []).length >= column.capacity;
-          const fillPct = Math.min(((trip.children || []).length / column.capacity) * 100, 100);
+          const capacity = column?.capacity || 99;
+          const isOverCapacity = (trip?.children || []).length > capacity;
+          const isFull = (trip?.children || []).length >= capacity;
+          const fillPct = Math.min(((trip?.children || []).length / capacity) * 100, 100);
           
           return (
-            <div key={trip.id} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
+            <div key={trip?.id || Math.random().toString()} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
               {/* Trip Header */}
               <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                 <span className="font-bold text-xs text-gray-600 bg-gray-200 px-2 py-0.5 rounded-full">
-                  {trip.tripIndex}便目
+                  {trip?.tripIndex || 1}便目
                 </span>
                 
                 {isOverCapacity && (
@@ -170,26 +171,26 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                   "p-2 min-h-[100px] max-h-[300px] overflow-y-auto overflow-x-hidden space-y-1.5 transition-colors duration-150 print:max-h-none print:overflow-visible"
                 )}
               >
-                {(trip.children || []).map((magnet, idx) => (
+                {(trip?.children || []).map((magnet, idx) => (
                   <ChildCard 
-                    key={magnet.id} 
+                    key={magnet?.id || Math.random().toString()} 
                     magnet={magnet} 
                     mode={mode} 
-                    onClick={(m) => onChildClick && onChildClick(m, trip.id)} 
+                    onClick={(m) => onChildClick && onChildClick(m, trip?.id || '')} 
                     showMoveUp={idx > 0}
-                    showMoveDown={idx < (trip.children || []).length - 1}
+                    showMoveDown={idx < (trip?.children || []).length - 1}
                     onMoveUp={(e) => {
                       e.stopPropagation();
-                      onReorderChild && onReorderChild(trip.id, magnet.id, -1);
+                      onReorderChild && onReorderChild(trip?.id || '', magnet?.id || '', -1);
                     }}
                     onMoveDown={(e) => {
                       e.stopPropagation();
-                      onReorderChild && onReorderChild(trip.id, magnet.id, 1);
+                      onReorderChild && onReorderChild(trip?.id || '', magnet?.id || '', 1);
                     }}
                   />
                 ))}
 
-                {(trip.children || []).length === 0 && (
+                {(trip?.children || []).length === 0 && (
                   <div className="flex items-center justify-center h-16 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-xs">
                     （未割り当て）
                   </div>

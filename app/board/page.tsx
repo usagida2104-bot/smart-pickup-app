@@ -30,16 +30,16 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-function UnassignedPool({ children, mode, onChildClick, onAssignTo }: { children: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void, onAssignTo: (child: ChildMagnet, targetTripId: string) => void }) {
+function UnassignedPool({ children = [], mode, onChildClick, onAssignTo }: { children?: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void, onAssignTo: (child: ChildMagnet, targetTripId: string) => void }) {
   const { inboundBoard, outboundBoard } = useBoardStore();
   const board = mode === "inbound" ? inboundBoard : outboundBoard;
   const availableTrips = (board?.columns || []).flatMap((col: any) => 
     (col.trips || []).map((t: any) => ({
-      id: t.id,
-      label: `${col.vehicleName} ${t.tripIndex}便`,
-      isFull: (t.children || []).length >= col.capacity
+      id: t?.id,
+      label: `${col?.vehicleName || '車両'} ${t?.tripIndex || 1}便`,
+      isFull: (t?.children || []).length >= (col?.capacity || 99)
     }))
-  );
+  ).filter((t: any) => t.id);
 
   return (
     <div
@@ -48,15 +48,15 @@ function UnassignedPool({ children, mode, onChildClick, onAssignTo }: { children
     >
       <div className="px-4 py-3 border-b border-gray-200 bg-gray-100">
         <p className="font-bold text-gray-600 text-sm">📋 未割り当て</p>
-        <p className="text-xs text-gray-400 mt-0.5">{children.length}名</p>
+        <p className="text-xs text-gray-400 mt-0.5">{(children || []).length}名</p>
       </div>
       <div
         data-testid="unassigned-pool"
         className="flex-1 p-3 min-h-[200px] max-h-[500px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors"
       >
-        {children.map((magnet) => (
+        {(children || []).map((magnet) => (
           <ChildCard 
-            key={magnet.id} 
+            key={magnet?.id || Math.random().toString()} 
             magnet={magnet} 
             mode={mode} 
             onClick={(m) => onChildClick(m, "unassigned")}
@@ -80,7 +80,7 @@ function UnassignedPool({ children, mode, onChildClick, onAssignTo }: { children
             }
           />
         ))}
-        {children.length === 0 && (
+        {(children || []).length === 0 && (
           <div className="flex items-center justify-center h-24 text-gray-400 text-sm">
             全員が配車済みです 🎉
           </div>
@@ -108,10 +108,10 @@ export default function BoardPage() {
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
 
   // 本日の稼働シフトを日別設定から動的に構築
-  const dynamicShifts = dailyStaff
-    .filter((ds) => ds.staff?.is_driver && ds.assigned_vehicle_id && ds.status !== "absent")
+  const dynamicShifts = (dailyStaff || [])
+    .filter((ds) => ds?.staff?.is_driver && ds?.assigned_vehicle_id && ds?.status !== "absent")
     .map((ds) => {
-      const v = dailyVehicles.find((dv) => dv.vehicle_id === ds.assigned_vehicle_id);
+      const v = (dailyVehicles || []).find((dv) => dv?.vehicle_id === ds?.assigned_vehicle_id);
       return {
         id: `shift-${ds.staff_id}`,
         target_date: formatDate(selectedDate),
@@ -154,7 +154,7 @@ export default function BoardPage() {
       // 現在ボード上（カラム＋未割り当て）にいる児童を対象とする
       // ★家族迎えプールの児童は自動配車の対象外★
       const allChildrenOnBoard = [
-        ...(board.unassigned?.children || []),
+        ...(board?.unassigned?.children || []),
         ...(board?.columns || []).flatMap((c: any) => (c.trips || []).flatMap((t: any) => t.children || []))
       ];
 
@@ -719,7 +719,7 @@ export default function BoardPage() {
           {/* Unassigned pool */}
           <div className="print:hidden">
             <UnassignedPool 
-              children={(board.unassigned?.children || [])} 
+              children={(board?.unassigned?.children || [])} 
               mode={activeTab} 
               onChildClick={handleChildClick} 
               onAssignTo={async (child, targetTripId) => {
@@ -730,15 +730,15 @@ export default function BoardPage() {
           </div>
 
           {/* Vehicle columns */}
-          {displayColumns.map((col) => (
-            <VehicleColumn key={col.id} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} onChangeLocation={async () => { await performAutoSave(); }} />
+          {(displayColumns || []).map((col: any) => (
+            <VehicleColumn key={col?.id || Math.random().toString()} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} onChangeLocation={async () => { await performAutoSave(); }} />
           ))}
 
           {/* 家族迎え専用列（送りタブのみ） */}
           {activeTab === "outbound" && (
             <div className="print:hidden">
               <FamilyPickupColumn
-                children={board.familyPickup?.children || []}
+                children={board?.familyPickup?.children || []}
                 onChildClick={handleChildClick}
               />
             </div>
