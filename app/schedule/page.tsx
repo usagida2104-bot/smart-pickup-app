@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, Printer, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarIcon, Printer, Sparkles, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { fetchMonthlySchedule, saveMonthlySchedule } from "@/lib/supabase/service";
 import { Loader2 } from "lucide-react";
@@ -16,15 +17,27 @@ const ROLES = [
   { id: "日中リーダー", label: "日中リーダー", colorClass: "bg-[#dcfce7] text-[#15803d]" },
   { id: "集団担当", label: "集団担当", colorClass: "bg-slate-100 text-slate-800" },
   { id: "フリー", label: "(空欄)", colorClass: "bg-transparent text-gray-800" },
+];
+
+const ATTENDANCES = [
+  { id: "通常", label: "通常", colorClass: "bg-gray-100 text-gray-700" },
   { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-600" },
   { id: "研修", label: "研修", colorClass: "bg-amber-100 text-amber-600" },
+  { id: "遅刻", label: "遅刻", colorClass: "bg-purple-100 text-purple-700" },
+  { id: "早退", label: "早退", colorClass: "bg-purple-100 text-purple-700" },
 ];
 
 export const getCellData = (raw: string) => {
   if (!raw) return { role: "フリー", attendance: "通常" };
   const parts = raw.split("|");
-  const role = parts[0] || "フリー";
-  const attendance = parts[1] || "通常";
+  let role = parts[0] || "フリー";
+  let attendance = parts[1] || "通常";
+
+  if (role === "休み" || role === "研修") {
+    attendance = role;
+    role = "フリー";
+  }
+
   return { role, attendance };
 };
 
@@ -38,6 +51,25 @@ export default function SchedulePage() {
   const [scheduleData, setScheduleData] = useState<Record<string, Record<string, string>>>({});
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedCell, setSelectedCell] = useState<{ dateStr: string; staff: string } | null>(null);
+  const [tempRole, setTempRole] = useState("フリー");
+  const [tempAttendance, setTempAttendance] = useState("通常");
+
+  useEffect(() => {
+    if (selectedCell) {
+      const raw = scheduleData[selectedCell.dateStr]?.[selectedCell.staff] || "";
+      const { role, attendance } = getCellData(raw);
+      setTempRole(role);
+      setTempAttendance(attendance);
+    }
+  }, [selectedCell, scheduleData]);
+
+  const handleSaveCell = () => {
+    if (selectedCell) {
+      updateCell(selectedCell.dateStr, selectedCell.staff, packCellData(tempRole, tempAttendance));
+      setSelectedCell(null);
+    }
+  };
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
@@ -122,6 +154,9 @@ export default function SchedulePage() {
     };
 
     for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month - 1, d);
+      if (dateObj.getDay() === 0 || dateObj.getDay() === 6) continue;
+
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const dayData = newData[dateStr] || {};
       
@@ -205,7 +240,7 @@ export default function SchedulePage() {
     const dateObj = new Date(year, month - 1, d);
     const dayOfWeek = ["日", "月", "火", "水", "木", "金", "土"][dateObj.getDay()];
     return { day: d, dateStr, dayOfWeek, isWeekend: dateObj.getDay() === 0 || dateObj.getDay() === 6 };
-  });
+  }).filter(d => !d.isWeekend);
 
   return (
     <div className="flex flex-col w-full h-full min-h-[calc(100vh-64px)]">
@@ -251,12 +286,12 @@ export default function SchedulePage() {
 
         {/* Schedule Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto print:overflow-visible print:shadow-none print:border-none print:w-full schedule-print-container">
-          <table className="w-full text-sm text-left border-collapse print:text-[9px] min-w-[600px] md:min-w-0">
+          <table className="w-full text-sm text-left border-collapse print:text-[11px] min-w-[600px] md:min-w-0">
             <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-0.5 print:px-1">日付</th>
+                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-1.5 print:px-2">日付</th>
                 {STAFF_LIST.map(staff => (
-                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-0.5 print:px-1">
+                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-1.5 print:px-2">
                     {staff}
                   </th>
                 ))}
@@ -268,7 +303,7 @@ export default function SchedulePage() {
                 return (
                   <tr key={dateStr} className="border-b border-gray-100 hover:bg-gray-50 transition-colors print:border-gray-300">
                     <td className={cn(
-                      "border-r border-gray-200 text-center font-medium print:py-0.5 print:px-1",
+                      "border-r border-gray-200 text-center font-medium print:py-1 print:px-2 print:text-xs",
                       isWeekend ? "text-red-500 bg-red-50/30 print:bg-red-50" : "py-2 px-4"
                     )}>
                       {month}/{day} ({dayOfWeek})
@@ -279,47 +314,35 @@ export default function SchedulePage() {
                       const roleDef = ROLES.find(r => r.id === role) || ROLES[3];
 
                       return (
-                        <td key={staff} className="border-r border-gray-200 p-1 print:p-0.5">
+                        <td key={staff} className="border-r border-gray-200 p-1 print:p-1.5 relative">
                           {/* Print view: simple colored div */}
                           <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full min-h-[14px] rounded-sm text-[9px] font-bold tracking-tighter leading-none py-0.5 border border-transparent relative",
+                            "hidden print:flex items-center justify-center w-full h-full min-h-[16px] rounded-sm text-[11px] font-bold tracking-tighter leading-none py-1 border border-transparent relative",
                             roleDef.colorClass
                           )}>
                             {roleDef.id === "フリー" ? "" : roleDef.id}
                             {attendance !== "通常" && (
-                              <span className="absolute -top-1 -right-0.5 text-[6px] text-red-600 bg-white px-0.5 border border-red-200 rounded leading-none">{attendance}</span>
+                              <span className="absolute -top-1 -right-0.5 text-[8px] text-red-600 bg-white px-0.5 border border-red-200 rounded leading-none">{attendance}</span>
                             )}
                           </div>
 
-                          {/* Screen view: select dropdown */}
-                          <div className="print:hidden h-full flex flex-col gap-0.5">
-                            <select
-                              value={role}
-                              onChange={(e) => updateCell(dateStr, staff, packCellData(e.target.value, attendance))}
-                              className={cn(
-                                "w-full h-8 px-2 rounded-lg text-sm font-semibold appearance-none cursor-pointer outline-none transition-colors text-center",
-                                roleDef.colorClass
-                              )}
-                            >
-                              {ROLES.map(r => (
-                                <option key={r.id} value={r.id} className="bg-white text-gray-900 font-normal">
-                                  {r.label}
-                                </option>
-                              ))}
-                            </select>
-                            {(role !== "休み" && role !== "研修") && (
-                              <select
-                                value={attendance}
-                                onChange={(e) => updateCell(dateStr, staff, packCellData(role, e.target.value))}
-                                className={cn(
-                                  "text-[10px] h-4 bg-transparent outline-none cursor-pointer text-center mx-auto w-16",
-                                  attendance === "通常" ? "text-transparent hover:text-gray-300" : "text-red-600 font-bold"
-                                )}
-                              >
-                                <option value="通常">-</option>
-                                <option value="遅刻">遅刻</option>
-                                <option value="早退">早退</option>
-                              </select>
+                          {/* Screen view: clickable cell */}
+                          <div 
+                            className={cn(
+                              "print:hidden h-12 w-full rounded-lg cursor-pointer flex flex-col items-center justify-center transition-opacity hover:opacity-80 relative border",
+                              role === "フリー" && attendance === "通常" ? "bg-white border-dashed border-gray-300 text-gray-400" : "border-transparent",
+                              roleDef.colorClass
+                            )}
+                            onClick={() => setSelectedCell({ dateStr, staff })}
+                          >
+                            <span className="text-sm font-bold">{roleDef.id === "フリー" ? "-" : roleDef.id}</span>
+                            {attendance !== "通常" && (
+                              <span className={cn(
+                                "absolute top-0 right-0 text-[9px] px-1 rounded-bl rounded-tr-lg bg-white/90 font-bold border-l border-b border-gray-200",
+                                attendance === "遅刻" || attendance === "早退" ? "text-purple-600" : "text-red-600"
+                              )}>
+                                {attendance}
+                              </span>
                             )}
                           </div>
                         </td>
@@ -357,6 +380,65 @@ export default function SchedulePage() {
           }
         }
       `}</style>
+      <Dialog open={!!selectedCell} onOpenChange={(open) => !open && setSelectedCell(null)}>
+        <DialogContent className="max-w-sm rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg">
+              {selectedCell && `${selectedCell.dateStr.split('-')[1]}/${selectedCell.dateStr.split('-')[2]} - ${selectedCell.staff}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-6 py-4">
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">1. 勤務状態（ステータス）</label>
+              <div className="grid grid-cols-3 gap-2">
+                {ATTENDANCES.map(a => (
+                  <button
+                    key={a.id}
+                    onClick={() => {
+                      setTempAttendance(a.id);
+                      if (a.id === "休み" || a.id === "研修") {
+                        setTempRole("フリー");
+                      }
+                    }}
+                    className={cn(
+                      "py-2 rounded-lg text-sm font-semibold border-2 transition-all",
+                      tempAttendance === a.id ? cn(a.colorClass, "border-current opacity-100") : "border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100 opacity-60"
+                    )}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <label className={cn("text-sm font-bold", (tempAttendance === "休み" || tempAttendance === "研修") ? "text-gray-400" : "text-gray-700")}>
+                2. 担当役割
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {ROLES.map(r => (
+                  <button
+                    key={r.id}
+                    disabled={tempAttendance === "休み" || tempAttendance === "研修"}
+                    onClick={() => setTempRole(r.id)}
+                    className={cn(
+                      "py-2 rounded-lg text-sm font-semibold border-2 transition-all",
+                      (tempAttendance === "休み" || tempAttendance === "研修") ? "opacity-30 cursor-not-allowed" :
+                      tempRole === r.id ? cn(r.colorClass, "border-current opacity-100 shadow-sm") : "border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100 opacity-60"
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setSelectedCell(null)}>キャンセル</Button>
+            <Button onClick={handleSaveCell} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6">保存</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
