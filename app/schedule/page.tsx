@@ -62,7 +62,8 @@ export default function SchedulePage() {
   const [selectedCell, setSelectedCell] = useState<{ dateStr: string; staff: string } | null>(null);
   const [tempRole, setTempRole] = useState("フリー");
   const [tempAttendance, setTempAttendance] = useState("通常");
-  const [tempTime, setTempTime] = useState("");
+  const [tempHour, setTempHour] = useState("13");
+  const [tempMinute, setTempMinute] = useState("00");
 
   useEffect(() => {
     if (selectedCell) {
@@ -70,13 +71,21 @@ export default function SchedulePage() {
       const { role, attendance, time } = getCellData(raw);
       setTempRole(role);
       setTempAttendance(attendance);
-      setTempTime(time || "");
+      if (time) {
+        const parts = time.split(":");
+        setTempHour(parts[0]?.padStart(2, "0") || "13");
+        setTempMinute(parts[1]?.padStart(2, "0") || "00");
+      } else {
+        setTempHour("13");
+        setTempMinute("00");
+      }
     }
   }, [selectedCell, scheduleData]);
 
   const handleSaveCell = () => {
     if (selectedCell) {
-      updateCell(selectedCell.dateStr, selectedCell.staff, packCellData(tempRole, tempAttendance, tempTime));
+      const timeStr = `${tempHour}:${tempMinute}`;
+      updateCell(selectedCell.dateStr, selectedCell.staff, packCellData(tempRole, tempAttendance, timeStr));
       setSelectedCell(null);
     }
   };
@@ -321,6 +330,12 @@ export default function SchedulePage() {
                       let displayLabel = role === "フリー" ? "" : role;
                       let colorClass = ROLES.find(r => r.id === role)?.colorClass || "bg-transparent text-gray-800";
                       
+                      let formattedTime = "";
+                      if (time) {
+                        const tParts = time.split(":");
+                        formattedTime = `${(tParts[0] || "00").padStart(2, "0")}:${(tParts[1] || "00").padStart(2, "0")}`;
+                      }
+                      
                       if (attendance !== "通常") {
                         if (attendance === "休み") {
                           displayLabel = "休み";
@@ -329,10 +344,10 @@ export default function SchedulePage() {
                           displayLabel = "研修";
                           colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
                         } else if (attendance === "遅刻") {
-                          displayLabel = time ? `遅刻 (${time}〜)` : "遅刻";
+                          displayLabel = formattedTime ? `遅刻 (${formattedTime}〜)` : "遅刻";
                           colorClass = "bg-purple-100 text-purple-700 font-bold border-purple-200";
                         } else if (attendance === "早退") {
-                          displayLabel = time ? `早退 (〜${time})` : "早退";
+                          displayLabel = formattedTime ? `早退 (〜${formattedTime})` : "早退";
                           colorClass = "bg-indigo-100 text-indigo-700 font-bold border-indigo-200";
                         }
                       }
@@ -414,7 +429,8 @@ export default function SchedulePage() {
                         setTempRole("フリー");
                       }
                       if (a.id !== "遅刻" && a.id !== "早退") {
-                        setTempTime("");
+                        setTempHour("13");
+                        setTempMinute("00");
                       }
                     }}
                     className={cn(
@@ -429,12 +445,28 @@ export default function SchedulePage() {
               {(tempAttendance === "遅刻" || tempAttendance === "早退") && (
                 <div className="mt-3 flex items-center gap-3 bg-purple-50 p-3 rounded-lg border border-purple-100">
                   <label className="text-sm font-bold text-purple-700">時間</label>
-                  <input
-                    type="time"
-                    value={tempTime}
-                    onChange={(e) => setTempTime(e.target.value)}
-                    className="flex-1 px-3 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
+                  <div className="flex items-center gap-1 flex-1">
+                    <select
+                      value={tempHour}
+                      onChange={(e) => setTempHour(e.target.value)}
+                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center"
+                    >
+                      {Array.from({ length: 13 }, (_, i) => i + 7).map(h => {
+                         const hs = String(h).padStart(2, "0");
+                         return <option key={hs} value={hs}>{hs}</option>;
+                      })}
+                    </select>
+                    <span className="font-bold text-purple-700">:</span>
+                    <select
+                      value={tempMinute}
+                      onChange={(e) => setTempMinute(e.target.value)}
+                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center"
+                    >
+                      {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map(m => (
+                         <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
