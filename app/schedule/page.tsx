@@ -14,10 +14,24 @@ const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
 const ROLES = [
   { id: "ぽっけリーダー", label: "ぽっけリーダー", colorClass: "bg-[#dbeafe] text-[#1d4ed8]" },
   { id: "日中リーダー", label: "日中リーダー", colorClass: "bg-[#dcfce7] text-[#15803d]" },
-  { id: "集団担当", label: "集団担当", colorClass: "bg-[#f3f4f6] text-[#111827] font-bold border border-[#111827]" },
-  { id: "フリー", label: "フリー", colorClass: "bg-gray-100 text-gray-500" },
-  { id: "休み", label: "休み / 担当不可", colorClass: "bg-[#fee2e2] text-[#b91c1c]" },
+  { id: "集団担当", label: "集団担当", colorClass: "bg-slate-100 text-slate-800" },
+  { id: "フリー", label: "(空欄)", colorClass: "bg-transparent text-gray-800" },
+  { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-600" },
+  { id: "研修", label: "研修", colorClass: "bg-amber-100 text-amber-600" },
 ];
+
+export const getCellData = (raw: string) => {
+  if (!raw) return { role: "フリー", attendance: "通常" };
+  const parts = raw.split("|");
+  const role = parts[0] || "フリー";
+  const attendance = parts[1] || "通常";
+  return { role, attendance };
+};
+
+export const packCellData = (role: string, attendance: string) => {
+  if (attendance === "通常") return role;
+  return `${role}|${attendance}`;
+};
 
 export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -87,7 +101,7 @@ export default function SchedulePage() {
   };
 
   const generateSchedule = () => {
-    if (!confirm("現在の「休み」設定を残して、それ以外のシフトを自動生成します。よろしいですか？")) return;
+    if (!confirm("現在の「休み」「研修」「遅刻」「早退」設定を残して、それ以外のシフトを自動生成します。よろしいですか？")) return;
 
     const newData = { ...scheduleData };
     
@@ -111,7 +125,10 @@ export default function SchedulePage() {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const dayData = newData[dateStr] || {};
       
-      const availableStaff = STAFF_LIST.filter(s => dayData[s] !== "休み");
+      const availableStaff = STAFF_LIST.filter(s => {
+        const { role } = getCellData(dayData[s]);
+        return role !== "休み" && role !== "研修";
+      });
       
       // 役職の割り当て順も毎日シャッフルして偏りを防ぐ
       const rolesToAssign = shuffleArray(["ぽっけリーダー", "日中リーダー", "集団担当"]);
@@ -120,15 +137,23 @@ export default function SchedulePage() {
       for (const role of rolesToAssign) {
         let candidates = availableStaff.filter(s => {
           if (assignedRoles[s]) return false;
+          
+          const cellData = getCellData(dayData[s]);
+          const isLateOrEarly = cellData.attendance === "遅刻" || cellData.attendance === "早退";
+          if (isLateOrEarly && (role === "ぽっけリーダー" || role === "日中リーダー")) return false;
+          
           // 前日と同じ役職は禁止
           const prevDate = new Date(year, month - 1, d - 1);
           const pStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2, '0')}-${String(prevDate.getDate()).padStart(2, '0')}`;
-          if (newData[pStr] && newData[pStr][s] === role) return false;
+          if (newData[pStr]) {
+             const prevCell = getCellData(newData[pStr][s]);
+             if (prevCell.role === role) return false;
+          }
           return true;
         });
 
         if (candidates.length === 0) {
-           // 前日制限で誰もいない場合は、前日制限を解除
+           // 前日制限・遅刻早退制限を解除して再検索
            candidates = availableStaff.filter(s => !assignedRoles[s]);
         }
 
@@ -150,7 +175,18 @@ export default function SchedulePage() {
         }
       }
 
-      newData[dateStr] = { ...dayData, ...assignedRoles };
+      // 出欠情報は維持しつつ役職をパックして保存
+      const packedDayData: Record<string, string> = { ...dayData };
+      for (const s of STAFF_LIST) {
+        const existingData = getCellData(dayData[s]);
+        if (existingData.role === "休み" || existingData.role === "研修") {
+           packedDayData[s] = packCellData(existingData.role, existingData.attendance);
+        } else {
+           packedDayData[s] = packCellData(assignedRoles[s] || "フリー", existingData.attendance);
+        }
+      }
+
+      newData[dateStr] = packedDayData;
     }
 
     setScheduleData(newData);
@@ -238,27 +274,30 @@ export default function SchedulePage() {
                       {month}/{day} ({dayOfWeek})
                     </td>
                     {STAFF_LIST.map(staff => {
-                      const currentRole = dayData[staff] || "フリー";
-                      const roleDef = ROLES.find(r => r.id === currentRole) || ROLES[3];
+                      const rawData = dayData[staff] || "";
+                      const { role, attendance } = getCellData(rawData);
+                      const roleDef = ROLES.find(r => r.id === role) || ROLES[3];
 
                       return (
                         <td key={staff} className="border-r border-gray-200 p-1 print:p-0.5">
                           {/* Print view: simple colored div */}
                           <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full min-h-[14px] rounded-sm text-[9px] font-bold tracking-tighter leading-none py-0.5 border border-transparent",
-                            roleDef.colorClass,
-                            roleDef.id === "集団担当" && "border-gray-800"
+                            "hidden print:flex items-center justify-center w-full h-full min-h-[14px] rounded-sm text-[9px] font-bold tracking-tighter leading-none py-0.5 border border-transparent relative",
+                            roleDef.colorClass
                           )}>
-                            {roleDef.id === "休み" ? "休み" : roleDef.id}
+                            {roleDef.id === "フリー" ? "" : roleDef.id}
+                            {attendance !== "通常" && (
+                              <span className="absolute -top-1 -right-0.5 text-[6px] text-red-600 bg-white px-0.5 border border-red-200 rounded leading-none">{attendance}</span>
+                            )}
                           </div>
 
                           {/* Screen view: select dropdown */}
-                          <div className="print:hidden h-full">
+                          <div className="print:hidden h-full flex flex-col gap-0.5">
                             <select
-                              value={currentRole}
-                              onChange={(e) => updateCell(dateStr, staff, e.target.value)}
+                              value={role}
+                              onChange={(e) => updateCell(dateStr, staff, packCellData(e.target.value, attendance))}
                               className={cn(
-                                "w-full h-10 px-2 rounded-lg text-sm font-semibold appearance-none cursor-pointer outline-none transition-colors text-center",
+                                "w-full h-8 px-2 rounded-lg text-sm font-semibold appearance-none cursor-pointer outline-none transition-colors text-center",
                                 roleDef.colorClass
                               )}
                             >
@@ -268,6 +307,20 @@ export default function SchedulePage() {
                                 </option>
                               ))}
                             </select>
+                            {(role !== "休み" && role !== "研修") && (
+                              <select
+                                value={attendance}
+                                onChange={(e) => updateCell(dateStr, staff, packCellData(role, e.target.value))}
+                                className={cn(
+                                  "text-[10px] h-4 bg-transparent outline-none cursor-pointer text-center mx-auto w-16",
+                                  attendance === "通常" ? "text-transparent hover:text-gray-300" : "text-red-600 font-bold"
+                                )}
+                              >
+                                <option value="通常">-</option>
+                                <option value="遅刻">遅刻</option>
+                                <option value="早退">早退</option>
+                              </select>
+                            )}
                           </div>
                         </td>
                       );
