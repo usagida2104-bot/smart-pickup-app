@@ -28,22 +28,30 @@ const ATTENDANCES = [
 ];
 
 export const getCellData = (raw: string) => {
-  if (!raw) return { role: "フリー", attendance: "通常" };
+  if (!raw) return { role: "フリー", attendance: "通常", time: "" };
   const parts = raw.split("|");
   let role = parts[0] || "フリー";
-  let attendance = parts[1] || "通常";
+  let attendanceRaw = parts[1] || "通常";
 
   if (role === "休み" || role === "研修") {
-    attendance = role;
+    attendanceRaw = role;
     role = "フリー";
   }
 
-  return { role, attendance };
+  let attendance = attendanceRaw;
+  let time = "";
+  if (attendanceRaw.includes(":")) {
+    const attParts = attendanceRaw.split(":", 2);
+    attendance = attParts[0];
+    time = attParts[1];
+  }
+
+  return { role, attendance, time };
 };
 
-export const packCellData = (role: string, attendance: string) => {
-  if (attendance === "通常") return role;
-  return `${role}|${attendance}`;
+export const packCellData = (role: string, attendance: string, time?: string) => {
+  const attStr = (time && (attendance === "遅刻" || attendance === "早退")) ? `${attendance}:${time}` : attendance;
+  return `${role}|${attStr}`;
 };
 
 export default function SchedulePage() {
@@ -54,19 +62,21 @@ export default function SchedulePage() {
   const [selectedCell, setSelectedCell] = useState<{ dateStr: string; staff: string } | null>(null);
   const [tempRole, setTempRole] = useState("フリー");
   const [tempAttendance, setTempAttendance] = useState("通常");
+  const [tempTime, setTempTime] = useState("");
 
   useEffect(() => {
     if (selectedCell) {
       const raw = scheduleData[selectedCell.dateStr]?.[selectedCell.staff] || "";
-      const { role, attendance } = getCellData(raw);
+      const { role, attendance, time } = getCellData(raw);
       setTempRole(role);
       setTempAttendance(attendance);
+      setTempTime(time || "");
     }
   }, [selectedCell, scheduleData]);
 
   const handleSaveCell = () => {
     if (selectedCell) {
-      updateCell(selectedCell.dateStr, selectedCell.staff, packCellData(tempRole, tempAttendance));
+      updateCell(selectedCell.dateStr, selectedCell.staff, packCellData(tempRole, tempAttendance, tempTime));
       setSelectedCell(null);
     }
   };
@@ -161,8 +171,8 @@ export default function SchedulePage() {
       const dayData = newData[dateStr] || {};
       
       const availableStaff = STAFF_LIST.filter(s => {
-        const { role } = getCellData(dayData[s]);
-        return role !== "休み" && role !== "研修";
+        const { attendance } = getCellData(dayData[s]);
+        return attendance === "通常";
       });
       
       // 役職の割り当て順も毎日シャッフルして偏りを防ぐ
@@ -172,10 +182,6 @@ export default function SchedulePage() {
       for (const role of rolesToAssign) {
         let candidates = availableStaff.filter(s => {
           if (assignedRoles[s]) return false;
-          
-          const cellData = getCellData(dayData[s]);
-          const isLateOrEarly = cellData.attendance === "遅刻" || cellData.attendance === "早退";
-          if (isLateOrEarly && (role === "ぽっけリーダー" || role === "日中リーダー")) return false;
           
           // 前日と同じ役職は禁止
           const prevDate = new Date(year, month - 1, d - 1);
@@ -188,7 +194,7 @@ export default function SchedulePage() {
         });
 
         if (candidates.length === 0) {
-           // 前日制限・遅刻早退制限を解除して再検索
+           // 前日制限を解除して再検索
            candidates = availableStaff.filter(s => !assignedRoles[s]);
         }
 
@@ -214,10 +220,10 @@ export default function SchedulePage() {
       const packedDayData: Record<string, string> = { ...dayData };
       for (const s of STAFF_LIST) {
         const existingData = getCellData(dayData[s]);
-        if (existingData.role === "休み" || existingData.role === "研修") {
-           packedDayData[s] = packCellData(existingData.role, existingData.attendance);
+        if (existingData.attendance !== "通常") {
+           packedDayData[s] = packCellData("フリー", existingData.attendance, existingData.time);
         } else {
-           packedDayData[s] = packCellData(assignedRoles[s] || "フリー", existingData.attendance);
+           packedDayData[s] = packCellData(assignedRoles[s] || "フリー", existingData.attendance, existingData.time);
         }
       }
 
@@ -280,7 +286,7 @@ export default function SchedulePage() {
         </div>
 
         {/* Print Header - Visible only on print */}
-        <div className="hidden print:block text-center mb-2">
+        <div className="hidden print:block text-center mb-1">
           <h1 className="text-xl font-bold">{year}年 {month}月 担当スケジュール</h1>
         </div>
 
@@ -289,9 +295,9 @@ export default function SchedulePage() {
           <table className="w-full text-sm text-left border-collapse print:text-[11px] min-w-[600px] md:min-w-0">
             <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-1.5 print:px-2">日付</th>
+                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-1 print:px-1">日付</th>
                 {STAFF_LIST.map(staff => (
-                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-1.5 print:px-2">
+                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-1 print:px-1">
                     {staff}
                   </th>
                 ))}
@@ -303,27 +309,43 @@ export default function SchedulePage() {
                 return (
                   <tr key={dateStr} className="border-b border-gray-100 hover:bg-gray-50 transition-colors print:border-gray-300">
                     <td className={cn(
-                      "border-r border-gray-200 text-center font-medium print:py-1 print:px-2 print:text-xs",
+                      "border-r border-gray-200 text-center font-medium print:py-0.5 print:px-1 print:text-[10px]",
                       isWeekend ? "text-red-500 bg-red-50/30 print:bg-red-50" : "py-2 px-4"
                     )}>
                       {month}/{day} ({dayOfWeek})
                     </td>
                     {STAFF_LIST.map(staff => {
                       const rawData = dayData[staff] || "";
-                      const { role, attendance } = getCellData(rawData);
-                      const roleDef = ROLES.find(r => r.id === role) || ROLES[3];
+                      const { role, attendance, time } = getCellData(rawData);
+                      
+                      let displayLabel = role === "フリー" ? "" : role;
+                      let colorClass = ROLES.find(r => r.id === role)?.colorClass || "bg-transparent text-gray-800";
+                      
+                      if (attendance !== "通常") {
+                        if (attendance === "休み") {
+                          displayLabel = "休み";
+                          colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
+                        } else if (attendance === "研修") {
+                          displayLabel = "研修";
+                          colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
+                        } else if (attendance === "遅刻") {
+                          displayLabel = time ? `遅刻 (${time}〜)` : "遅刻";
+                          colorClass = "bg-purple-100 text-purple-700 font-bold border-purple-200";
+                        } else if (attendance === "早退") {
+                          displayLabel = time ? `早退 (〜${time})` : "早退";
+                          colorClass = "bg-indigo-100 text-indigo-700 font-bold border-indigo-200";
+                        }
+                      }
 
                       return (
-                        <td key={staff} className="border-r border-gray-200 p-1 print:p-1.5 relative">
+                        <td key={staff} className="border-r border-gray-200 p-0.5 print:p-0.5 relative">
                           {/* Print view: simple colored div */}
                           <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full min-h-[16px] rounded-sm text-[11px] font-bold tracking-tighter leading-none py-1 border border-transparent relative",
-                            roleDef.colorClass
+                            "hidden print:flex items-center justify-center w-full h-full min-h-[16px] rounded-sm text-[10px] md:text-[11px] font-bold tracking-tighter leading-none py-0.5 border",
+                            attendance === "通常" ? "border-transparent" : "",
+                            colorClass
                           )}>
-                            {roleDef.id === "フリー" ? "" : roleDef.id}
-                            {attendance !== "通常" && (
-                              <span className="absolute -top-1 -right-0.5 text-[8px] text-red-600 bg-white px-0.5 border border-red-200 rounded leading-none">{attendance}</span>
-                            )}
+                            {displayLabel}
                           </div>
 
                           {/* Screen view: clickable cell */}
@@ -331,19 +353,11 @@ export default function SchedulePage() {
                             className={cn(
                               "print:hidden h-12 w-full rounded-lg cursor-pointer flex flex-col items-center justify-center transition-opacity hover:opacity-80 relative border",
                               role === "フリー" && attendance === "通常" ? "bg-white border-dashed border-gray-300 text-gray-400" : "border-transparent",
-                              roleDef.colorClass
+                              colorClass
                             )}
                             onClick={() => setSelectedCell({ dateStr, staff })}
                           >
-                            <span className="text-sm font-bold">{roleDef.id === "フリー" ? "-" : roleDef.id}</span>
-                            {attendance !== "通常" && (
-                              <span className={cn(
-                                "absolute top-0 right-0 text-[9px] px-1 rounded-bl rounded-tr-lg bg-white/90 font-bold border-l border-b border-gray-200",
-                                attendance === "遅刻" || attendance === "早退" ? "text-purple-600" : "text-red-600"
-                              )}>
-                                {attendance}
-                              </span>
-                            )}
+                            <span className="text-sm font-bold">{displayLabel || "-"}</span>
                           </div>
                         </td>
                       );
@@ -361,7 +375,7 @@ export default function SchedulePage() {
         @media print {
           @page {
             size: A4 landscape;
-            margin: 6mm;
+            margin: 5mm;
           }
           body {
             -webkit-print-color-adjust: exact !important;
@@ -396,8 +410,11 @@ export default function SchedulePage() {
                     key={a.id}
                     onClick={() => {
                       setTempAttendance(a.id);
-                      if (a.id === "休み" || a.id === "研修") {
+                      if (a.id !== "通常") {
                         setTempRole("フリー");
+                      }
+                      if (a.id !== "遅刻" && a.id !== "早退") {
+                        setTempTime("");
                       }
                     }}
                     className={cn(
@@ -409,21 +426,32 @@ export default function SchedulePage() {
                   </button>
                 ))}
               </div>
+              {(tempAttendance === "遅刻" || tempAttendance === "早退") && (
+                <div className="mt-3 flex items-center gap-3 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                  <label className="text-sm font-bold text-purple-700">時間</label>
+                  <input
+                    type="time"
+                    value={tempTime}
+                    onChange={(e) => setTempTime(e.target.value)}
+                    className="flex-1 px-3 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              )}
             </div>
             
             <div className="space-y-3">
-              <label className={cn("text-sm font-bold", (tempAttendance === "休み" || tempAttendance === "研修") ? "text-gray-400" : "text-gray-700")}>
+              <label className={cn("text-sm font-bold", tempAttendance !== "通常" ? "text-gray-400" : "text-gray-700")}>
                 2. 担当役割
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {ROLES.map(r => (
                   <button
                     key={r.id}
-                    disabled={tempAttendance === "休み" || tempAttendance === "研修"}
+                    disabled={tempAttendance !== "通常"}
                     onClick={() => setTempRole(r.id)}
                     className={cn(
                       "py-2 rounded-lg text-sm font-semibold border-2 transition-all",
-                      (tempAttendance === "休み" || tempAttendance === "研修") ? "opacity-30 cursor-not-allowed" :
+                      tempAttendance !== "通常" ? "opacity-30 cursor-not-allowed" :
                       tempRole === r.id ? cn(r.colorClass, "border-current opacity-100 shadow-sm") : "border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100 opacity-60"
                     )}
                   >
