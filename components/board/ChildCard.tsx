@@ -12,21 +12,30 @@ interface ChildCardProps {
   onMoveDown?: (e: React.MouseEvent) => void;
   showMoveUp?: boolean;
   showMoveDown?: boolean;
+  actionSlot?: React.ReactNode;
 }
 
-export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMoveUp, showMoveDown }: ChildCardProps) {
+export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMoveUp, showMoveDown, actionSlot }: ChildCardProps) {
   return (
-    <button
-      type="button"
-      onClick={() => onClick && onClick(magnet)}
+    <div
       data-testid={`child-card-${magnet.childId}`}
       data-child-name={magnet.name}
       className={cn(
-        "w-full text-left group flex items-center gap-2 p-2.5 rounded-lg border-2 shadow-sm cursor-pointer select-none shrink-0",
-        "hover:shadow-md hover:border-blue-300 transition-all duration-150",
-        magnet.has_caution ? "bg-green-50 border-green-200 hover:border-green-400" : "bg-white"
+        "w-full text-left group flex items-center gap-2 p-2.5 rounded-lg border-2 shadow-sm shrink-0",
+        "hover:shadow-md hover:border-blue-300 transition-all duration-150 relative",
+        magnet.has_caution ? "bg-green-50 border-green-200 hover:border-green-400" : "bg-white",
+        onClick ? "cursor-pointer" : ""
       )}
     >
+      {/* 領域全体をクリック可能にする（actionSlot を避けるため position を調整） */}
+      {onClick && (
+        <div 
+          className="absolute inset-0 z-0" 
+          onClick={() => onClick(magnet)} 
+          role="button"
+          tabIndex={0}
+        />
+      )}
       {/* Color accent bar */}
       <div
         className="w-1 self-stretch rounded-full shrink-0"
@@ -86,6 +95,12 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
           </button>
         </div>
       )}
-    </button>
+      {/* actionSlot */}
+      {actionSlot && (
+        <div className="z-10 ml-1">
+          {actionSlot}
+        </div>
+      )}
+    </div>
   );
 }

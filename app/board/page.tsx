@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, CalendarIcon, Sparkles, RotateCcw, Save, Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,17 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-function UnassignedPool({ children, mode, onChildClick }: { children: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void }) {
+function UnassignedPool({ children, mode, onChildClick, onAssignTo }: { children: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void, onAssignTo: (child: ChildMagnet, targetTripId: string) => void }) {
+  const { inboundBoard, outboundBoard } = useBoardStore();
+  const board = mode === "inbound" ? inboundBoard : outboundBoard;
+  const availableTrips = (board?.columns || []).flatMap((col: any) => 
+    (col.trips || []).map((t: any) => ({
+      id: t.id,
+      label: `${col.vehicleName} ${t.tripIndex}便`,
+      isFull: (t.children || []).length >= col.capacity
+    }))
+  );
+
   return (
     <div
       data-testid="unassigned-column"
@@ -45,7 +55,30 @@ function UnassignedPool({ children, mode, onChildClick }: { children: ChildMagne
         className="flex-1 p-3 min-h-[200px] max-h-[500px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors"
       >
         {children.map((magnet) => (
-          <ChildCard key={magnet.id} magnet={magnet} mode={mode} onClick={(m) => onChildClick(m, "unassigned")} />
+          <ChildCard 
+            key={magnet.id} 
+            magnet={magnet} 
+            mode={mode} 
+            onClick={(m) => onChildClick(m, "unassigned")}
+            actionSlot={
+              <select
+                className="text-[10px] bg-white border border-gray-300 rounded px-1 py-1 w-20 text-gray-700 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    onAssignTo(magnet, e.target.value);
+                  }
+                }}
+              >
+                <option value="" disabled>配車 ▼</option>
+                {availableTrips.map(trip => (
+                  <option key={trip.id} value={trip.id} disabled={trip.isFull}>
+                    {trip.label} {trip.isFull ? "(満員)" : ""}
+                  </option>
+                ))}
+              </select>
+            }
+          />
         ))}
         {children.length === 0 && (
           <div className="flex items-center justify-center h-24 text-gray-400 text-sm">
@@ -58,17 +91,19 @@ function UnassignedPool({ children, mode, onChildClick }: { children: ChildMagne
 }
 
 export default function BoardPage() {
+  const { children, dailyStaff, attendances, fetchDailyData } = useMasterStore();
   const { inboundBoard, outboundBoard, setBoard, moveChild, reorderChild } = useBoardStore();
-  const { staff, vehicles, children, attendances } = useMasterStore();
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound">("inbound");
-  const [selectedChild, setSelectedChild] = useState<{ magnet: ChildMagnet, columnId: string } | null>(null);
-  const [isAutoAssigned, setIsAutoAssigned] = useState(false);
-  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [dailyStaff, setDailyStaff] = useState<any[]>([]);
-  const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  
+  const [selectedChild, setSelectedChild] = useState<{ magnet: ChildMagnet; columnId: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+  const [isAutoAssigned, setIsAutoAssigned] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const isSavingRef = useRef(false);
+  const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
 
@@ -197,6 +232,7 @@ export default function BoardPage() {
   };
 
   const performAutoSave = async () => {
+    isSavingRef.current = true;
     try {
       const targetDateStr = formatDate(selectedDate);
       const state = useBoardStore.getState();
@@ -208,6 +244,10 @@ export default function BoardPage() {
       setToastMessage({ type: "error", text: "❌ 保存に失敗しました" });
     } finally {
       setTimeout(() => setToastMessage(null), 3000);
+      // Wait a bit before allowing loadData again to prevent race conditions with real-time events
+      setTimeout(() => {
+        isSavingRef.current = false;
+      }, 2000);
     }
   };
 
@@ -388,14 +428,14 @@ export default function BoardPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "board_states", filter: `target_date=eq.${targetDateStr}` },
         () => {
-          loadData();
+          if (!isSavingRef.current) loadData();
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "daily_attendances", filter: `target_date=eq.${targetDateStr}` },
         () => {
-          loadData();
+          if (!isSavingRef.current) loadData();
         }
       )
       .subscribe();
@@ -678,7 +718,15 @@ export default function BoardPage() {
         <div className="flex gap-4 min-h-full pb-4 print:flex-wrap print:gap-6 print:pb-0 items-start">
           {/* Unassigned pool */}
           <div className="print:hidden">
-            <UnassignedPool children={(board.unassigned?.children || [])} mode={activeTab} onChildClick={handleChildClick} />
+            <UnassignedPool 
+              children={(board.unassigned?.children || [])} 
+              mode={activeTab} 
+              onChildClick={handleChildClick} 
+              onAssignTo={async (child, targetTripId) => {
+                moveChild(activeTab, child.id, "unassigned", targetTripId);
+                await performAutoSave();
+              }}
+            />
           </div>
 
           {/* Vehicle columns */}

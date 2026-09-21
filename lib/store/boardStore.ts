@@ -107,6 +107,14 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
             trip.children.push(movedChild);
           }
           trip.isNew = false;
+          
+          console.log('[Assign]', {
+            childId: movedChild.id,
+            targetVehicleId: col.vehicleId,
+            targetTripIndex: trip.tripIndex,
+            newPassengers: [...trip.children]
+          });
+          
           break;
         }
       }
