@@ -247,10 +247,10 @@ export default function BoardPage() {
       setToastMessage({ type: "error", text: "❌ 保存に失敗しました" });
     } finally {
       setTimeout(() => setToastMessage(null), 3000);
-      // Wait a bit before allowing loadData again to prevent race conditions with real-time events
+      // 保存直後にリアルタイム通知で loadData が走り、配車状態が上書きされないよう 5 秒ブロック
       setTimeout(() => {
         isSavingRef.current = false;
-      }, 2000);
+      }, 5000);
     }
   };
 
@@ -419,8 +419,66 @@ export default function BoardPage() {
           useBoardStore.getState().setBoard("inbound", boardState.inbound_board);
           useBoardStore.getState().setBoard("outbound", boardState.outbound_board);
         } else {
-          // 何もない場合はリセット（新規作成）
-          handleReset(mergedAtts);
+          // 保存済みボードなし → 日別設定から初期コラムを構築してストアに書き込む
+          const builtColumns = mergedStaff
+            .filter((ds: any) => ds.assigned_vehicle_id && ds.status !== "absent")
+            .map((ds: any) => {
+              const v = mergedVehicles.find((dv: any) => dv.vehicle_id === ds.assigned_vehicle_id);
+              const shiftId = `shift-${ds.staff_id}`;
+              return {
+                id: shiftId,
+                shiftId,
+                vehicleId: ds.assigned_vehicle_id,
+                vehicleName: v?.vehicle?.name ?? "不明",
+                driverId: ds.staff_id,
+                driverName: ds.staff?.name ?? "不明",
+                driverStatus: ds.status,
+                driverStatusTime: ds.status_time,
+                capacity: v?.vehicle?.capacity ?? 6,
+                trips: [{ id: `${shiftId}-trip-1`, tripIndex: 1, children: [] }],
+              };
+            })
+            .filter((col: any) => col.vehicleId);
+
+          console.log("[Board] Building initial columns from daily staff:", builtColumns.map((c: any) => `${c.vehicleName} (${c.driverName})`));
+
+          // 未割り当て児童の構築
+          const dayOfWeek2 = selectedDate.getDay();
+          const inboundUnassigned = mergedAtts
+            .filter(a => {
+              const ts = (a as any).status || "both";
+              const as2 = (a as any).attendance_status || "present";
+              return as2 !== "absent" && ["both", "pickup_only"].includes(ts);
+            })
+            .map(a => toMagnet(a.child_id, children, mergedAtts));
+          const outboundUnassigned = mergedAtts
+            .filter(a => {
+              const ts = (a as any).status || "both";
+              const as2 = (a as any).attendance_status || "present";
+              return as2 !== "absent" && ts === "both";
+            })
+            .map(a => toMagnet(a.child_id, children, mergedAtts));
+          const familyPickupChildren = mergedAtts
+            .filter(a => {
+              const ts = (a as any).status || "both";
+              const as2 = (a as any).attendance_status || "present";
+              return as2 !== "absent" && ts === "dropoff_only";
+            })
+            .map(a => toMagnet(a.child_id, children, mergedAtts));
+
+          useBoardStore.getState().setBoard("inbound", {
+            columns: builtColumns,
+            unassigned: { id: "unassigned", children: inboundUnassigned },
+            familyPickup: { id: "family-pickup", children: [] },
+          });
+          useBoardStore.getState().setBoard("outbound", {
+            columns: builtColumns.map((c: any) => ({
+              ...c,
+              trips: [{ id: `${c.shiftId}-trip-1`, tripIndex: 1, children: [] }],
+            })),
+            unassigned: { id: "unassigned", children: outboundUnassigned },
+            familyPickup: { id: "family-pickup", children: familyPickupChildren },
+          });
         }
       } catch (err) {
         console.error("Board load error", err);
@@ -463,19 +521,17 @@ export default function BoardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [children, selectedDate, masterStaff, masterVehicles]);
 
-  // 同期用useEffect (児童およびスタッフ情報が更新されたらボード上の情報を最新化)
+  // 同期用useEffect (児童・出欠情報が更新されたらボード上の情報を最新化)
+  // ★ dynamicShifts でコラムをフィルタしない（配車直後にコラムが消えるのを防ぐ）
   useEffect(() => {
     if (children.length === 0 || attendances.length === 0) return;
 
     const syncBoard = (boardState: any, mode: "inbound" | "outbound") => {
+      // コラムは既存のものをそのまま保持（dynamicShiftsでフィルタしない）
       const newCols = (boardState.columns || [])
-        .filter((col: any) => {
-          // シフトが存在しなくなったら除外（dynamicShiftsにあるか）
-          return dynamicShifts.some(shift => shift.id === col.shiftId || (shift.vehicle_id === col.vehicleId && !shift.id));
-        })
         .map((col: any) => {
-          const driver = dailyStaff.find(ds => ds.staff_id === col.driverId);
-          // Migrate old data on-the-fly if trips is missing
+          const driver = dailyStaff.find((ds: any) => ds.staff_id === col.driverId);
+          // trips が未設定の古いデータは変換
           const tripsToUse = (col.trips && col.trips.length > 0) ? col.trips : [
             {
               id: `${col.shiftId || col.id}-trip-1`,
@@ -485,12 +541,12 @@ export default function BoardPage() {
           ];
           return {
             ...col,
-            driverStatus: driver?.status,
-            driverStatusTime: driver?.status_time,
-            driverRole: driver?.role || driver?.staff?.role,
+            driverStatus: driver?.status ?? col.driverStatus,
+            driverStatusTime: driver?.status_time ?? col.driverStatusTime,
+            driverRole: driver?.role || driver?.staff?.role || col.driverRole,
             trips: tripsToUse.map((trip: any) => ({
               ...trip,
-              children: trip.children
+              children: (trip.children || [])
                 .filter((m: any) => {
                   const child = children.find((c: any) => c.id === m.id);
                   const att = attendances.find(a => a.child_id === m.id);
@@ -563,19 +619,19 @@ export default function BoardPage() {
             })
         : [];
 
-      // 休みから復帰した児童（かつ、まだボード上に存在しない児童）を抽出して適切なプールに追加
+      // 現在ボード上にいる児童のIDセット（コラム + 未割り当て + 家族迎え）
       const currentIds = new Set([
         ...newCols.flatMap((col: any) => (col.trips || []).flatMap((t: any) => (t.children || []).map((c: any) => c.id))),
         ...newUnassignedChildren.map((c: any) => c.id),
         ...newFamilyPickupChildren.map((c: any) => c.id),
       ]);
 
+      // まだボードに存在しない出席児童を未割り当てプールに追加
       const missingChildren = attendances
         .filter(a => {
           const transportStatus = a.status || "both";
           const attendanceStatus = a.attendance_status || "present";
           const isAbsent = attendanceStatus === "absent";
-          // 送りタブ: "both" のみが unassigned 対象、"dropoff_only" は家族迎えへ
           const isValidForMode = mode === "inbound"
             ? ["both", "pickup_only"].includes(transportStatus)
             : transportStatus === "both";
