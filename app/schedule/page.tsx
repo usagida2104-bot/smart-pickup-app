@@ -21,10 +21,10 @@ const ROLES = [
 
 const ATTENDANCES = [
   { id: "通常", label: "通常", colorClass: "bg-gray-100 text-gray-700" },
-  { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-600" },
-  { id: "研修", label: "研修", colorClass: "bg-amber-100 text-amber-600" },
-  { id: "遅刻", label: "遅刻", colorClass: "bg-purple-100 text-purple-700" },
-  { id: "早退", label: "早退", colorClass: "bg-purple-100 text-purple-700" },
+  { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-700 font-bold" },
+  { id: "研修", label: "研修", colorClass: "bg-amber-100 text-amber-800 font-bold" },
+  { id: "遅刻", label: "遅刻", colorClass: "bg-red-100 text-red-700 font-bold" },
+  { id: "早退", label: "早退", colorClass: "bg-red-100 text-red-700 font-bold" },
 ];
 
 export const getCellData = (raw: string) => {
@@ -254,8 +254,8 @@ export default function SchedulePage() {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const dateObj = new Date(year, month - 1, d);
     const dayOfWeek = ["日", "月", "火", "水", "木", "金", "土"][dateObj.getDay()];
-    return { day: d, dateStr, dayOfWeek, isWeekend: dateObj.getDay() === 0 || dateObj.getDay() === 6 };
-  }).filter(d => !d.isWeekend);
+    return { day: d, dateStr, dayOfWeek, isWeekend: dateObj.getDay() === 0 || dateObj.getDay() === 6, isSaturday: dateObj.getDay() === 6, isSunday: dateObj.getDay() === 0 };
+  });
 
   return (
     <div className="flex flex-col w-full h-full min-h-[calc(100vh-64px)]">
@@ -301,27 +301,28 @@ export default function SchedulePage() {
 
         {/* Schedule Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto print:overflow-visible print:shadow-none print:border-none print:w-full schedule-print-container">
-          <table className="w-full text-sm text-left border-collapse print:text-[11px] min-w-[600px] md:min-w-0">
+          <table className="w-full text-sm text-left border-collapse print:text-[10px] min-w-[600px] md:min-w-0">
             <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-1 print:px-1">日付</th>
+                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-0.5 print:px-1 print:text-[9.5px]">日付</th>
                 {STAFF_LIST.map(staff => (
-                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-1 print:px-1">
+                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-0.5 print:px-1 print:text-[9.5px]">
                     {staff}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {days.map(({ day, dateStr, dayOfWeek, isWeekend }) => {
+              {days.map(({ day, dateStr, dayOfWeek, isWeekend, isSaturday, isSunday }) => {
                 const dayData = scheduleData[dateStr] || {};
                 return (
-                  <tr key={dateStr} className="border-b border-gray-100 hover:bg-gray-50 transition-colors print:border-gray-300">
+                  <tr key={dateStr} className={cn("border-b transition-colors print:border-gray-300", isWeekend ? "bg-gray-100/50 print:bg-gray-100/50" : "border-gray-100 hover:bg-gray-50")}>
                     <td className={cn(
-                      "border-r border-gray-200 text-center font-medium print:py-0.5 print:px-1 print:text-[10px]",
-                      isWeekend ? "text-red-500 bg-red-50/30 print:bg-red-50" : "py-2 px-4"
+                      "border-r border-gray-200 text-center font-medium print:py-0 print:px-1 print:text-[10px] print:leading-[1.1]",
+                      isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
+                      "py-2 px-4"
                     )}>
-                      {month}/{day} ({dayOfWeek})
+                      {month}/{day}({dayOfWeek})
                     </td>
                     {STAFF_LIST.map(staff => {
                       const rawData = dayData[staff] || "";
@@ -345,18 +346,26 @@ export default function SchedulePage() {
                           colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
                         } else if (attendance === "遅刻") {
                           displayLabel = formattedTime ? `遅刻 (${formattedTime}〜)` : "遅刻";
-                          colorClass = "bg-purple-100 text-purple-700 font-bold border-purple-200";
+                          colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
                         } else if (attendance === "早退") {
                           displayLabel = formattedTime ? `早退 (〜${formattedTime})` : "早退";
-                          colorClass = "bg-indigo-100 text-indigo-700 font-bold border-indigo-200";
+                          colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
                         }
                       }
 
+                      if (isWeekend) {
+                        return (
+                          <td key={staff} className="border-r border-gray-200 p-0.5 print:p-0.5">
+                            <div className="w-full h-full min-h-[16px] print:min-h-[16px] md:h-12 bg-transparent"></div>
+                          </td>
+                        );
+                      }
+
                       return (
-                        <td key={staff} className="border-r border-gray-200 p-0.5 print:p-0.5 relative">
+                        <td key={staff} className="border-r border-gray-200 p-0.5 print:p-0 relative">
                           {/* Print view: simple colored div */}
                           <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full min-h-[16px] rounded-sm text-[10px] md:text-[11px] font-bold tracking-tighter leading-none py-0.5 border",
+                            "hidden print:flex items-center justify-center w-full h-full min-h-[14px] rounded-sm text-[9px] md:text-[11px] font-bold tracking-tight leading-[1.1] py-[1px] border",
                             attendance === "通常" ? "border-transparent" : "",
                             colorClass
                           )}>
@@ -370,7 +379,7 @@ export default function SchedulePage() {
                               role === "フリー" && attendance === "通常" ? "bg-white border-dashed border-gray-300 text-gray-400" : "border-transparent",
                               colorClass
                             )}
-                            onClick={() => setSelectedCell({ dateStr, staff })}
+                            onClick={() => !isWeekend && setSelectedCell({ dateStr, staff })}
                           >
                             <span className="text-sm font-bold">{displayLabel || "-"}</span>
                           </div>
@@ -398,6 +407,7 @@ export default function SchedulePage() {
           }
           .schedule-print-container {
             width: 100%;
+            zoom: 0.94;
           }
           .schedule-print-container table {
             page-break-inside: avoid;
