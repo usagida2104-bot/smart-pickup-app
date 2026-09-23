@@ -294,142 +294,197 @@ export default function SchedulePage() {
           </Button>
         </div>
 
-        {/* Print Header - Visible only on print */}
-        <div className="hidden print:block text-center mb-2">
-          <h1 className="text-[13px] font-bold">{year}年 {month}月 担当スケジュール</h1>
-        </div>
+        {/* Print container wrapping title and table (only takes effect during printing) */}
+        <div className="print-schedule-container contents print:flex print:flex-col">
+          
+          {/* Print Header - Visible only on print */}
+          <div className="hidden print:block print-schedule-title">
+            {year}年 {month}月 担当スケジュール
+          </div>
 
-        {/* Schedule Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto print:overflow-visible print:shadow-none print:border-none print:w-full schedule-print-container">
-          <table className="w-full text-sm text-left border-collapse print:text-[10px] min-w-[600px] md:min-w-0">
-            <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
-              <tr>
-                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:text-[10.5px]">日付</th>
-                {STAFF_LIST.map(staff => (
-                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:text-[10.5px]">
-                    {staff}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {days.map(({ day, dateStr, dayOfWeek, isWeekend, isSaturday, isSunday }) => {
-                const dayData = scheduleData[dateStr] || {};
-                return (
-                  <tr key={dateStr} className={cn("border-b transition-colors print:border-gray-300", isWeekend ? "bg-gray-100/50 print:bg-gray-100/50" : "border-gray-100 hover:bg-gray-50")}>
-                    <td className={cn(
-                      "border-r border-gray-200 text-center font-medium print:text-[10.5px]",
-                      isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
-                      "py-2 px-4"
-                    )}>
-                      {month}/{day}({dayOfWeek})
-                    </td>
-                    {STAFF_LIST.map(staff => {
-                      const rawData = dayData[staff] || "";
-                      const { role, attendance, time } = getCellData(rawData);
-                      
-                      let displayLabel = role === "フリー" ? "" : role;
-                      let colorClass = ROLES.find(r => r.id === role)?.colorClass || "bg-transparent text-gray-800";
-                      
-                      let formattedTime = "";
-                      if (time) {
-                        const tParts = time.split(":");
-                        formattedTime = `${(tParts[0] || "00").padStart(2, "0")}:${(tParts[1] || "00").padStart(2, "0")}`;
-                      }
-                      
-                      if (attendance !== "通常") {
-                        if (attendance === "休み") {
-                          displayLabel = "休み";
-                          colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
-                        } else if (attendance === "研修") {
-                          displayLabel = "研修";
-                          colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
-                        } else if (attendance === "遅刻") {
-                          displayLabel = formattedTime ? `遅刻 (${formattedTime}〜)` : "遅刻";
-                          colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
-                        } else if (attendance === "早退") {
-                          displayLabel = formattedTime ? `早退 (〜${formattedTime})` : "早退";
-                          colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
+          {/* Schedule Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto print:overflow-visible print:shadow-none print:border-none print:w-full flex-1">
+            <table className="w-full text-sm text-left border-collapse min-w-[600px] md:min-w-0 print-schedule-table">
+              <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
+                <tr>
+                  <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20">日付</th>
+                  {STAFF_LIST.map(staff => (
+                    <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center">
+                      {staff}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {days.map(({ day, dateStr, dayOfWeek, isWeekend, isSaturday, isSunday }) => {
+                  const dayData = scheduleData[dateStr] || {};
+                  return (
+                    <tr key={dateStr} className={cn("border-b transition-colors print:border-gray-300", isWeekend ? "bg-gray-100/50 print:bg-gray-100/50" : "border-gray-100 hover:bg-gray-50")}>
+                      <td className={cn(
+                        "border-r border-gray-200 text-center font-medium",
+                        isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
+                        "py-2 px-4"
+                      )}>
+                        {month}/{day}({dayOfWeek})
+                      </td>
+                      {STAFF_LIST.map(staff => {
+                        const rawData = dayData[staff] || "";
+                        const { role, attendance, time } = getCellData(rawData);
+                        
+                        let displayLabel = role === "フリー" ? "" : role;
+                        let colorClass = ROLES.find(r => r.id === role)?.colorClass || "bg-transparent text-gray-800";
+                        
+                        let formattedTime = "";
+                        if (time) {
+                          const tParts = time.split(":");
+                          formattedTime = `${(tParts[0] || "00").padStart(2, "0")}:${(tParts[1] || "00").padStart(2, "0")}`;
                         }
-                      }
+                        
+                        if (attendance !== "通常") {
+                          if (attendance === "休み") {
+                            displayLabel = "休み";
+                            colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
+                          } else if (attendance === "研修") {
+                            displayLabel = "研修";
+                            colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
+                          } else if (attendance === "遅刻") {
+                            displayLabel = formattedTime ? `遅刻 (${formattedTime}〜)` : "遅刻";
+                            colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
+                          } else if (attendance === "早退") {
+                            displayLabel = formattedTime ? `早退 (〜${formattedTime})` : "早退";
+                            colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
+                          }
+                        }
 
-                      if (isWeekend) {
+                        if (isWeekend) {
+                          return (
+                            <td key={staff} className="border-r border-gray-200 p-0.5 relative">
+                              <div className="w-full h-full min-h-[16px] md:h-12 bg-transparent"></div>
+                            </td>
+                          );
+                        }
+
                         return (
-                          <td key={staff} className="border-r border-gray-200 p-0.5 relative">
-                            <div className="w-full h-full min-h-[16px] md:h-12 bg-transparent"></div>
+                          <td key={staff} className="border-r border-gray-200 p-0.5 relative text-center">
+                            {/* Print view: simple colored div */}
+                            <div className={cn(
+                              "hidden print:inline-block schedule-badge",
+                              attendance === "通常" ? "border-transparent" : "border",
+                              colorClass
+                            )}>
+                              {displayLabel}
+                            </div>
+
+                            {/* Screen view: clickable cell */}
+                            <div 
+                              className={cn(
+                                "print:hidden h-12 w-full rounded-lg cursor-pointer flex flex-col items-center justify-center transition-opacity hover:opacity-80 relative border",
+                                role === "フリー" && attendance === "通常" ? "bg-white border-dashed border-gray-300 text-gray-400" : "border-transparent",
+                                colorClass
+                              )}
+                              onClick={() => !isWeekend && setSelectedCell({ dateStr, staff })}
+                            >
+                              <span className="text-sm font-bold">{displayLabel || "-"}</span>
+                            </div>
                           </td>
                         );
-                      }
-
-                      return (
-                        <td key={staff} className="border-r border-gray-200 p-0.5 relative">
-                          {/* Print view: simple colored div */}
-                          <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full rounded-sm text-[10px] md:text-[11px] font-bold tracking-tight border",
-                            attendance === "通常" ? "border-transparent" : "",
-                            colorClass
-                          )}>
-                            {displayLabel}
-                          </div>
-
-                          {/* Screen view: clickable cell */}
-                          <div 
-                            className={cn(
-                              "print:hidden h-12 w-full rounded-lg cursor-pointer flex flex-col items-center justify-center transition-opacity hover:opacity-80 relative border",
-                              role === "フリー" && attendance === "通常" ? "bg-white border-dashed border-gray-300 text-gray-400" : "border-transparent",
-                              colorClass
-                            )}
-                            onClick={() => !isWeekend && setSelectedCell({ dateStr, staff })}
-                          >
-                            <span className="text-sm font-bold">{displayLabel || "-"}</span>
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </main>
 
       <style jsx global>{`
         @media print {
+          /* 1. 用紙設定: A4横向き、上下マージン各7mm、左右各8mmで完全均等に固定 */
           @page {
             size: A4 landscape;
-            margin: 8mm 10mm;
+            margin: 7mm 8mm;
           }
-          body {
+
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100% !important;
+            overflow: hidden !important;
+          }
+
+          /* 2. 印刷ルートコンテナ: A4横(210mm)から上下マージン(14mm)を引いたジャスト枠 */
+          .print-schedule-container {
+            width: 100% !important;
+            height: calc(210mm - 14mm) !important;
+            max-height: calc(210mm - 14mm) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+
+          /* 3. タイトルヘッダー */
+          .print-schedule-title {
+            font-size: 13px !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            margin: 0 0 2mm 0 !important;
+            flex-shrink: 0 !important;
+            line-height: 1.2 !important;
+          }
+
+          /* 4. テーブル: コンテナの残り高さいっぱいに100%均等展開 */
+          .print-schedule-table {
+            width: 100% !important;
+            height: calc(100% - 7mm) !important; /* タイトル分を除いた残り高さを使い切る */
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+            flex-grow: 1 !important;
+          }
+
+          /* 全行の高さを均等に配分 */
+          .print-schedule-table tr {
+            height: auto !important;
+          }
+
+          /* セル内のテキストとバッジのサイズ調整 */
+          .print-schedule-table th,
+          .print-schedule-table td {
+            padding: 1px 3px !important;
+            vertical-align: middle !important;
+            text-align: center !important;
+            border: 1px solid #d1d5db !important;
+          }
+
+          .print-schedule-table th {
+            font-size: 10px !important;
+            background-color: #f3f4f6 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .schedule-print-container {
-            width: 100%;
-            zoom: 1.0;
-            page-break-inside: avoid;
-            break-inside: avoid;
+
+          .print-schedule-table td {
+            font-size: 9.5px !important;
+            line-height: 1.15 !important;
           }
-          .schedule-print-container table {
-            page-break-inside: avoid;
-            break-inside: avoid;
-            width: 100%;
-          }
-          .schedule-print-container th,
-          .schedule-print-container td {
-            padding: 3.5px 5px !important;
-            line-height: 1.2 !important;
-          }
-          .schedule-print-container td > div {
-            padding-top: 1.5px !important;
-            padding-bottom: 1.5px !important;
-            min-height: 16px !important;
-          }
-          .schedule-print-container tr {
-            page-break-inside: avoid;
-            break-inside: avoid;
-            page-break-after: auto;
+
+          /* バッジスタイル: 枠内にスッキリ収まるように微小パディング */
+          .print-schedule-table .schedule-badge {
+            display: inline-block !important;
+            width: 96% !important;
+            padding: 1.5px 2px !important;
+            font-size: 9px !important;
+            font-weight: bold !important;
+            border-radius: 3px !important;
+            line-height: 1.1 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
