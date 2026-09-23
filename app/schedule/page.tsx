@@ -295,8 +295,8 @@ export default function SchedulePage() {
         </div>
 
         {/* Print Header - Visible only on print */}
-        <div className="hidden print:block text-center mb-1">
-          <h1 className="text-xl font-bold">{year}年 {month}月 担当スケジュール</h1>
+        <div className="hidden print:block text-center mb-1.5">
+          <h1 className="text-[13px] font-bold">{year}年 {month}月 担当スケジュール</h1>
         </div>
 
         {/* Schedule Table */}
@@ -304,9 +304,9 @@ export default function SchedulePage() {
           <table className="w-full text-sm text-left border-collapse print:text-[10px] min-w-[600px] md:min-w-0">
             <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-0.5 print:px-1 print:text-[9.5px]">日付</th>
+                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-1 print:px-1.5 print:text-[10.5px]">日付</th>
                 {STAFF_LIST.map(staff => (
-                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-0.5 print:px-1 print:text-[9.5px]">
+                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-1 print:px-1.5 print:text-[10.5px]">
                     {staff}
                   </th>
                 ))}
@@ -318,7 +318,7 @@ export default function SchedulePage() {
                 return (
                   <tr key={dateStr} className={cn("border-b transition-colors print:border-gray-300", isWeekend ? "bg-gray-100/50 print:bg-gray-100/50" : "border-gray-100 hover:bg-gray-50")}>
                     <td className={cn(
-                      "border-r border-gray-200 text-center font-medium print:py-0 print:px-1 print:text-[10px] print:leading-[1.1]",
+                      "border-r border-gray-200 text-center font-medium print:py-1 print:px-1.5 print:text-[10px] print:leading-[1.25]",
                       isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
                       "py-2 px-4"
                     )}>
@@ -355,17 +355,17 @@ export default function SchedulePage() {
 
                       if (isWeekend) {
                         return (
-                          <td key={staff} className="border-r border-gray-200 p-0.5 print:p-0.5">
+                          <td key={staff} className="border-r border-gray-200 p-0.5 print:p-1">
                             <div className="w-full h-full min-h-[16px] print:min-h-[16px] md:h-12 bg-transparent"></div>
                           </td>
                         );
                       }
 
                       return (
-                        <td key={staff} className="border-r border-gray-200 p-0.5 print:p-0 relative">
+                        <td key={staff} className="border-r border-gray-200 p-0.5 print:p-1 relative">
                           {/* Print view: simple colored div */}
                           <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full min-h-[14px] rounded-sm text-[9px] md:text-[11px] font-bold tracking-tight leading-[1.1] py-[1px] border",
+                            "hidden print:flex items-center justify-center w-full h-full min-h-[16px] rounded-sm text-[9.5px] md:text-[11px] font-bold tracking-tight leading-[1.2] py-[2px] px-1 border",
                             attendance === "通常" ? "border-transparent" : "",
                             colorClass
                           )}>
@@ -407,7 +407,7 @@ export default function SchedulePage() {
           }
           .schedule-print-container {
             width: 100%;
-            zoom: 0.94;
+            zoom: 0.98;
           }
           .schedule-print-container table {
             page-break-inside: avoid;
