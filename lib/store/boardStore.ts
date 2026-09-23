@@ -5,6 +5,12 @@ interface BoardStore {
   inboundBoard: BoardState;
   outboundBoard: BoardState;
   setBoard: (mode: "inbound" | "outbound", board: BoardState) => void;
+  assignChildToTrip: (
+    mode: "inbound" | "outbound",
+    childId: string | number,
+    targetVehicleId: string | number,
+    tripIndex?: number
+  ) => void;
   moveChild: (
     mode: "inbound" | "outbound",
     childId: string,
@@ -29,76 +35,196 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   outboundBoard: { ...emptyBoard },
 
   setBoard: (mode, board) => {
-    const migratedColumns = (board.columns || []).map(col => {
-      if (!col.trips || col.trips.length === 0) {
-        return {
-          ...col,
-          trips: [{
-            id: `${col.shiftId || col.id}-trip-1`,
-            tripIndex: 1,
-            children: (col as any).children || []
-          }]
-        };
-      }
-      return col;
+    const migratedColumns = (board?.columns || []).map(col => {
+      const trips = (col.trips && col.trips.length > 0) ? col.trips : [
+        {
+          id: `${col.shiftId || col.id}-trip-1`,
+          tripIndex: 1,
+          children: (col as any).children || []
+        }
+      ];
+      return {
+        ...col,
+        trips: trips.map((t: any, idx: number) => ({
+          ...t,
+          tripIndex: t.tripIndex || (idx + 1),
+          children: [...(t.children || [])]
+        }))
+      };
     });
-    const familyPickup = board.familyPickup ?? { id: "family-pickup" as const, children: [] };
-    set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: migratedColumns, familyPickup } });
+    const familyPickup = board?.familyPickup ?? { id: "family-pickup" as const, children: [] };
+    const unassigned = board?.unassigned ?? { id: "unassigned" as const, children: [] };
+
+    set({
+      [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: {
+        ...board,
+        columns: migratedColumns,
+        unassigned: { id: "unassigned", children: [...(unassigned.children || [])] },
+        familyPickup: { id: "family-pickup", children: [...(familyPickup.children || [])] },
+      }
+    });
+  },
+
+  // 車両・便を指定して直接割り当てる確実なアクション
+  assignChildToTrip: (mode, childId, targetVehicleId, tripIndex = 0) => {
+    const state = get();
+    const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
+    const currentBoard = state[boardKey];
+    if (!currentBoard) return;
+
+    const strChildId = String(childId);
+    const strVehicleId = String(targetVehicleId);
+
+    // 1. 対象の児童オブジェクトを取得（未割り当て、家族迎え、または全車両の便から探す）
+    let targetChild: ChildMagnet | undefined = (currentBoard.unassigned?.children || []).find(
+      c => String(c?.id || (c as any)?.child_id) === strChildId
+    );
+    if (!targetChild) {
+      targetChild = (currentBoard.familyPickup?.children || []).find(
+        c => String(c?.id || (c as any)?.child_id) === strChildId
+      );
+    }
+    if (!targetChild) {
+      for (const col of currentBoard.columns || []) {
+        for (const t of col.trips || []) {
+          const found = (t.children || []).find(c => String(c?.id || (c as any)?.child_id) === strChildId);
+          if (found) {
+            targetChild = found;
+            break;
+          }
+        }
+        if (targetChild) break;
+      }
+    }
+
+    if (!targetChild) {
+      console.error('[Assign] Target child not found anywhere:', strChildId);
+      return;
+    }
+
+    // 2. 未割り当てリストおよび家族迎えから除外
+    const newUnassigned = (currentBoard.unassigned?.children || []).filter(
+      c => String(c?.id || (c as any)?.child_id) !== strChildId
+    );
+    const newFamilyPickup = (currentBoard.familyPickup?.children || []).filter(
+      c => String(c?.id || (c as any)?.child_id) !== strChildId
+    );
+
+    // 3. 車両リストをディープコピーして更新（全車両の全便から除外した上で、対象車両・対象便に追加）
+    let assigned = false;
+    const newColumns = (currentBoard.columns || []).map(col => {
+      const isTargetVehicle = String(col.vehicleId) === strVehicleId || String(col.id) === strVehicleId;
+
+      const newTrips = (col.trips || []).map((trip, idx) => {
+        // 一旦この児童を全便から削除（重複防止）
+        const cleanedChildren = (trip.children || []).filter(
+          c => String(c?.id || (c as any)?.child_id) !== strChildId
+        );
+
+        if (isTargetVehicle && (idx === tripIndex || trip.tripIndex === tripIndex + 1)) {
+          assigned = true;
+          return {
+            ...trip,
+            children: [...cleanedChildren, targetChild!]
+          };
+        }
+        return {
+          ...trip,
+          children: cleanedChildren
+        };
+      });
+
+      // もし対象便が存在しなかった場合は自動生成して追加
+      if (isTargetVehicle && !assigned) {
+        newTrips.push({
+          id: `${col.shiftId || col.id}-trip-${tripIndex + 1}`,
+          tripIndex: tripIndex + 1,
+          children: [targetChild!]
+        });
+        assigned = true;
+      }
+
+      return {
+        ...col,
+        trips: newTrips
+      };
+    });
+
+    console.log('[Assign Success]', { mode, childId: strChildId, targetVehicleId: strVehicleId, tripIndex, assigned });
+
+    set({
+      [boardKey]: {
+        ...currentBoard,
+        unassigned: { id: "unassigned", children: newUnassigned },
+        familyPickup: { id: "family-pickup", children: newFamilyPickup },
+        columns: newColumns
+      }
+    });
   },
 
   moveChild: (mode, childId, fromDropZoneId, toDropZoneId, toIndex) => {
     const state = get();
-    const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
+    const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
+    const board = state[boardKey];
+    const strChildId = String(childId ?? '');
 
+    // 1. 移動元を問わず、該当児童オブジェクトを特定
     let movedChild: ChildMagnet | undefined;
-    let newUnassigned = [...(board.unassigned?.children || [])];
-    let newFamilyPickup = [...(board.familyPickup?.children || [])];
-    let newColumns = board.columns.map((col) => ({
-      ...col,
-      trips: (col.trips || []).map(t => ({ ...t, children: [...t.children] }))
-    }));
+    
+    // 全体から探す
+    const allPools = [
+      ...(board.unassigned?.children || []),
+      ...(board.familyPickup?.children || []),
+      ...(board.columns || []).flatMap(c => (c.trips || []).flatMap(t => t.children || []))
+    ];
+    movedChild = allPools.find(c => String(c?.id || (c as any)?.child_id) === strChildId);
 
-    // --- 移動元から取り出す ---
-    if (fromDropZoneId === "unassigned") {
-      const idx = newUnassigned.findIndex((c) => String(c?.id ?? '') === String(childId ?? ''));
-      if (idx !== -1) movedChild = newUnassigned.splice(idx, 1)[0];
-    } else if (fromDropZoneId === "family-pickup") {
-      const idx = newFamilyPickup.findIndex((c) => String(c?.id ?? '') === String(childId ?? ''));
-      if (idx !== -1) movedChild = newFamilyPickup.splice(idx, 1)[0];
-    } else {
-      for (const col of newColumns) {
-        const trip = (col.trips || []).find(t => String(t?.id ?? '') === String(fromDropZoneId ?? ''));
-        if (trip) {
-          const idx = (trip.children || []).findIndex((c) => String(c?.id ?? '') === String(childId ?? ''));
-          if (idx !== -1) {
-            movedChild = trip.children.splice(idx, 1)[0];
-            break;
-          }
-        }
-      }
+    if (!movedChild) {
+      console.warn("moveChild: movedChild not found for id:", strChildId);
+      return;
     }
 
-    console.log("moveChild: movedChild extracted:", movedChild, "childId:", childId, "fromDropZoneId:", fromDropZoneId);
+    // 2. 全プール・全車両から該当児童を完全除外（イミュータブル）
+    let newUnassigned = (board.unassigned?.children || []).filter(
+      c => String(c?.id || (c as any)?.child_id) !== strChildId
+    );
+    let newFamilyPickup = (board.familyPickup?.children || []).filter(
+      c => String(c?.id || (c as any)?.child_id) !== strChildId
+    );
+    let newColumns = (board.columns || []).map((col) => ({
+      ...col,
+      trips: (col.trips || []).map(t => ({
+        ...t,
+        children: (t.children || []).filter(c => String(c?.id || (c as any)?.child_id) !== strChildId)
+      }))
+    }));
 
-    if (!movedChild) return;
-
-    // --- 移動先に追加する ---
+    // 3. 移動先に追加
     if (toDropZoneId === "unassigned") {
       if (toIndex !== undefined) {
         newUnassigned.splice(toIndex, 0, movedChild);
       } else {
         newUnassigned.push(movedChild);
       }
+      console.log('[Assign Success: to unassigned]', { mode, childId: strChildId });
     } else if (toDropZoneId === "family-pickup") {
       if (toIndex !== undefined) {
         newFamilyPickup.splice(toIndex, 0, movedChild);
       } else {
         newFamilyPickup.push(movedChild);
       }
+      console.log('[Assign Success: to family-pickup]', { mode, childId: strChildId });
     } else {
+      // 車両便への追加（toDropZoneId が trip.id または vehicleId または shiftId のいずれかにマッチ）
       let foundTargetTrip = false;
       for (const col of newColumns) {
-        const trip = (col.trips || []).find(t => String(t?.id ?? '') === String(toDropZoneId ?? ''));
+        // trip.id または col.id または col.vehicleId で照合
+        const trip = (col.trips || []).find(
+          t => String(t?.id ?? '') === String(toDropZoneId ?? '') ||
+               String(col?.id ?? '') === String(toDropZoneId ?? '') ||
+               String(col?.vehicleId ?? '') === String(toDropZoneId ?? '')
+        );
+
         if (trip) {
           foundTargetTrip = true;
           if (toIndex !== undefined) {
@@ -107,28 +233,42 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
             trip.children.push(movedChild);
           }
           trip.isNew = false;
-          
-          console.log('[Assign]', {
-            childId: movedChild.id,
+          console.log('[Assign Success]', {
+            mode,
+            childId: strChildId,
             targetVehicleId: col.vehicleId,
             targetTripIndex: trip.tripIndex,
-            newPassengers: [...(trip.children || [])]
+            passengersCount: trip.children.length
           });
-          
           break;
         }
       }
-      console.log("moveChild: Target trip found?", foundTargetTrip, "toDropZoneId:", toDropZoneId);
+
+      // もし既存トリップで見つからず、toDropZoneId が車両IDそのものだった場合
+      if (!foundTargetTrip) {
+        for (const col of newColumns) {
+          if (String(col.vehicleId) === String(toDropZoneId) || String(col.id) === String(toDropZoneId)) {
+            if ((col.trips || []).length === 0) {
+              col.trips = [{ id: `${col.shiftId || col.id}-trip-1`, tripIndex: 1, children: [movedChild] }];
+            } else {
+              col.trips[0].children.push(movedChild);
+            }
+            foundTargetTrip = true;
+            console.log('[Assign Success: fallback to vehicle 1st trip]', { mode, childId: strChildId, vehicleId: col.vehicleId });
+            break;
+          }
+        }
+      }
+
+      if (!foundTargetTrip) {
+        console.error("moveChild: Target trip/vehicle not found for toDropZoneId:", toDropZoneId);
+        // 見つからなかった場合は未割り当てに戻す（消失防止）
+        newUnassigned.push(movedChild);
+      }
     }
 
-    newColumns = newColumns.map(col => ({
-      ...col,
-      trips: (col.trips || []).filter(t => t?.tripIndex === 1 || (t?.children || []).length > 0 || t?.isNew)
-    }));
-    console.log("moveChild: finished updating arrays", { newUnassigned, newFamilyPickup });
-
     set({
-      [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: {
+      [boardKey]: {
         ...board,
         columns: newColumns,
         unassigned: { id: "unassigned", children: newUnassigned },

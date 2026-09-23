@@ -329,28 +329,8 @@ export default function BoardPage() {
     }, 0);
   };
 
-  // 車両カラムの初期値: dynamicShiftsから即時構築
-  const initialColumns = dynamicShifts.map((shift) => ({
-    id: shift.id,
-    shiftId: shift.id,
-    vehicleId: shift.vehicle_id,
-    vehicleName: shift.vehicle?.name ?? "不明",
-    driverId: shift.driver_id,
-    driverName: shift.driver?.name ?? "不明",
-    driverStatus: (shift as any).daily_status,
-    driverStatusTime: (shift as any).daily_status_time,
-    capacity: shift.vehicle?.capacity ?? 0,
-    trips: [
-      {
-        id: `${shift.id}-trip-1`,
-        tripIndex: 1,
-        children: [],
-      }
-    ],
-  }));
-
-  // ボード表示用カラム: Zustandが空ならMOCK初期値を使用
-  const displayColumns = (board?.columns || []).length > 0 ? board.columns : initialColumns;
+  // ボード表示用カラム: 常に Zustand の board.columns を直接使用（参照の乖離を完全排除）
+  const displayColumns = board?.columns || [];
 
   // Initialize board on mount and date change
   useEffect(() => {
@@ -411,75 +391,96 @@ export default function BoardPage() {
         });
         
         console.log(`[Board] Daily attendances count for ${targetDateStr}:`, mergedAtts.length);
-        console.log(`[Board] Daily staff with vehicles:`, mergedStaff.filter((s: any) => s.assigned_vehicle_id).map((s: any) => `${s.staff?.name} -> vehicle_id:${s.assigned_vehicle_id}`));
         useMasterStore.getState().setAttendances(mergedAtts);
 
-        // board の反映
-        if (boardState && boardState.inbound_board && boardState.outbound_board) {
-          useBoardStore.getState().setBoard("inbound", boardState.inbound_board);
-          useBoardStore.getState().setBoard("outbound", boardState.outbound_board);
-        } else {
-          // 保存済みボードなし → 日別設定から初期コラムを構築してストアに書き込む
-          const builtColumns = mergedStaff
-            .filter((ds: any) => ds.assigned_vehicle_id && ds.status !== "absent")
-            .map((ds: any) => {
-              const v = mergedVehicles.find((dv: any) => dv.vehicle_id === ds.assigned_vehicle_id);
-              const shiftId = `shift-${ds.staff_id}`;
-              return {
-                id: shiftId,
-                shiftId,
-                vehicleId: ds.assigned_vehicle_id,
-                vehicleName: v?.vehicle?.name ?? "不明",
-                driverId: ds.staff_id,
-                driverName: ds.staff?.name ?? "不明",
-                driverStatus: ds.status,
-                driverStatusTime: ds.status_time,
-                capacity: v?.vehicle?.capacity ?? 6,
-                trips: [{ id: `${shiftId}-trip-1`, tripIndex: 1, children: [] }],
-              };
-            })
-            .filter((col: any) => col.vehicleId);
+        // 稼働車両（is_active !== false）を元に、日別設定（mergedStaff）のドライバー情報をマージした最新コラム枠を作成
+        const activeVehicles = masterVehicles.filter(v => v.is_active !== false);
+        const vehiclesToUse = activeVehicles.length > 0 ? activeVehicles : masterVehicles;
 
-          console.log("[Board] Building initial columns from daily staff:", builtColumns.map((c: any) => `${c.vehicleName} (${c.driverName})`));
+        const buildColumnsForBoard = (savedBoard: any) => {
+          return vehiclesToUse.map((v) => {
+            // この車両に日別設定で割り当てられているドライバー
+            const assignedStaff = mergedStaff.find((ds: any) => ds.assigned_vehicle_id === v.id && ds.status !== "absent");
+            const driverName = assignedStaff ? (assignedStaff.staff?.name || "担当スタッフ") : "(未定)";
+            const driverId = assignedStaff?.staff_id || null;
+            const driverStatus = assignedStaff?.status;
+            const driverStatusTime = assignedStaff?.status_time;
+            const shiftId = `shift-${v.id}`;
 
-          // 未割り当て児童の構築
-          const dayOfWeek2 = selectedDate.getDay();
-          const inboundUnassigned = mergedAtts
-            .filter(a => {
-              const ts = (a as any).status || "both";
-              const as2 = (a as any).attendance_status || "present";
-              return as2 !== "absent" && ["both", "pickup_only"].includes(ts);
-            })
-            .map(a => toMagnet(a.child_id, children, mergedAtts));
-          const outboundUnassigned = mergedAtts
-            .filter(a => {
-              const ts = (a as any).status || "both";
-              const as2 = (a as any).attendance_status || "present";
-              return as2 !== "absent" && ts === "both";
-            })
-            .map(a => toMagnet(a.child_id, children, mergedAtts));
-          const familyPickupChildren = mergedAtts
-            .filter(a => {
-              const ts = (a as any).status || "both";
-              const as2 = (a as any).attendance_status || "present";
-              return as2 !== "absent" && ts === "dropoff_only";
-            })
-            .map(a => toMagnet(a.child_id, children, mergedAtts));
+            // 保存データがあればその便・乗客を引き継ぐ
+            const savedCol = (savedBoard?.columns || []).find((c: any) => 
+              String(c.vehicleId) === String(v.id) || String(c.id) === String(v.id) || c.vehicleName === v.name
+            );
 
-          useBoardStore.getState().setBoard("inbound", {
-            columns: builtColumns,
-            unassigned: { id: "unassigned", children: inboundUnassigned },
-            familyPickup: { id: "family-pickup", children: [] },
+            let trips = savedCol?.trips || [];
+            if (trips.length === 0) {
+              trips = [{ id: `${shiftId}-trip-1`, tripIndex: 1, children: [] }];
+            }
+
+            return {
+              id: shiftId,
+              shiftId,
+              vehicleId: v.id,
+              vehicleName: v.name,
+              driverId,
+              driverName,
+              driverStatus,
+              driverStatusTime,
+              capacity: v.capacity || 6,
+              trips: trips.map((t: any, idx: number) => ({
+                ...t,
+                id: t.id || `${shiftId}-trip-${idx + 1}`,
+                tripIndex: t.tripIndex || (idx + 1),
+                children: (t.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts))
+              }))
+            };
           });
-          useBoardStore.getState().setBoard("outbound", {
-            columns: builtColumns.map((c: any) => ({
-              ...c,
-              trips: [{ id: `${c.shiftId}-trip-1`, tripIndex: 1, children: [] }],
-            })),
-            unassigned: { id: "unassigned", children: outboundUnassigned },
-            familyPickup: { id: "family-pickup", children: familyPickupChildren },
-          });
-        }
+        };
+
+        // 迎えタブ：すでに車両に乗っている児童は未割り当てから除外
+        const inboundCols = buildColumnsForBoard(boardState?.inbound_board);
+        const assignedInboundIds = new Set(
+          inboundCols.flatMap(c => c.trips.flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id))))
+        );
+        const inboundUnassigned = mergedAtts
+          .filter(a => {
+            const ts = (a as any).status || "both";
+            const as2 = (a as any).attendance_status || "present";
+            return as2 !== "absent" && ["both", "pickup_only"].includes(ts);
+          })
+          .filter(a => !assignedInboundIds.has(String(a.child_id)))
+          .map(a => toMagnet(a.child_id, children, mergedAtts));
+
+        // 送りタブ：すでに車両または家族迎えにいる児童は未割り当てから除外
+        const outboundCols = buildColumnsForBoard(boardState?.outbound_board);
+        const savedFamilyPickup = (boardState?.outbound_board?.familyPickup?.children || []).map((c: any) => 
+          toMagnet(c.id, children, mergedAtts)
+        );
+        const assignedOutboundIds = new Set([
+          ...outboundCols.flatMap(c => c.trips.flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))),
+          ...savedFamilyPickup.map((c: any) => String(c.id))
+        ]);
+        const outboundUnassigned = mergedAtts
+          .filter(a => {
+            const ts = (a as any).status || "both";
+            const as2 = (a as any).attendance_status || "present";
+            return as2 !== "absent" && ts === "both";
+          })
+          .filter(a => !assignedOutboundIds.has(String(a.child_id)))
+          .map(a => toMagnet(a.child_id, children, mergedAtts));
+
+        // Zustand ストアにセット
+        useBoardStore.getState().setBoard("inbound", {
+          columns: inboundCols,
+          unassigned: { id: "unassigned", children: inboundUnassigned },
+          familyPickup: { id: "family-pickup", children: [] },
+        });
+        useBoardStore.getState().setBoard("outbound", {
+          columns: outboundCols,
+          unassigned: { id: "unassigned", children: outboundUnassigned },
+          familyPickup: { id: "family-pickup", children: savedFamilyPickup },
+        });
+
       } catch (err) {
         console.error("Board load error", err);
       }
@@ -494,6 +495,7 @@ export default function BoardPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "board_states", filter: `target_date=eq.${targetDateStr}` },
         () => {
+          // 保存処理中は再フェッチで画面を上書きしない
           if (!isSavingRef.current) loadData();
         }
       )
@@ -508,8 +510,7 @@ export default function BoardPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "daily_staff", filter: `target_date=eq.${targetDateStr}` },
         () => {
-          // 日別設定でドライバー割当が変わったら再取得
-          loadData();
+          if (!isSavingRef.current) loadData();
         }
       )
       .subscribe();
@@ -522,9 +523,14 @@ export default function BoardPage() {
   }, [children, selectedDate, masterStaff, masterVehicles]);
 
   // 同期用useEffect (児童・出欠情報が更新されたらボード上の情報を最新化)
-  // ★ dynamicShifts でコラムをフィルタしない（配車直後にコラムが消えるのを防ぐ）
+  // ★ 保存中（isSavingRef.current）は発火しない → 配車直後の状態を保護
   useEffect(() => {
     if (children.length === 0 || attendances.length === 0) return;
+    // 保存処理中はスキップして配車状態を保護する
+    if (isSavingRef.current) {
+      console.log("[syncBoard] Skipped – save in progress");
+      return;
+    }
 
     const syncBoard = (boardState: any, mode: "inbound" | "outbound") => {
       // コラムは既存のものをそのまま保持（dynamicShiftsでフィルタしない）
@@ -669,6 +675,7 @@ export default function BoardPage() {
     syncBoard(useBoardStore.getState().inboundBoard, "inbound");
     syncBoard(useBoardStore.getState().outboundBoard, "outbound");
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // ★ attendances が変わっても保存中（isSavingRef.current）はスキップ
   }, [children, dailyStaff, attendances]);
 
 
@@ -795,7 +802,27 @@ export default function BoardPage() {
               mode={activeTab} 
               onChildClick={handleChildClick} 
               onAssignTo={async (child, targetTripId) => {
+                console.log('[Assign] onAssignTo called:', { 
+                  activeTab, 
+                  childId: child.id, 
+                  childName: child.name, 
+                  targetTripId,
+                  boardColsCount: board?.columns?.length,
+                  tripIds: (board?.columns || []).flatMap((c: any) => (c.trips || []).map((t: any) => t.id))
+                });
                 moveChild(activeTab, child.id, "unassigned", targetTripId);
+                const state = useBoardStore.getState();
+                const afterBoard = activeTab === "inbound" ? state.inboundBoard : state.outboundBoard;
+                console.log('[Assign Success]', { 
+                  activeTab,
+                  childId: child.id,
+                  targetTripId,
+                  colsAfter: (afterBoard.columns || []).map((c: any) => ({
+                    name: c.vehicleName,
+                    trips: (c.trips || []).map((t: any) => ({ id: t.id, count: t.children?.length }))
+                  })),
+                  unassignedAfter: (afterBoard.unassigned?.children || []).length
+                });
                 await performAutoSave();
               }}
             />
@@ -803,7 +830,7 @@ export default function BoardPage() {
 
           {/* Vehicle columns */}
           {(displayColumns || []).map((col: any) => (
-            <VehicleColumn key={col?.id || Math.random().toString()} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} onChangeLocation={async () => { await performAutoSave(); }} />
+            <VehicleColumn key={col?.id || col?.vehicleId || col?.vehicleName} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} onChangeLocation={async () => { await performAutoSave(); }} />
           ))}
 
           {/* 家族迎え専用列（送りタブのみ） */}
