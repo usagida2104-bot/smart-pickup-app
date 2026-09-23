@@ -407,7 +407,9 @@ export default function SchedulePage() {
           }
           .schedule-print-container {
             width: 100%;
-            zoom: 0.93;
+            zoom: 0.93; /* Chrome / Edge */
+            transform: scale(0.93); /* Firefox etc */
+            transform-origin: top center;
             page-break-inside: avoid;
             break-inside: avoid;
           }
@@ -415,6 +417,16 @@ export default function SchedulePage() {
             page-break-inside: avoid;
             break-inside: avoid;
             width: 100%;
+          }
+          .schedule-print-container th,
+          .schedule-print-container td {
+            padding: 1.8px 4px !important;
+            line-height: 1.12 !important;
+          }
+          .schedule-print-container td > div {
+            padding-top: 1px !important;
+            padding-bottom: 1px !important;
+            min-height: 14px !important;
           }
           .schedule-print-container tr {
             page-break-inside: avoid;
