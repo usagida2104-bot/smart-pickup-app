@@ -91,7 +91,8 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo }: { chi
 }
 
 export default function BoardPage() {
-  const { children, dailyStaff, attendances, fetchDailyData } = useMasterStore();
+  const { children, attendances } = useMasterStore();
+  const { staff: masterStaff, vehicles: masterVehicles } = useMasterStore();
   const { inboundBoard, outboundBoard, setBoard, moveChild, reorderChild } = useBoardStore();
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound">("inbound");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -103,6 +104,8 @@ export default function BoardPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   const isSavingRef = useRef(false);
+  // ローカルステートとして管理（masterStoreには存在しないため）
+  const [dailyStaff, setDailyStaff] = useState<any[]>([]);
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
@@ -361,17 +364,21 @@ export default function BoardPage() {
         const { attendances: fetchedAtts, boardState, dailyStaff: fetchedStaff, dailyVehicles: fetchedVehicles } = await fetchDailyData(targetDateStr);
         if (!isMounted) return;
 
-        // Merge dailyStaff
-        const mergedStaff = staff.map((s) => {
+        // Merge dailyStaff: masterStaff をベースに daily_staff の assigned_vehicle_id などを上書き
+        const mergedStaff = masterStaff.map((s) => {
           const existing = fetchedStaff?.find((ds: any) => ds.staff_id === s.id);
-          return existing ? { ...existing, staff: s } : { staff_id: s.id, status: "present", role: s.role, assigned_vehicle_id: null, staff: s };
+          return existing
+            ? { ...existing, staff: s }
+            : { staff_id: s.id, status: "present", role: s.role, assigned_vehicle_id: null, staff: s };
         });
         setDailyStaff(mergedStaff);
 
-        // Merge dailyVehicles
-        const mergedVehicles = vehicles.map((v) => {
+        // Merge dailyVehicles: masterVehicles をベースに daily_vehicles の is_active などを上書き
+        const mergedVehicles = masterVehicles.map((v) => {
           const existing = fetchedVehicles?.find((dv: any) => dv.vehicle_id === v.id);
-          return existing ? { ...existing, vehicle: v } : { vehicle_id: v.id, is_active: v.is_active ?? true, vehicle: v };
+          return existing
+            ? { ...existing, vehicle: v }
+            : { vehicle_id: v.id, is_active: v.is_active ?? true, vehicle: v };
         });
         setDailyVehicles(mergedVehicles);
 
@@ -404,6 +411,7 @@ export default function BoardPage() {
         });
         
         console.log(`[Board] Daily attendances count for ${targetDateStr}:`, mergedAtts.length);
+        console.log(`[Board] Daily staff with vehicles:`, mergedStaff.filter((s: any) => s.assigned_vehicle_id).map((s: any) => `${s.staff?.name} -> vehicle_id:${s.assigned_vehicle_id}`));
         useMasterStore.getState().setAttendances(mergedAtts);
 
         // board の反映
@@ -438,6 +446,14 @@ export default function BoardPage() {
           if (!isSavingRef.current) loadData();
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_staff", filter: `target_date=eq.${targetDateStr}` },
+        () => {
+          // 日別設定でドライバー割当が変わったら再取得
+          loadData();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -445,7 +461,7 @@ export default function BoardPage() {
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, selectedDate]);
+  }, [children, selectedDate, masterStaff, masterVehicles]);
 
   // 同期用useEffect (児童およびスタッフ情報が更新されたらボード上の情報を最新化)
   useEffect(() => {
