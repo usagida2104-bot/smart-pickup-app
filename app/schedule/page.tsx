@@ -295,8 +295,8 @@ export default function SchedulePage() {
         </div>
 
         {/* Print Header - Visible only on print */}
-        <div className="hidden print:block text-center mb-1">
-          <h1 className="text-[11px] font-bold">{year}年 {month}月 担当スケジュール</h1>
+        <div className="hidden print:block text-center mb-2">
+          <h1 className="text-[13px] font-bold">{year}年 {month}月 担当スケジュール</h1>
         </div>
 
         {/* Schedule Table */}
@@ -304,9 +304,9 @@ export default function SchedulePage() {
           <table className="w-full text-sm text-left border-collapse print:text-[10px] min-w-[600px] md:min-w-0">
             <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:py-[2px] print:px-1 print:text-[10px]">日付</th>
+                <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20 print:text-[10.5px]">日付</th>
                 {STAFF_LIST.map(staff => (
-                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:py-[2px] print:px-1 print:text-[10px]">
+                  <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center print:text-[10.5px]">
                     {staff}
                   </th>
                 ))}
@@ -318,7 +318,7 @@ export default function SchedulePage() {
                 return (
                   <tr key={dateStr} className={cn("border-b transition-colors print:border-gray-300", isWeekend ? "bg-gray-100/50 print:bg-gray-100/50" : "border-gray-100 hover:bg-gray-50")}>
                     <td className={cn(
-                      "border-r border-gray-200 text-center font-medium print:py-[2px] print:px-1 print:text-[9.5px] print:leading-[1.12]",
+                      "border-r border-gray-200 text-center font-medium print:text-[10.5px]",
                       isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
                       "py-2 px-4"
                     )}>
@@ -355,17 +355,17 @@ export default function SchedulePage() {
 
                       if (isWeekend) {
                         return (
-                          <td key={staff} className="border-r border-gray-200 p-0.5 print:p-[2px]">
-                            <div className="w-full h-full min-h-[14px] print:min-h-[14px] md:h-12 bg-transparent"></div>
+                          <td key={staff} className="border-r border-gray-200 p-0.5 relative">
+                            <div className="w-full h-full min-h-[16px] md:h-12 bg-transparent"></div>
                           </td>
                         );
                       }
 
                       return (
-                        <td key={staff} className="border-r border-gray-200 p-0.5 print:p-[2px] relative">
+                        <td key={staff} className="border-r border-gray-200 p-0.5 relative">
                           {/* Print view: simple colored div */}
                           <div className={cn(
-                            "hidden print:flex items-center justify-center w-full h-full min-h-[14px] rounded-sm text-[9.5px] font-bold tracking-tight leading-[1.12] py-[1px] px-1 border",
+                            "hidden print:flex items-center justify-center w-full h-full rounded-sm text-[10px] md:text-[11px] font-bold tracking-tight border",
                             attendance === "通常" ? "border-transparent" : "",
                             colorClass
                           )}>
@@ -399,7 +399,7 @@ export default function SchedulePage() {
         @media print {
           @page {
             size: A4 landscape;
-            margin: 3mm 5mm;
+            margin: 8mm 10mm;
           }
           body {
             -webkit-print-color-adjust: exact !important;
@@ -407,9 +407,7 @@ export default function SchedulePage() {
           }
           .schedule-print-container {
             width: 100%;
-            zoom: 0.93; /* Chrome / Edge */
-            transform: scale(0.93); /* Firefox etc */
-            transform-origin: top center;
+            zoom: 1.0;
             page-break-inside: avoid;
             break-inside: avoid;
           }
@@ -420,13 +418,13 @@ export default function SchedulePage() {
           }
           .schedule-print-container th,
           .schedule-print-container td {
-            padding: 1.8px 4px !important;
-            line-height: 1.12 !important;
+            padding: 3.5px 5px !important;
+            line-height: 1.2 !important;
           }
           .schedule-print-container td > div {
-            padding-top: 1px !important;
-            padding-bottom: 1px !important;
-            min-height: 14px !important;
+            padding-top: 1.5px !important;
+            padding-bottom: 1.5px !important;
+            min-height: 16px !important;
           }
           .schedule-print-container tr {
             page-break-inside: avoid;
