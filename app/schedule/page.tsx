@@ -407,14 +407,21 @@ export default function SchedulePage() {
           }
           .schedule-print-container {
             width: 100%;
+            max-height: 195mm;
+            overflow: hidden;
             zoom: 0.98;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .schedule-print-container table {
             page-break-inside: avoid;
+            break-inside: avoid;
             width: 100%;
+            height: 100%;
           }
           .schedule-print-container tr {
             page-break-inside: avoid;
+            break-inside: avoid;
             page-break-after: auto;
           }
         }
