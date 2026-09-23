@@ -22,6 +22,7 @@ interface BoardStore {
   updateTripLocation: (mode: "inbound" | "outbound", tripId: string, locationType: "start" | "end", location: "office" | "home") => void;
   reorderChild: (mode: "inbound" | "outbound", tripId: string, childId: string, direction: -1 | 1) => void;
   addTrip: (mode: "inbound" | "outbound", columnId: string) => void;
+  removeTrip: (mode: "inbound" | "outbound", columnId: string, tripId: string) => void;
 }
 
 const emptyBoard: BoardState = {
@@ -365,5 +366,62 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       return col;
     });
     set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: newColumns } });
+  },
+
+  removeTrip: (mode, columnId, tripId) => {
+    const state = get();
+    const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
+    const board = state[boardKey];
+
+    let removedChildren: ChildMagnet[] = [];
+
+    const newColumns = (board.columns || []).map((col) => {
+      if (col.id === columnId || col.vehicleId === columnId) {
+        // 削除対象の便に乗っている児童を退避
+        const targetTrip = (col.trips || []).find((t) => t.id === tripId);
+        if (targetTrip && targetTrip.children) {
+          removedChildren.push(...targetTrip.children);
+        }
+
+        // 対象便を除外
+        const filteredTrips = (col.trips || []).filter((t) => t.id !== tripId);
+
+        // 残った便を 1 からリナンバリング
+        const renumberedTrips = filteredTrips.map((t, idx) => ({
+          ...t,
+          tripIndex: idx + 1,
+        }));
+
+        return {
+          ...col,
+          trips: renumberedTrips,
+        };
+      }
+      return col;
+    });
+
+    // 削除された便に乗っていた児童を未割り当てリストへ安全に戻す
+    const newUnassigned = [
+      ...(board.unassigned?.children || []),
+      ...removedChildren,
+    ];
+
+    console.log('[Remove Trip Success]', {
+      mode,
+      columnId,
+      tripId,
+      returnedChildrenCount: removedChildren.length,
+    });
+
+    set({
+      [boardKey]: {
+        ...board,
+        columns: newColumns,
+        unassigned: {
+          id: "unassigned",
+          children: newUnassigned,
+        },
+      },
+    });
   },
 }));

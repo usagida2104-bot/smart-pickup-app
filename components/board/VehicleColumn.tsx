@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Car, Users, Plus } from "lucide-react";
+import { AlertTriangle, Car, Users, Plus, Trash2 } from "lucide-react";
 import { VehicleColumn as VehicleColumnType, ChildMagnet, Trip } from "@/types";
 import { ChildCard } from "./ChildCard";
 import { cn } from "@/lib/utils";
@@ -12,15 +12,29 @@ interface VehicleColumnProps {
   onChildClick?: (magnet: ChildMagnet, columnId: string) => void;
   onReorderChild?: (columnId: string, childId: string, direction: -1 | 1) => void;
   onChangeLocation?: (mode: "inbound" | "outbound", columnId: string, type: "start" | "end", val: "office" | "home") => void;
+  onDeleteTrip?: () => void;
 }
 
-export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onChangeLocation }: VehicleColumnProps) {
+export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onChangeLocation, onDeleteTrip }: VehicleColumnProps) {
   const updateTripLocation = useBoardStore((state) => state.updateTripLocation);
   const addTrip = useBoardStore((state) => state.addTrip);
+  const removeTrip = useBoardStore((state) => state.removeTrip);
   
   const handleAddTrip = () => {
     addTrip(mode, column.id);
     onChangeLocation && onChangeLocation(mode, column.id, "start", "office");
+  };
+
+  const handleDeleteTrip = (trip: Trip) => {
+    const childCount = (trip?.children || []).length;
+    if (childCount > 0) {
+      const ok = window.confirm(
+        `この便に乗っている児童（${childCount}名）を未割り当てに戻して、${trip.tripIndex}便目を削除しますか？`
+      );
+      if (!ok) return;
+    }
+    removeTrip(mode, column.id, trip.id);
+    onDeleteTrip && onDeleteTrip();
   };
 
   const renderRouteInfo = (trip: Trip) => {
@@ -82,9 +96,22 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
             <div key={trip?.id || Math.random().toString()} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
               {/* Trip Header */}
               <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                <span className="font-bold text-xs text-gray-600 bg-gray-200 px-2 py-0.5 rounded-full">
-                  {trip?.tripIndex || 1}便目
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs text-gray-600 bg-gray-200 px-2 py-0.5 rounded-full">
+                    {trip?.tripIndex || 1}便目
+                  </span>
+                  {/* 1便目は削除不可、2便目以降（かつ全体の便数が2便以上）のみ削除ボタンを表示 */}
+                  {(trip?.tripIndex > 1 || (column?.trips || []).length > 1) && trip?.tripIndex !== 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTrip(trip)}
+                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
+                      title={`${trip?.tripIndex || 1}便目を削除`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
                 
                 {isOverCapacity && (
                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-red-500 rounded text-[10px] text-white font-bold">

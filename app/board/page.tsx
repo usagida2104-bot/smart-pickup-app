@@ -830,7 +830,15 @@ export default function BoardPage() {
 
           {/* Vehicle columns */}
           {(displayColumns || []).map((col: any) => (
-            <VehicleColumn key={col?.id || col?.vehicleId || col?.vehicleName} column={col} mode={activeTab} onChildClick={handleChildClick} onReorderChild={handleDirectReorder} onChangeLocation={async () => { await performAutoSave(); }} />
+            <VehicleColumn
+              key={col?.id || col?.vehicleId || col?.vehicleName}
+              column={col}
+              mode={activeTab}
+              onChildClick={handleChildClick}
+              onReorderChild={handleDirectReorder}
+              onChangeLocation={async () => { await performAutoSave(); }}
+              onDeleteTrip={async () => { await performAutoSave(); }}
+            />
           ))}
 
           {/* 家族迎え専用列（送りタブのみ） */}
