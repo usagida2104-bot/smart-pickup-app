@@ -30,7 +30,7 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-function UnassignedPool({ children = [], mode, onChildClick, onAssignTo }: { children?: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void, onAssignTo: (child: ChildMagnet, targetTripId: string) => void }) {
+function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnly = false }: { children?: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void, onAssignTo: (child: ChildMagnet, targetTripId: string) => void, readOnly?: boolean }) {
   const { inboundBoard, outboundBoard } = useBoardStore();
   const board = mode === "inbound" ? inboundBoard : outboundBoard;
   const availableTrips = (board?.columns || []).flatMap((col: any) => 
@@ -62,7 +62,8 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo }: { chi
             onClick={(m) => onChildClick(m, "unassigned")}
             actionSlot={
               <select
-                className="text-[10px] bg-white border border-gray-300 rounded px-1 py-1 w-20 text-gray-700 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                disabled={readOnly}
+                className="text-[10px] bg-white border border-gray-300 rounded px-1 py-1 w-20 text-gray-700 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 value=""
                 onChange={(e) => {
                   if (e.target.value) {
@@ -104,6 +105,14 @@ export default function BoardPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   const isSavingRef = useRef(false);
+  // 閲覧モード(false) / 編集モード(true)。ページ表示直後・日付変更直後は必ず閲覧モード
+  const [isEditing, setIsEditing] = useState(false);
+  const isEditingRef = useRef(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const setEditingMode = (v: boolean) => {
+    isEditingRef.current = v;
+    setIsEditing(v);
+  };
   // ローカルステートとして管理（masterStoreには存在しないため）
   const [dailyStaff, setDailyStaff] = useState<any[]>([]);
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
@@ -130,6 +139,7 @@ export default function BoardPage() {
     .filter((shift) => shift.vehicle && shift.is_active);
 
   const handleChildClick = (magnet: ChildMagnet, columnId: string) => {
+    if (!isEditingRef.current) return; // 閲覧モードでは配車モーダルを開かない
     setSelectedChild({ magnet, columnId });
   };
 
@@ -152,6 +162,7 @@ export default function BoardPage() {
   };
 
   const handleAutoAssign = async () => {
+    if (!isEditingRef.current) return; // 閲覧モードでは実行不可
     setIsAutoAssigning(true);
     try {
       // 現在ボード上（カラム＋未割り当て）にいる児童を対象とする
@@ -234,25 +245,85 @@ export default function BoardPage() {
     }
   };
 
+  // 編集モード中は各操作ごとの自動保存を行わず（下書き状態）、
+  // 「保存して完了」押下時にのみ Supabase へ保存する
   const performAutoSave = async () => {
+    if (isEditingRef.current) return;
+  };
+
+  // 実際の Supabase 保存処理（board_states へ upsert）
+  const saveBoardNow = async (): Promise<boolean> => {
     isSavingRef.current = true;
     try {
       const targetDateStr = formatDate(selectedDate);
       const state = useBoardStore.getState();
-      
       await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
-
-      setToastMessage({ type: "success", text: "✓ すべての変更は自動保存されました" });
+      return true;
     } catch (error) {
-      setToastMessage({ type: "error", text: "❌ 保存に失敗しました" });
+      console.error("Save failed", error);
+      return false;
     } finally {
-      setTimeout(() => setToastMessage(null), 3000);
-      // 保存直後にリアルタイム通知で loadData が走り、配車状態が上書きされないよう 5 秒ブロック
+      // 保存直後にリアルタイム通知で loadData が走り、状態が上書きされないよう 5 秒ブロック
       setTimeout(() => {
         isSavingRef.current = false;
       }, 5000);
     }
   };
+
+  const showToast = (type: "success" | "error", text: string) => {
+    setToastMessage({ type, text });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleStartEdit = () => {
+    setEditingMode(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setIsSaving(true);
+    const ok = await saveBoardNow();
+    setIsSaving(false);
+    if (ok) {
+      showToast("success", "✓ 変更を保存しました");
+      setEditingMode(false);
+      setIsAutoAssigned(false);
+    } else {
+      showToast("error", "❌ 保存に失敗しました（編集モードを継続します）");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (!window.confirm("編集内容を破棄して元の状態に戻しますか？")) return;
+    setEditingMode(false);
+    setIsAutoAssigned(false);
+    setSelectedChild(null);
+    // DBから再読み込みしてロールバック
+    setReloadKey((k) => k + 1);
+  };
+
+  // 日付変更（編集中は未保存警告）。変更後は必ず閲覧モードに戻す
+  const handleDateChange = (date: Date) => {
+    if (isEditingRef.current) {
+      if (!window.confirm("未保存の変更があります。変更を破棄して移動しますか？")) return;
+      setEditingMode(false);
+      setIsAutoAssigned(false);
+      setSelectedChild(null);
+    }
+    setSelectedDate(date);
+  };
+
+  // 編集中のタブ閉じ・リロード警告
+  useEffect(() => {
+    if (!isEditing) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.onbeforeunload = handler as any;
+    return () => {
+      window.onbeforeunload = null;
+    };
+  }, [isEditing]);
 
   const handleReset = (overrideAtts?: DailyAttendance[]) => {
     const state = useBoardStore.getState();
@@ -343,6 +414,8 @@ export default function BoardPage() {
       try {
         const { attendances: fetchedAtts, boardState, dailyStaff: fetchedStaff, dailyVehicles: fetchedVehicles } = await fetchDailyData(targetDateStr);
         if (!isMounted) return;
+        // 編集中は下書き状態を DB の内容で上書きしない
+        if (isEditingRef.current) return;
 
         // Merge dailyStaff: masterStaff をベースに daily_staff の assigned_vehicle_id などを上書き
         const mergedStaff = masterStaff.map((s) => {
@@ -488,29 +561,28 @@ export default function BoardPage() {
 
     loadData();
 
-    // リアルタイム購読の設定
+    // リアルタイム購読の設定（編集中は下書きを守るため再読み込みしない）
     const channel = supabase
       .channel(`board-${targetDateStr}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "board_states", filter: `target_date=eq.${targetDateStr}` },
         () => {
-          // 保存処理中は再フェッチで画面を上書きしない
-          if (!isSavingRef.current) loadData();
+          if (!isSavingRef.current && !isEditingRef.current) loadData();
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "daily_attendances", filter: `target_date=eq.${targetDateStr}` },
         () => {
-          if (!isSavingRef.current) loadData();
+          if (!isSavingRef.current && !isEditingRef.current) loadData();
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "daily_staff", filter: `target_date=eq.${targetDateStr}` },
         () => {
-          if (!isSavingRef.current) loadData();
+          if (!isSavingRef.current && !isEditingRef.current) loadData();
         }
       )
       .subscribe();
@@ -520,7 +592,7 @@ export default function BoardPage() {
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, selectedDate, masterStaff, masterVehicles]);
+  }, [children, selectedDate, masterStaff, masterVehicles, reloadKey]);
 
   // 同期用useEffect (児童・出欠情報が更新されたらボード上の情報を最新化)
   // ★ 保存中（isSavingRef.current）は発火しない → 配車直後の状態を保護
@@ -702,6 +774,7 @@ export default function BoardPage() {
   };
 
   const handleDirectReorder = async (columnId: string, childId: string, direction: -1 | 1) => {
+    if (!isEditingRef.current) return;
     try {
       reorderChild(activeTab, columnId, childId, direction);
       await performAutoSave();
@@ -751,24 +824,53 @@ export default function BoardPage() {
               <Printer className="w-3.5 h-3.5" />
               A4印刷
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleReset()} className="gap-1.5 h-8 px-3 text-xs shrink-0">
+            <Button variant="outline" size="sm" disabled={!isEditing} onClick={() => handleReset()} className="gap-1.5 h-8 px-3 text-xs shrink-0 disabled:opacity-40">
               <RotateCcw className="w-3.5 h-3.5" />
               リセット
             </Button>
             <Button 
               size="sm" 
               onClick={handleAutoAssign} 
-              disabled={isAutoAssigning}
-              className="gap-1.5 h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-70 transition-all shrink-0"
+              disabled={isAutoAssigning || !isEditing}
+              className="gap-1.5 h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 transition-all shrink-0"
             >
               <Sparkles className={`w-3.5 h-3.5 ${isAutoAssigning ? "animate-pulse" : ""}`} />
               {isAutoAssigning ? "AI配車中..." : "自動配車"}
             </Button>
+            {!isEditing ? (
+              <Button
+                size="sm"
+                onClick={handleStartEdit}
+                className="gap-1.5 h-9 px-4 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md shrink-0"
+              >
+                ✏️ この日の送迎を編集する
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  onClick={handleSaveEdit}
+                  disabled={isSaving}
+                  className="gap-1.5 h-9 px-4 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shrink-0"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "💾"} 保存して完了
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="h-9 px-3 text-xs shrink-0"
+                >
+                  キャンセル（変更を破棄）
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
         {/* Bottom Row: Date Selector */}
-        <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
+        <DateSelector selectedDate={selectedDate} onChange={handleDateChange} />
       </div>
 
       {/* Toast Notification */}
@@ -782,6 +884,13 @@ export default function BoardPage() {
           )}
         >
           {toastMessage.text}
+        </div>
+      )}
+
+      {/* 編集モード通知バー */}
+      {isEditing && (
+        <div className="shrink-0 mb-4 px-4 py-3 bg-amber-100 border-2 border-amber-400 rounded-lg text-sm font-bold text-amber-900 flex items-center gap-2 print:hidden">
+          ⚠️ 現在 【{formatDate(selectedDate).replace("-", "年").replace("-", "月")}日】 の送迎表を編集中です（「保存して完了」を押すまで確定しません）
         </div>
       )}
 
@@ -800,6 +909,7 @@ export default function BoardPage() {
             <UnassignedPool 
               children={(board?.unassigned?.children || [])} 
               mode={activeTab} 
+              readOnly={!isEditing}
               onChildClick={handleChildClick} 
               onAssignTo={async (child, targetTripId) => {
                 console.log('[Assign] onAssignTo called:', { 
@@ -834,6 +944,7 @@ export default function BoardPage() {
               key={col?.id || col?.vehicleId || col?.vehicleName}
               column={col}
               mode={activeTab}
+              readOnly={!isEditing}
               onChildClick={handleChildClick}
               onReorderChild={handleDirectReorder}
               onChangeLocation={async () => { await performAutoSave(); }}

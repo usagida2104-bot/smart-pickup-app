@@ -13,19 +13,22 @@ interface VehicleColumnProps {
   onReorderChild?: (columnId: string, childId: string, direction: -1 | 1) => void;
   onChangeLocation?: (mode: "inbound" | "outbound", columnId: string, type: "start" | "end", val: "office" | "home") => void;
   onDeleteTrip?: () => void;
+  readOnly?: boolean;
 }
 
-export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onChangeLocation, onDeleteTrip }: VehicleColumnProps) {
+export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onChangeLocation, onDeleteTrip, readOnly = false }: VehicleColumnProps) {
   const updateTripLocation = useBoardStore((state) => state.updateTripLocation);
   const addTrip = useBoardStore((state) => state.addTrip);
   const removeTrip = useBoardStore((state) => state.removeTrip);
   
   const handleAddTrip = () => {
+    if (readOnly) return;
     addTrip(mode, column.id);
     onChangeLocation && onChangeLocation(mode, column.id, "start", "office");
   };
 
   const handleDeleteTrip = (trip: Trip) => {
+    if (readOnly) return;
     const childCount = (trip?.children || []).length;
     if (childCount > 0) {
       const ok = window.confirm(
@@ -105,7 +108,8 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                     <button
                       type="button"
                       onClick={() => handleDeleteTrip(trip)}
-                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
+                      disabled={readOnly}
+                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
                       title={`${trip?.tripIndex || 1}便目を削除`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -156,7 +160,8 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                         updateTripLocation(mode, trip.id, "start", val);
                         onChangeLocation && onChangeLocation(mode, column.id, "start", val);
                       }}
-                      className="w-full text-[10px] border-gray-200 rounded px-1 py-0.5 bg-gray-50"
+                      className="w-full text-[10px] border-gray-200 rounded px-1 py-0.5 bg-gray-50 disabled:opacity-60"
+                       disabled={readOnly}
                     >
                       <option value="office">事業所</option>
                       <option value="home">自宅</option>
@@ -171,7 +176,8 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                         updateTripLocation(mode, trip.id, "end", val);
                         onChangeLocation && onChangeLocation(mode, column.id, "end", val);
                       }}
-                      className="w-full text-[10px] border-gray-200 rounded px-1 py-0.5 bg-gray-50"
+                      className="w-full text-[10px] border-gray-200 rounded px-1 py-0.5 bg-gray-50 disabled:opacity-60"
+                       disabled={readOnly}
                     >
                       <option value="office">事業所</option>
                       <option value="home">自宅</option>
@@ -232,7 +238,8 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
           <div className="p-2 bg-gray-50">
             <button
               onClick={handleAddTrip}
-              className="w-full py-2 flex items-center justify-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-dashed border-gray-300 rounded transition-colors"
+              disabled={readOnly}
+              className="w-full py-2 flex items-center justify-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-dashed border-gray-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             >
               <Plus className="w-3 h-3" />
               便を追加
