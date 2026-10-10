@@ -21,7 +21,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       data-testid={`child-card-${magnet.childId}`}
       data-child-name={magnet.name}
       className={cn(
-        "w-full text-left group flex items-center justify-between gap-1 py-1.5 px-2 rounded-lg border-2 shadow-sm shrink-0 overflow-hidden",
+        "w-full text-left group flex items-center justify-between gap-1 py-2 px-2.5 rounded-lg border-2 shadow-sm shrink-0 overflow-hidden",
         "hover:shadow-md hover:border-blue-300 transition-all duration-150 relative",
         magnet.has_caution ? "bg-green-50 border-green-200 hover:border-green-400" : "bg-white",
         onClick ? "cursor-pointer" : ""

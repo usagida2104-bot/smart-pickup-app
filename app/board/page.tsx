@@ -919,7 +919,7 @@ export default function BoardPage() {
       <div className="flex md:hidden flex-1 overflow-x-auto overflow-y-hidden print:overflow-visible min-h-0 touch-pan-x">
         <div className="flex flex-row gap-3 h-full min-h-full pb-2 items-start snap-x snap-mandatory">
           {/* 未割り当て列 */}
-          <div className="w-[86vw] min-w-[86vw] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+          <div className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
             <UnassignedPool 
               className="w-full h-full max-h-full"
               children={(board?.unassigned?.children || [])} 
@@ -937,7 +937,7 @@ export default function BoardPage() {
           {(displayColumns || []).map((col: any) => (
             <div
               key={col?.id || col?.vehicleId || col?.vehicleName}
-              className="w-[86vw] min-w-[86vw] shrink-0 snap-start h-full max-h-full flex flex-col print:w-auto print:flex-1"
+              className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:w-auto print:flex-1"
             >
               <VehicleColumn
                 column={col}
@@ -954,7 +954,7 @@ export default function BoardPage() {
 
           {/* 家族迎え専用列（送りタブのみ） */}
           {activeTab === "outbound" && (
-            <div className="w-[86vw] min-w-[86vw] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+            <div className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
               <FamilyPickupColumn
                 className="w-full h-full max-h-full"
                 children={board?.familyPickup?.children || []}
