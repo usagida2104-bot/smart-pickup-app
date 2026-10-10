@@ -48,6 +48,11 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
           <span className="text-xs sm:text-sm font-bold text-gray-900 truncate">
             {magnet.name}
           </span>
+          {magnet.transportMode === "no_transport" && (
+            <span className="text-[9px] font-bold bg-gray-100 text-gray-600 px-1 py-0.2 rounded border border-gray-300 whitespace-nowrap shrink-0">
+              送迎なし
+            </span>
+          )}
           {magnet.status === "late" && (
             <span className="text-[9px] font-bold bg-yellow-100 text-yellow-700 px-1 py-0.2 rounded border border-yellow-200 whitespace-nowrap shrink-0">
               遅刻 {magnet.status_time}
@@ -70,12 +75,12 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
 
       {/* 右側: 時間バッジ ＋ 並び順ボタン ＋ actionSlot (幅を固定して折り返し・見切れ防止) */}
       <div className="flex items-center gap-1 shrink-0">
-        {mode === "inbound" && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-100 text-xs font-mono font-medium text-gray-700 whitespace-nowrap shrink-0 border border-gray-200">
-            <Clock className="w-3 h-3 text-gray-400 shrink-0" />
-            {magnet.pickup_time || "-"}
-          </span>
-        )}
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-100 text-xs font-mono font-medium text-gray-700 whitespace-nowrap shrink-0 border border-gray-200">
+          <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+          {magnet.pickup_time && typeof magnet.pickup_time === "string" && magnet.pickup_time.trim() !== ""
+            ? magnet.pickup_time.slice(0, 5)
+            : "-"}
+        </span>
 
         {/* Action buttons (Move up/down - compact) */}
         {(showMoveUp || showMoveDown) && (

@@ -3,17 +3,24 @@ import { AssignInput, AssignResult, VehicleColumn, ChildMagnet } from "@/types";
 export function autoAssignVehicles(input: AssignInput): AssignResult {
   const { attendances, shifts } = input;
 
-  const presentAttendances = attendances.filter(a => a.child && a.status !== "absent" && a.status !== "no_transport");
+  // 1. 出席児童を抽出（欠席以外）
+  const presentAttendances = attendances.filter(a => {
+    if (!a.child) return false;
+    const attStatus = (a as any).attendance_status || "present";
+    return attStatus !== "absent" && a.status !== "absent";
+  });
   
   const allMagnets: any[] = presentAttendances.map(a => {
     const child = a.child!;
-    const time = (a.pickup_time && a.pickup_time.trim() !== "")
-        ? a.pickup_time
-        : (child.default_dismissal_time && child.default_dismissal_time.trim() !== "")
-          ? child.default_dismissal_time
-          : (child.school?.default_dismissal_time && child.school.default_dismissal_time.trim() !== "")
-            ? child.school.default_dismissal_time
+    const rawTime = (a.pickup_time && typeof a.pickup_time === "string" && a.pickup_time.trim() !== "")
+        ? a.pickup_time.trim()
+        : (child.default_dismissal_time && typeof child.default_dismissal_time === "string" && child.default_dismissal_time.trim() !== "")
+          ? child.default_dismissal_time.trim()
+          : (child.school?.default_dismissal_time && typeof child.school.default_dismissal_time === "string" && child.school.default_dismissal_time.trim() !== "")
+            ? child.school.default_dismissal_time.trim()
             : null;
+
+    const time = rawTime && rawTime !== "-" ? rawTime : null;
             
     return {
       id: child.id,
@@ -31,6 +38,18 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       time: time,
     };
   });
+
+  // 自動配車対象外（送迎なし、または下校時間未記入）の児童を未割り当てプールに安全退避
+  const unassignableMagnets: any[] = [];
+  const assignableMagnets: any[] = [];
+
+  for (const m of allMagnets) {
+    if (m.transportMode === "no_transport" || !m.time) {
+      unassignableMagnets.push(m);
+    } else {
+      assignableMagnets.push(m);
+    }
+  }
 
   const columns: any[] = [...shifts].map((shift) => ({
       id: shift.id,
@@ -51,10 +70,12 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
 
   const cols = [...columns].map(col => ({ ...col, trips: [] as any[] }));
 
-  const parseTime = (t: string) => {
-    if (!t || t === '-' || t.trim() === '') return 9999;
-    const [h, m] = t.split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
+  const parseTime = (t: string | null | undefined) => {
+    if (!t || typeof t !== "string" || t === "-" || t.trim() === "") return 9999;
+    const parts = t.split(":");
+    if (parts.length < 2) return 9999;
+    const [h, m] = parts.map(Number);
+    return ((h || 0) * 60) + ((m || 0));
   };
 
   // あぶくま支援学校の判定ヘルパー
@@ -105,7 +126,7 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
 
   // 1. 児童の優先グルーピング（正規化学校名 × 下校時間）
   const groupsMap: Record<string, any[]> = {};
-  for (const m of allMagnets) {
+  for (const m of assignableMagnets) {
     const normSchool = normalizeSchool(m.schoolName);
     const key = `${normSchool}::${m.time || '-'}`;
     if (!groupsMap[key]) groupsMap[key] = [];
@@ -262,6 +283,9 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
       finalUnassigned.push(child);
     }
   }
+
+  // 自動配車対象外（送迎なし、下校時間未記入）の児童を未割り当てリストに合流
+  finalUnassigned.push(...unassignableMagnets);
 
   // 5. 便の「時間順ソート」と連番正規化
   const finalColumns = cols.map(col => {
