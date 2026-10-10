@@ -21,7 +21,7 @@ export function FamilyPickupColumn({ children, onChildClick, className }: Family
     <div
       data-testid="family-pickup-column"
       className={cn(
-        "flex flex-col rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 overflow-hidden",
+        "flex flex-col rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 overflow-hidden min-w-[260px]",
         className || "w-56 shrink-0"
       )}
     >

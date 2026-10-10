@@ -60,7 +60,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
       data-capacity={column.capacity}
       data-count={totalChildrenCount}
       className={cn(
-        "vehicle-column flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm",
+        "vehicle-column flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm min-w-[260px]",
         className || "w-64 shrink-0"
       )}
     >

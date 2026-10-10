@@ -68,7 +68,7 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
             actionSlot={
               <select
                 disabled={readOnly}
-                className="text-[10px] bg-white border border-gray-300 rounded px-1 py-1 w-20 text-gray-700 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-[10px] bg-white border border-gray-300 rounded px-1 py-1 w-[68px] text-gray-700 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 value=""
                 onChange={(e) => {
                   if (e.target.value) {
@@ -967,8 +967,8 @@ export default function BoardPage() {
 
       {/* ===== PC表示（デスクトップ・md以上）: 左右2カラム・全車両グリッド一望レイアウト ===== */}
       <div className="hidden md:flex flex-row gap-4 items-start flex-1 min-h-0 w-full print:overflow-visible">
-        {/* 左カラム: 未割り当てリスト */}
-        <div className="w-80 lg:w-[340px] shrink-0 h-full max-h-[calc(100vh-230px)] flex flex-col print:hidden">
+        {/* 左カラム: 未割り当てリスト（スリム化） */}
+        <div className="w-64 lg:w-[270px] shrink-0 h-full max-h-[calc(100vh-230px)] flex flex-col print:hidden">
           <UnassignedPool 
             className="w-full h-full max-h-[calc(100vh-230px)] flex flex-col"
             children={(board?.unassigned?.children || [])} 
@@ -984,14 +984,14 @@ export default function BoardPage() {
 
         {/* 右カラム: 車両カード一覧（グリッド展開で全車両を一望） */}
         <div className="flex-1 min-w-0 h-full max-h-[calc(100vh-230px)] overflow-y-auto pr-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 items-start w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 xl:gap-4 items-start w-full">
             {(displayColumns || []).map((col: any) => (
               <VehicleColumn
                 key={col?.id || col?.vehicleId || col?.vehicleName}
                 column={col}
                 mode={activeTab}
                 readOnly={!isEditing}
-                className="w-full"
+                className="w-full min-w-[260px]"
                 onChildClick={handleChildClick}
                 onReorderChild={handleDirectReorder}
                 onChangeLocation={async () => { await performAutoSave(); }}
@@ -1002,7 +1002,7 @@ export default function BoardPage() {
             {/* 家族迎え専用列（送りタブのみ・グリッド内に美しく配置） */}
             {activeTab === "outbound" && (
               <FamilyPickupColumn
-                className="w-full"
+                className="w-full min-w-[260px]"
                 children={board?.familyPickup?.children || []}
                 onChildClick={handleChildClick}
               />
