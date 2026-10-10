@@ -49,7 +49,7 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
         className || "w-64 shrink-0"
       )}
     >
-      <div className="px-3 md:px-4 py-2.5 md:py-3 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
+      <div className="px-3 py-1.5 md:py-2 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
         <p className="font-bold text-gray-600 text-sm">📋 未割り当て</p>
         <span className="text-xs font-semibold px-2 py-0.5 bg-gray-200 text-gray-700 rounded-full">
           {(children || []).length}名
@@ -57,18 +57,19 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
       </div>
       <div
         data-testid="unassigned-pool"
-        className="flex-1 p-2 md:p-3 min-h-[150px] overflow-y-auto overflow-x-hidden space-y-1.5 md:space-y-2 transition-colors"
+        className="flex-1 p-1.5 md:p-2 min-h-[150px] overflow-y-auto overflow-x-hidden space-y-1 md:space-y-1.5 transition-colors"
       >
         {(children || []).map((magnet) => (
           <ChildCard 
             key={magnet?.id || Math.random().toString()} 
             magnet={magnet} 
             mode={mode} 
+            className="py-1.5 px-2"
             onClick={(m) => onChildClick(m, "unassigned")}
             actionSlot={
               <select
                 disabled={readOnly}
-                className="text-[10px] bg-white border border-gray-300 rounded px-1 py-1 w-[68px] text-gray-700 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                className="text-[10px] bg-white border border-gray-300 rounded px-1 py-0.5 h-6 w-[64px] text-gray-700 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 value=""
                 onChange={(e) => {
                   if (e.target.value) {
@@ -177,20 +178,27 @@ export default function BoardPage() {
         ...(board?.columns || []).flatMap((c: any) => (c.trips || []).flatMap((t: any) => t.children || []))
       ];
 
-      const currentAttendances = allChildrenOnBoard.map((c: any) => ({
-        id: c.id,
-        child_id: c.id,
-        status: c.transportMode,
-        pickup_time: c.pickup_time,
-        attendance_status: "present",
-        child: children.find(masterC => masterC.id === c.id) || {
+      const currentAttendances = allChildrenOnBoard.map((c: any) => {
+        const timeVal = c.pickup_time || (c as any).departure_time;
+        const validTime = (timeVal && typeof timeVal === "string" && timeVal.trim() !== "" && timeVal.trim() !== "-")
+          ? timeVal.trim()
+          : null;
+        return {
           id: c.id,
-          name: c.name,
-          has_caution: c.has_caution,
-          notes: c.notes,
-          school: { name: c.school_name, color_code: c.color, area: c.school_area },
-        }
-      }));
+          child_id: c.id,
+          status: c.transportMode,
+          pickup_time: validTime,
+          departure_time: validTime,
+          attendance_status: "present",
+          child: children.find(masterC => masterC.id === c.id) || {
+            id: c.id,
+            name: c.name,
+            has_caution: c.has_caution,
+            notes: c.notes,
+            school: { name: c.school_name, color_code: c.color, area: c.school_area },
+          }
+        };
+      });
 
       if (currentAttendances.length === 0) {
         setIsAutoAssigning(false);
@@ -786,23 +794,23 @@ export default function BoardPage() {
 
   return (
     <>
-      <div className="p-2 sm:p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col overflow-x-hidden print:hidden">
+      <div className="p-2 sm:p-3 md:py-2.5 md:px-4 h-[calc(100vh-4rem)] flex flex-col overflow-x-hidden print:hidden">
       {/* Page header */}
-      <div className="flex flex-col gap-1.5 sm:gap-3 mb-2 md:mb-4 print:mb-6 shrink-0">
+      <div className="flex flex-col gap-1 sm:gap-1.5 mb-1.5 md:mb-2 print:mb-4 shrink-0">
         
         {/* Top Row: Title & Primary Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
           <div className="flex items-baseline gap-2">
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
+            <h1 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
             <p className="text-[11px] sm:text-xs md:text-sm text-gray-500 print:text-base">出席 {totalPresent}名</p>
           </div>
           
           <div className="flex items-center gap-1.5 sm:gap-2 print:hidden">
             {/* 迎え/送り 切り替え */}
-            <div className="flex bg-gray-100 p-0.5 sm:p-1 rounded-lg shrink-0">
+            <div className="flex bg-gray-100 p-0.5 rounded-lg shrink-0">
               <button
                 onClick={() => setActiveTab("inbound")}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-bold transition-colors ${
+                className={`px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-bold transition-colors ${
                   activeTab === "inbound" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -810,7 +818,7 @@ export default function BoardPage() {
               </button>
               <button
                 onClick={() => setActiveTab("outbound")}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-bold transition-colors ${
+                className={`px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-bold transition-colors ${
                   activeTab === "outbound" ? "bg-white shadow-sm text-indigo-700" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -823,7 +831,7 @@ export default function BoardPage() {
               <Button
                 size="sm"
                 onClick={handleStartEdit}
-                className="gap-1 h-7 sm:h-8 md:h-9 px-2.5 sm:px-3.5 text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm shrink-0"
+                className="gap-1 h-7 sm:h-7.5 md:h-8 px-2.5 sm:px-3 text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm shrink-0"
               >
                 ✏️ 編集する
               </Button>
@@ -833,7 +841,7 @@ export default function BoardPage() {
                   size="sm"
                   onClick={handleSaveEdit}
                   disabled={isSaving}
-                  className="gap-1 h-7 sm:h-8 md:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shrink-0"
+                  className="gap-1 h-7 sm:h-7.5 md:h-8 px-2 sm:px-3 text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shrink-0"
                 >
                   {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "💾"} 保存
                 </Button>
@@ -842,7 +850,7 @@ export default function BoardPage() {
                   size="sm"
                   onClick={handleCancelEdit}
                   disabled={isSaving}
-                  className="h-7 sm:h-8 md:h-9 px-1.5 sm:px-2.5 text-[11px] sm:text-xs shrink-0"
+                  className="h-7 sm:h-7.5 md:h-8 px-1.5 sm:px-2.5 text-[11px] sm:text-xs shrink-0"
                 >
                   破棄
                 </Button>
@@ -899,14 +907,14 @@ export default function BoardPage() {
 
       {/* 編集モード通知バー */}
       {isEditing && (
-        <div className="shrink-0 mb-2 px-2.5 py-1 sm:px-4 sm:py-2.5 bg-amber-100 border border-amber-400 rounded-md sm:rounded-lg text-xs sm:text-sm font-bold text-amber-900 flex items-center gap-1.5 print:hidden">
+        <div className="shrink-0 mb-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-amber-100 border border-amber-400 rounded-md sm:rounded-lg text-xs font-bold text-amber-900 flex items-center gap-1.5 print:hidden">
           ⚠️ 編集中: 【{formatDate(selectedDate).replace("-", "年").replace("-", "月")}日】（「保存」で確定）
         </div>
       )}
 
       {/* Auto-assign banner */}
       {isAutoAssigned && (
-        <div className="shrink-0 mb-2 px-2.5 py-1 sm:px-4 sm:py-2 bg-indigo-50 border border-indigo-200 rounded-md sm:rounded-lg text-xs sm:text-sm text-indigo-700 print:hidden">
+        <div className="shrink-0 mb-1.5 px-2.5 py-1 sm:px-3 sm:py-1 bg-indigo-50 border border-indigo-200 rounded-md sm:rounded-lg text-xs text-indigo-700 print:hidden">
           ✨ 自動配車が完了しました
         </div>
       )}
@@ -962,11 +970,11 @@ export default function BoardPage() {
       </div>
 
       {/* ===== PC表示（デスクトップ・md以上）: 左右2カラム・全車両グリッド一望レイアウト ===== */}
-      <div className="hidden md:flex flex-row gap-4 items-start flex-1 min-h-0 w-full overflow-x-hidden print:overflow-visible">
+      <div className="hidden md:flex flex-row gap-3 lg:gap-4 items-start flex-1 min-h-0 w-full overflow-x-hidden print:overflow-visible">
         {/* 左カラム: 未割り当てリスト（スリム化） */}
-        <div className="w-64 lg:w-[270px] shrink-0 h-full max-h-[calc(100vh-230px)] flex flex-col print:hidden">
+        <div className="w-60 lg:w-[260px] shrink-0 h-full max-h-[calc(100vh-210px)] flex flex-col print:hidden">
           <UnassignedPool 
-            className="w-full h-full max-h-[calc(100vh-230px)] flex flex-col"
+            className="w-full h-full max-h-[calc(100vh-210px)] flex flex-col"
             children={(board?.unassigned?.children || [])} 
             mode={activeTab} 
             readOnly={!isEditing}
@@ -979,8 +987,8 @@ export default function BoardPage() {
         </div>
 
         {/* 右カラム: 車両カード一覧（グリッド展開で全車両を一望） */}
-        <div className="flex-1 min-w-0 w-full h-full max-h-[calc(100vh-230px)] overflow-y-auto overflow-x-hidden pr-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3 items-start w-full min-w-0">
+        <div className="flex-1 min-w-0 w-full h-full max-h-[calc(100vh-210px)] overflow-y-auto overflow-x-hidden pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 items-start w-full min-w-0">
             {(displayColumns || []).map((col: any) => (
               <VehicleColumn
                 key={col?.id || col?.vehicleId || col?.vehicleName}

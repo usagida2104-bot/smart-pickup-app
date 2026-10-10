@@ -12,15 +12,16 @@ export function autoAssignVehicles(input: AssignInput): AssignResult {
   
   const allMagnets: any[] = presentAttendances.map(a => {
     const child = a.child!;
-    const rawTime = (a.pickup_time && typeof a.pickup_time === "string" && a.pickup_time.trim() !== "")
-        ? a.pickup_time.trim()
-        : (child.default_dismissal_time && typeof child.default_dismissal_time === "string" && child.default_dismissal_time.trim() !== "")
-          ? child.default_dismissal_time.trim()
-          : (child.school?.default_dismissal_time && typeof child.school.default_dismissal_time === "string" && child.school.default_dismissal_time.trim() !== "")
-            ? child.school.default_dismissal_time.trim()
-            : null;
-
-    const time = rawTime && rawTime !== "-" ? rawTime : null;
+    // 下校時間（pickup_time / departure_time）の厳格判定:
+    // 未指定（null / 空文字 / '-'）の児童はデフォルト値で勝手に補完せず、配車対象外（未割り当てキープ）とする
+    const timeVal = a.pickup_time || (a as any).departure_time;
+    const hasValidTime = Boolean(
+      timeVal && 
+      typeof timeVal === "string" && 
+      timeVal.trim() !== "" && 
+      timeVal.trim() !== "-"
+    );
+    const time = hasValidTime ? timeVal.trim() : null;
             
     return {
       id: child.id,
