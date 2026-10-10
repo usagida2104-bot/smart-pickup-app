@@ -47,7 +47,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       {/* 左側: 児童名と学校名 (余白に応じて柔軟に伸縮) */}
       <div className="min-w-0 flex-1 mr-1 py-0">
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-xs sm:text-[13px] font-bold text-gray-900 truncate leading-snug">
+          <span className="text-xs sm:text-[13px] font-bold text-gray-900 whitespace-nowrap shrink-0 leading-snug">
             {magnet.name}
           </span>
           {magnet.transportMode === "no_transport" && (

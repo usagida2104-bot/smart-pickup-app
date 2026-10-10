@@ -100,9 +100,9 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
           return (
             <div key={trip?.id || Math.random().toString()} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
               {/* Trip Header */}
-              <div className="w-full px-2 py-1 border-b border-gray-100 flex items-center justify-between gap-1 overflow-hidden">
+              <div className="w-full px-2.5 py-1.5 border-b border-gray-100 flex items-center justify-between gap-1.5 overflow-hidden">
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className="font-bold text-[11px] text-gray-600 bg-gray-200 px-1.5 py-0.2 rounded-full shrink-0">
+                  <span className="font-bold text-[11px] text-gray-600 bg-gray-200 px-1.5 py-0.5 rounded-full shrink-0">
                     {trip?.tripIndex || 1}便目
                   </span>
                   {/* 1便目は削除不可、2便目以降（かつ全体の便数が2便以上）のみ削除ボタンを表示 */}
@@ -127,7 +127,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                 )}
                 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <div className="w-12 sm:w-14 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
+                  <div className="w-14 sm:w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-300",
@@ -140,7 +140,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                     <Users className="w-3 h-3 text-gray-400 shrink-0" />
                     <span
                       className={cn(
-                        "text-[10px] font-bold font-mono shrink-0",
+                        "text-[10.5px] font-bold font-mono shrink-0",
                         isOverCapacity ? "text-red-600" : "text-gray-600"
                       )}
                     >
@@ -151,8 +151,8 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
               </div>
 
               {/* Trip settings */}
-              <div className="px-2 pt-1 pb-0.5">
-                <div className="flex gap-1.5 mb-1">
+              <div className="px-2.5 pt-1.5 pb-1">
+                <div className="flex gap-2 mb-1">
                   <div className="flex-1">
                     <label className="text-[9px] text-gray-500 block mb-0.5">出発地</label>
                     <select 
@@ -162,7 +162,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                         updateTripLocation(mode, trip.id, "start", val);
                         onChangeLocation && onChangeLocation(mode, column.id, "start", val);
                       }}
-                      className="w-full text-xs h-7 py-0.5 px-1 border-gray-200 rounded bg-gray-50 disabled:opacity-60"
+                      className="w-full text-xs h-7 py-0.5 px-1.5 border border-gray-200 rounded bg-gray-50 focus:bg-white text-gray-700 disabled:opacity-60"
                       disabled={readOnly}
                     >
                       <option value="office">事業所</option>
@@ -178,7 +178,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                         updateTripLocation(mode, trip.id, "end", val);
                         onChangeLocation && onChangeLocation(mode, column.id, "end", val);
                       }}
-                      className="w-full text-xs h-7 py-0.5 px-1 border-gray-200 rounded bg-gray-50 disabled:opacity-60"
+                      className="w-full text-xs h-7 py-0.5 px-1.5 border border-gray-200 rounded bg-gray-50 focus:bg-white text-gray-700 disabled:opacity-60"
                       disabled={readOnly}
                     >
                       <option value="office">事業所</option>

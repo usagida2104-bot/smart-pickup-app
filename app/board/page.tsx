@@ -986,9 +986,9 @@ export default function BoardPage() {
           />
         </div>
 
-        {/* 右カラム: 車両カード一覧（グリッド展開で全車両を一望） */}
+        {/* 右カラム: 車両カード一覧（グリッド展開で全車両を一望・最大3列） */}
         <div className="flex-1 min-w-0 w-full h-full max-h-[calc(100vh-210px)] overflow-y-auto overflow-x-hidden pr-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 items-start w-full min-w-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-3.5 items-start w-full min-w-0">
             {(displayColumns || []).map((col: any) => (
               <VehicleColumn
                 key={col?.id || col?.vehicleId || col?.vehicleName}
