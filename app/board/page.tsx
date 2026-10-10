@@ -915,11 +915,11 @@ export default function BoardPage() {
         </div>
       )}
 
-      {/* Board (カンバン方式・左右スワイプ対応) */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden print:overflow-visible min-h-0 touch-pan-x">
-        <div className="flex flex-row gap-3 md:gap-4 h-full min-h-full pb-2 md:pb-4 items-start snap-x snap-mandatory md:snap-none">
+      {/* ===== スマホ表示（モバイル・md未満）: 左右スワイプカンバン方式 ===== */}
+      <div className="flex md:hidden flex-1 overflow-x-auto overflow-y-hidden print:overflow-visible min-h-0 touch-pan-x">
+        <div className="flex flex-row gap-3 h-full min-h-full pb-2 items-start snap-x snap-mandatory">
           {/* 未割り当て列 */}
-          <div className="w-[86vw] min-w-[86vw] md:w-64 md:min-w-0 shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+          <div className="w-[86vw] min-w-[86vw] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
             <UnassignedPool 
               className="w-full h-full max-h-full"
               children={(board?.unassigned?.children || [])} 
@@ -937,7 +937,7 @@ export default function BoardPage() {
           {(displayColumns || []).map((col: any) => (
             <div
               key={col?.id || col?.vehicleId || col?.vehicleName}
-              className="w-[86vw] min-w-[86vw] md:w-64 md:min-w-0 shrink-0 snap-start h-full max-h-full flex flex-col print:w-auto print:flex-1"
+              className="w-[86vw] min-w-[86vw] shrink-0 snap-start h-full max-h-full flex flex-col print:w-auto print:flex-1"
             >
               <VehicleColumn
                 column={col}
@@ -954,7 +954,7 @@ export default function BoardPage() {
 
           {/* 家族迎え専用列（送りタブのみ） */}
           {activeTab === "outbound" && (
-            <div className="w-[86vw] min-w-[86vw] md:w-56 md:min-w-0 shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+            <div className="w-[86vw] min-w-[86vw] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
               <FamilyPickupColumn
                 className="w-full h-full max-h-full"
                 children={board?.familyPickup?.children || []}
@@ -962,6 +962,52 @@ export default function BoardPage() {
               />
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ===== PC表示（デスクトップ・md以上）: 左右2カラム・全車両グリッド一望レイアウト ===== */}
+      <div className="hidden md:flex flex-row gap-4 items-start flex-1 min-h-0 w-full print:overflow-visible">
+        {/* 左カラム: 未割り当てリスト */}
+        <div className="w-80 lg:w-[340px] shrink-0 h-full max-h-[calc(100vh-230px)] flex flex-col print:hidden">
+          <UnassignedPool 
+            className="w-full h-full max-h-[calc(100vh-230px)] flex flex-col"
+            children={(board?.unassigned?.children || [])} 
+            mode={activeTab} 
+            readOnly={!isEditing}
+            onChildClick={handleChildClick} 
+            onAssignTo={async (child, targetTripId) => {
+              moveChild(activeTab, child.id, "unassigned", targetTripId);
+              await performAutoSave();
+            }}
+          />
+        </div>
+
+        {/* 右カラム: 車両カード一覧（グリッド展開で全車両を一望） */}
+        <div className="flex-1 min-w-0 h-full max-h-[calc(100vh-230px)] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 items-start w-full">
+            {(displayColumns || []).map((col: any) => (
+              <VehicleColumn
+                key={col?.id || col?.vehicleId || col?.vehicleName}
+                column={col}
+                mode={activeTab}
+                readOnly={!isEditing}
+                className="w-full"
+                onChildClick={handleChildClick}
+                onReorderChild={handleDirectReorder}
+                onChangeLocation={async () => { await performAutoSave(); }}
+                onDeleteTrip={async () => { await performAutoSave(); }}
+              />
+            ))}
+
+            {/* 家族迎え専用列（送りタブのみ・グリッド内に美しく配置） */}
+            {activeTab === "outbound" && (
+              <FamilyPickupColumn
+                className="w-full"
+                children={board?.familyPickup?.children || []}
+                onChildClick={handleChildClick}
+              />
+            )}
+          </div>
         </div>
       </div>
 

@@ -45,7 +45,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       {/* Main content */}
       <div className="flex-1 min-w-0 py-0.5">
         <div className="flex items-center gap-1 md:gap-1.5 flex-wrap">
-          <span className="text-xs md:text-sm font-bold md:font-semibold text-gray-800 truncate">
+          <span className="text-xs md:text-sm font-bold md:font-medium text-gray-900 truncate">
             {magnet.name}
           </span>
           {magnet.status === "late" && (
@@ -59,7 +59,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 mt-0.5 text-[11px] md:text-xs text-gray-500">
+        <div className="flex items-center gap-1 mt-0.5 text-[11px] md:text-xs text-gray-600">
           <div
             className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full shrink-0"
             style={{ backgroundColor: magnet.color }}
