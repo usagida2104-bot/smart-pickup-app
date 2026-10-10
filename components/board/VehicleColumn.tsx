@@ -60,7 +60,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
       data-capacity={column.capacity}
       data-count={totalChildrenCount}
       className={cn(
-        "vehicle-column flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm min-w-[260px]",
+        "vehicle-column flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm min-w-0",
         className || "w-64 shrink-0"
       )}
     >
@@ -100,9 +100,9 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
           return (
             <div key={trip?.id || Math.random().toString()} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
               {/* Trip Header */}
-              <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-xs text-gray-600 bg-gray-200 px-2 py-0.5 rounded-full">
+              <div className="w-full px-2.5 py-1.5 border-b border-gray-100 flex items-center justify-between gap-1.5 overflow-hidden">
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="font-bold text-xs text-gray-600 bg-gray-200 px-1.5 py-0.5 rounded-full shrink-0">
                     {trip?.tripIndex || 1}便目
                   </span>
                   {/* 1便目は削除不可、2便目以降（かつ全体の便数が2便以上）のみ削除ボタンを表示 */}
@@ -111,7 +111,7 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                       type="button"
                       onClick={() => handleDeleteTrip(trip)}
                       disabled={readOnly}
-                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                       title={`${trip?.tripIndex || 1}便目を削除`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -120,14 +120,14 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                 </div>
                 
                 {isOverCapacity && (
-                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-red-500 rounded text-[10px] text-white font-bold">
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-red-500 rounded text-[10px] text-white font-bold shrink-0">
                     <AlertTriangle className="w-3 h-3" />
-                    定員超過
+                    超過
                   </div>
                 )}
                 
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="w-12 sm:w-14 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-300",
@@ -137,10 +137,10 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
                     />
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0">
-                    <Users className="w-3 h-3 text-gray-400" />
+                    <Users className="w-3 h-3 text-gray-400 shrink-0" />
                     <span
                       className={cn(
-                        "text-[10px] font-bold",
+                        "text-[10px] font-bold font-mono shrink-0",
                         isOverCapacity ? "text-red-600" : "text-gray-600"
                       )}
                     >

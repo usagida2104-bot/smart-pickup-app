@@ -790,7 +790,7 @@ export default function BoardPage() {
 
   return (
     <>
-      <div className="p-2 sm:p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col print:hidden">
+      <div className="p-2 sm:p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col overflow-x-hidden print:hidden">
       {/* Page header */}
       <div className="flex flex-col gap-1.5 sm:gap-3 mb-2 md:mb-4 print:mb-6 shrink-0">
         
@@ -966,7 +966,7 @@ export default function BoardPage() {
       </div>
 
       {/* ===== PC表示（デスクトップ・md以上）: 左右2カラム・全車両グリッド一望レイアウト ===== */}
-      <div className="hidden md:flex flex-row gap-4 items-start flex-1 min-h-0 w-full print:overflow-visible">
+      <div className="hidden md:flex flex-row gap-4 items-start flex-1 min-h-0 w-full overflow-x-hidden print:overflow-visible">
         {/* 左カラム: 未割り当てリスト（スリム化） */}
         <div className="w-64 lg:w-[270px] shrink-0 h-full max-h-[calc(100vh-230px)] flex flex-col print:hidden">
           <UnassignedPool 
@@ -983,15 +983,15 @@ export default function BoardPage() {
         </div>
 
         {/* 右カラム: 車両カード一覧（グリッド展開で全車両を一望） */}
-        <div className="flex-1 min-w-0 h-full max-h-[calc(100vh-230px)] overflow-y-auto pr-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 xl:gap-4 items-start w-full">
+        <div className="flex-1 min-w-0 w-full h-full max-h-[calc(100vh-230px)] overflow-y-auto overflow-x-hidden pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3 items-start w-full min-w-0">
             {(displayColumns || []).map((col: any) => (
               <VehicleColumn
                 key={col?.id || col?.vehicleId || col?.vehicleName}
                 column={col}
                 mode={activeTab}
                 readOnly={!isEditing}
-                className="w-full min-w-[260px]"
+                className="w-full"
                 onChildClick={handleChildClick}
                 onReorderChild={handleDirectReorder}
                 onChangeLocation={async () => { await performAutoSave(); }}
@@ -1002,7 +1002,7 @@ export default function BoardPage() {
             {/* 家族迎え専用列（送りタブのみ・グリッド内に美しく配置） */}
             {activeTab === "outbound" && (
               <FamilyPickupColumn
-                className="w-full min-w-[260px]"
+                className="w-full"
                 children={board?.familyPickup?.children || []}
                 onChildClick={handleChildClick}
               />

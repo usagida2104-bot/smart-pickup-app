@@ -21,7 +21,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       data-testid={`child-card-${magnet.childId}`}
       data-child-name={magnet.name}
       className={cn(
-        "w-full text-left group flex items-center gap-1.5 py-1.5 px-2 rounded-lg border-2 shadow-sm shrink-0",
+        "w-full text-left group flex items-center justify-between gap-1 py-1.5 px-2 rounded-lg border-2 shadow-sm shrink-0 overflow-hidden",
         "hover:shadow-md hover:border-blue-300 transition-all duration-150 relative",
         magnet.has_caution ? "bg-green-50 border-green-200 hover:border-green-400" : "bg-white",
         onClick ? "cursor-pointer" : ""
@@ -38,14 +38,14 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       )}
       {/* Color accent bar */}
       <div
-        className="w-1 self-stretch rounded-full shrink-0"
+        className="w-1 self-stretch rounded-full shrink-0 mr-0.5"
         style={{ backgroundColor: magnet.color }}
       />
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0 py-0.5">
+      {/* 左側: 児童名と学校名 (余白に応じて柔軟に伸縮) */}
+      <div className="min-w-0 flex-1 mr-1 py-0.5">
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-xs sm:text-[13px] font-bold text-gray-900 truncate">
+          <span className="text-xs sm:text-sm font-bold text-gray-900 truncate">
             {magnet.name}
           </span>
           {magnet.status === "late" && (
@@ -59,7 +59,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 mt-0.5 text-[10px] sm:text-[11px] text-gray-500">
+        <div className="flex items-center gap-1 mt-0.5 text-[10px] sm:text-[11px] text-gray-500 truncate">
           <div
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ backgroundColor: magnet.color }}
@@ -68,39 +68,42 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
         </div>
       </div>
 
-      {/* Pickup time badge */}
-      {mode === "inbound" && (
-        <div className="flex items-center gap-0.5 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
-          <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
-          <span className="text-[11px] sm:text-xs font-bold font-mono text-gray-600">{magnet.pickup_time || "-"}</span>
-        </div>
-      )}
+      {/* 右側: 時間バッジ ＋ 並び順ボタン ＋ actionSlot (幅を固定して折り返し・見切れ防止) */}
+      <div className="flex items-center gap-1 shrink-0">
+        {mode === "inbound" && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-100 text-xs font-mono font-medium text-gray-700 whitespace-nowrap shrink-0 border border-gray-200">
+            <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+            {magnet.pickup_time || "-"}
+          </span>
+        )}
 
-      {/* Action buttons (Move up/down - compact) */}
-      {(showMoveUp || showMoveDown) && (
-        <div className="flex flex-col gap-0.5 shrink-0 ml-0.5 border-l pl-0.5">
-          <button 
-            type="button"
-            className={cn("w-5 h-4 flex items-center justify-center p-0 rounded hover:bg-gray-200 transition-colors bg-gray-100", !showMoveUp && "invisible")}
-            onClick={onMoveUp}
-          >
-            <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
-          </button>
-          <button 
-            type="button"
-            className={cn("w-5 h-4 flex items-center justify-center p-0 rounded hover:bg-gray-200 transition-colors bg-gray-100", !showMoveDown && "invisible")}
-            onClick={onMoveDown}
-          >
-            <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
-          </button>
-        </div>
-      )}
-      {/* actionSlot */}
-      {actionSlot && (
-        <div className="z-10 ml-0.5 shrink-0">
-          {actionSlot}
-        </div>
-      )}
+        {/* Action buttons (Move up/down - compact) */}
+        {(showMoveUp || showMoveDown) && (
+          <div className="flex flex-col gap-0.5 shrink-0 border-l pl-0.5">
+            <button 
+              type="button"
+              className={cn("w-5 h-4 flex items-center justify-center p-0 rounded hover:bg-gray-200 transition-colors bg-gray-100", !showMoveUp && "invisible")}
+              onClick={onMoveUp}
+            >
+              <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
+            </button>
+            <button 
+              type="button"
+              className={cn("w-5 h-4 flex items-center justify-center p-0 rounded hover:bg-gray-200 transition-colors bg-gray-100", !showMoveDown && "invisible")}
+              onClick={onMoveDown}
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+            </button>
+          </div>
+        )}
+
+        {/* actionSlot */}
+        {actionSlot && (
+          <div className="z-10 ml-0.5 shrink-0">
+            {actionSlot}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
