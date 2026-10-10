@@ -14,9 +14,10 @@ interface VehicleColumnProps {
   onChangeLocation?: (mode: "inbound" | "outbound", columnId: string, type: "start" | "end", val: "office" | "home") => void;
   onDeleteTrip?: () => void;
   readOnly?: boolean;
+  className?: string;
 }
 
-export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onChangeLocation, onDeleteTrip, readOnly = false }: VehicleColumnProps) {
+export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onChangeLocation, onDeleteTrip, readOnly = false, className }: VehicleColumnProps) {
   const updateTripLocation = useBoardStore((state) => state.updateTripLocation);
   const addTrip = useBoardStore((state) => state.addTrip);
   const removeTrip = useBoardStore((state) => state.removeTrip);
@@ -59,7 +60,8 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
       data-capacity={column.capacity}
       data-count={totalChildrenCount}
       className={cn(
-        "vehicle-column flex flex-col w-64 shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm"
+        "vehicle-column flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm",
+        className || "w-64 shrink-0"
       )}
     >
       {/* Column Header (Global for Vehicle) */}

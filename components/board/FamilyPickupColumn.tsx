@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 interface FamilyPickupColumnProps {
   children: ChildMagnet[];
   onChildClick: (magnet: ChildMagnet, columnId: string) => void;
+  className?: string;
 }
 
 /**
@@ -15,11 +16,14 @@ interface FamilyPickupColumnProps {
  * status === "dropoff_only" の児童がデフォルトで配置される。
  * ここへの移動・ここからの移動は「移動先モーダル」経由で行う。
  */
-export function FamilyPickupColumn({ children, onChildClick }: FamilyPickupColumnProps) {
+export function FamilyPickupColumn({ children, onChildClick, className }: FamilyPickupColumnProps) {
   return (
     <div
       data-testid="family-pickup-column"
-      className="flex flex-col w-56 shrink-0 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 overflow-hidden"
+      className={cn(
+        "flex flex-col rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 overflow-hidden",
+        className || "w-56 shrink-0"
+      )}
     >
       {/* Header */}
       <div className="px-4 py-3 border-b border-emerald-200 bg-emerald-100">

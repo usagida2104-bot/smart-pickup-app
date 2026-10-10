@@ -30,7 +30,7 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnly = false }: { children?: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void, onAssignTo: (child: ChildMagnet, targetTripId: string) => void, readOnly?: boolean }) {
+function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnly = false, className }: { children?: ChildMagnet[], mode: "inbound" | "outbound", onChildClick: (magnet: ChildMagnet, columnId: string) => void, onAssignTo: (child: ChildMagnet, targetTripId: string) => void, readOnly?: boolean, className?: string }) {
   const { inboundBoard, outboundBoard } = useBoardStore();
   const board = mode === "inbound" ? inboundBoard : outboundBoard;
   const availableTrips = (board?.columns || []).flatMap((col: any) => 
@@ -44,15 +44,20 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
   return (
     <div
       data-testid="unassigned-column"
-      className="flex flex-col w-64 shrink-0 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 overflow-hidden"
+      className={cn(
+        "flex flex-col rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 overflow-hidden",
+        className || "w-64 shrink-0"
+      )}
     >
-      <div className="px-4 py-3 border-b border-gray-200 bg-gray-100">
+      <div className="px-3 md:px-4 py-2.5 md:py-3 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
         <p className="font-bold text-gray-600 text-sm">📋 未割り当て</p>
-        <p className="text-xs text-gray-400 mt-0.5">{(children || []).length}名</p>
+        <span className="text-xs font-semibold px-2 py-0.5 bg-gray-200 text-gray-700 rounded-full">
+          {(children || []).length}名
+        </span>
       </div>
       <div
         data-testid="unassigned-pool"
-        className="flex-1 p-3 min-h-[200px] max-h-[500px] overflow-y-auto overflow-x-hidden space-y-2 transition-colors"
+        className="flex-1 p-2 md:p-3 min-h-[150px] md:max-h-[500px] overflow-y-auto overflow-x-hidden space-y-1.5 md:space-y-2 transition-colors"
       >
         {(children || []).map((magnet) => (
           <ChildCard 
@@ -103,6 +108,7 @@ export default function BoardPage() {
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [isAutoAssigned, setIsAutoAssigned] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"unassigned" | "vehicles" | "family">("unassigned");
   
   const isSavingRef = useRef(false);
   // 閲覧モード(false) / 編集モード(true)。ページ表示直後・日付変更直後は必ず閲覧モード
@@ -118,6 +124,12 @@ export default function BoardPage() {
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
+
+  useEffect(() => {
+    if (activeTab === "inbound" && mobileTab === "family") {
+      setMobileTab("unassigned");
+    }
+  }, [activeTab, mobileTab]);
 
   // 本日の稼働シフトを日別設定から動的に構築
   const dynamicShifts = (dailyStaff || [])
@@ -785,27 +797,23 @@ export default function BoardPage() {
 
   return (
     <>
-      <div className="p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col print:hidden">
+      <div className="p-2 sm:p-4 md:p-6 h-[calc(100vh-4rem)] flex flex-col print:hidden">
       {/* Page header */}
-      <div className="flex flex-col gap-4 mb-4 print:mb-6">
+      <div className="flex flex-col gap-1.5 sm:gap-3 mb-2 md:mb-4 print:mb-6 shrink-0">
         
-        {/* Top Row: Title & Actions */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="shrink-0">
-            <h1 className="text-xl md:text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
-            <p className="text-xs md:text-sm text-gray-500 print:text-base">{displayDate} — 出席 {totalPresent}名</p>
+        {/* Top Row: Title & Primary Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-3">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 print:text-3xl">送迎ボード</h1>
+            <p className="text-[11px] sm:text-xs md:text-sm text-gray-500 print:text-base">出席 {totalPresent}名</p>
           </div>
           
-          <div className="flex flex-wrap items-center justify-start md:justify-end gap-2 xl:gap-3 shrink-0 print:hidden">
-            {overCapacityCols.length > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold">
-                ⚠️ {overCapacityCols.length}台超過
-              </div>
-            )}
-            <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 print:hidden">
+            {/* 迎え/送り 切り替え */}
+            <div className="flex bg-gray-100 p-0.5 sm:p-1 rounded-lg shrink-0">
               <button
                 onClick={() => setActiveTab("inbound")}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-bold transition-colors ${
                   activeTab === "inbound" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -813,60 +821,73 @@ export default function BoardPage() {
               </button>
               <button
                 onClick={() => setActiveTab("outbound")}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-bold transition-colors ${
                   activeTab === "outbound" ? "bg-white shadow-sm text-indigo-700" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 送り
               </button>
             </div>
-            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5 h-8 px-3 text-xs shrink-0">
-              <Printer className="w-3.5 h-3.5" />
-              A4印刷
-            </Button>
-            <Button variant="outline" size="sm" disabled={!isEditing} onClick={() => handleReset()} className="gap-1.5 h-8 px-3 text-xs shrink-0 disabled:opacity-40">
-              <RotateCcw className="w-3.5 h-3.5" />
-              リセット
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={handleAutoAssign} 
-              disabled={isAutoAssigning || !isEditing}
-              className="gap-1.5 h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 transition-all shrink-0"
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${isAutoAssigning ? "animate-pulse" : ""}`} />
-              {isAutoAssigning ? "AI配車中..." : "自動配車"}
-            </Button>
+
+            {/* 編集 / 保存 ボタン */}
             {!isEditing ? (
               <Button
                 size="sm"
                 onClick={handleStartEdit}
-                className="gap-1.5 h-9 px-4 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md shrink-0"
+                className="gap-1 h-7 sm:h-8 md:h-9 px-2.5 sm:px-3.5 text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm shrink-0"
               >
-                ✏️ この日の送迎を編集する
+                ✏️ 編集する
               </Button>
             ) : (
-              <>
+              <div className="flex items-center gap-1">
                 <Button
                   size="sm"
                   onClick={handleSaveEdit}
                   disabled={isSaving}
-                  className="gap-1.5 h-9 px-4 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shrink-0"
+                  className="gap-1 h-7 sm:h-8 md:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shrink-0"
                 >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "💾"} 保存して完了
+                  {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "💾"} 保存
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCancelEdit}
                   disabled={isSaving}
-                  className="h-9 px-3 text-xs shrink-0"
+                  className="h-7 sm:h-8 md:h-9 px-1.5 sm:px-2.5 text-[11px] sm:text-xs shrink-0"
                 >
-                  キャンセル（変更を破棄）
+                  破棄
                 </Button>
-              </>
+              </div>
             )}
           </div>
+        </div>
+
+        {/* 2行目: サブアクション（印刷, リセット, 自動配車, 超過警告） */}
+        <div className="flex items-center justify-between gap-1 overflow-x-auto pb-0.5 print:hidden">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs shrink-0">
+              <Printer className="w-3 h-3" />
+              印刷
+            </Button>
+            <Button variant="outline" size="sm" disabled={!isEditing} onClick={() => handleReset()} className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs shrink-0 disabled:opacity-40">
+              <RotateCcw className="w-3 h-3" />
+              リセット
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={handleAutoAssign} 
+              disabled={isAutoAssigning || !isEditing}
+              className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 shrink-0"
+            >
+              <Sparkles className={`w-3 h-3 ${isAutoAssigning ? "animate-pulse" : ""}`} />
+              {isAutoAssigning ? "配車中" : "自動配車"}
+            </Button>
+          </div>
+          {overCapacityCols.length > 0 && (
+            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] sm:text-xs font-bold shrink-0">
+              ⚠️ {overCapacityCols.length}台超過
+            </div>
+          )}
         </div>
 
         {/* Bottom Row: Date Selector */}
@@ -889,20 +910,105 @@ export default function BoardPage() {
 
       {/* 編集モード通知バー */}
       {isEditing && (
-        <div className="shrink-0 mb-4 px-4 py-3 bg-amber-100 border-2 border-amber-400 rounded-lg text-sm font-bold text-amber-900 flex items-center gap-2 print:hidden">
-          ⚠️ 現在 【{formatDate(selectedDate).replace("-", "年").replace("-", "月")}日】 の送迎表を編集中です（「保存して完了」を押すまで確定しません）
+        <div className="shrink-0 mb-2 px-2.5 py-1 sm:px-4 sm:py-2.5 bg-amber-100 border border-amber-400 rounded-md sm:rounded-lg text-xs sm:text-sm font-bold text-amber-900 flex items-center gap-1.5 print:hidden">
+          ⚠️ 編集中: 【{formatDate(selectedDate).replace("-", "年").replace("-", "月")}日】（「保存」で確定）
         </div>
       )}
 
       {/* Auto-assign banner */}
       {isAutoAssigned && (
-        <div className="shrink-0 mb-4 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700 print:hidden">
-          ✨ 自動配車が完了しました。マグネットをドラッグして手動調整できます。
+        <div className="shrink-0 mb-2 px-2.5 py-1 sm:px-4 sm:py-2 bg-indigo-50 border border-indigo-200 rounded-md sm:rounded-lg text-xs sm:text-sm text-indigo-700 print:hidden">
+          ✨ 自動配車が完了しました
         </div>
       )}
 
-      {/* Board */}
-      <div className="flex-1 overflow-auto print:overflow-visible">
+      {/* モバイル用サブタブ切り替えバー (md:hidden) */}
+      <div className="flex md:hidden gap-1 p-1 bg-gray-200/80 rounded-lg shrink-0 mb-2 print:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileTab("unassigned")}
+          className={`flex-1 py-1 px-1.5 rounded text-xs font-bold transition-all text-center ${
+            mobileTab === "unassigned" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          📋 未割り当て ({(board?.unassigned?.children || []).length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab("vehicles")}
+          className={`flex-1 py-1 px-1.5 rounded text-xs font-bold transition-all text-center ${
+            mobileTab === "vehicles" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          🚗 車両一覧 ({displayColumns.reduce((sum: number, c: any) => sum + (c.trips || []).reduce((ts: number, t: any) => ts + (t.children || []).length, 0), 0)})
+        </button>
+        {activeTab === "outbound" && (
+          <button
+            type="button"
+            onClick={() => setMobileTab("family")}
+            className={`flex-1 py-1 px-1.5 rounded text-xs font-bold transition-all text-center ${
+              mobileTab === "family" ? "bg-white text-emerald-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            🏠 家族迎え ({(board?.familyPickup?.children || []).length})
+          </button>
+        )}
+      </div>
+
+      {/* モバイル作業エリア (md:hidden) */}
+      <div className="flex md:hidden flex-1 min-h-0 overflow-y-auto pb-4 print:hidden">
+        {mobileTab === "unassigned" && (
+          <div className="w-full">
+            <UnassignedPool 
+              className="w-full"
+              children={(board?.unassigned?.children || [])} 
+              mode={activeTab} 
+              readOnly={!isEditing}
+              onChildClick={handleChildClick} 
+              onAssignTo={async (child, targetTripId) => {
+                moveChild(activeTab, child.id, "unassigned", targetTripId);
+                await performAutoSave();
+              }}
+            />
+          </div>
+        )}
+
+        {mobileTab === "vehicles" && (
+          <div className="flex flex-col gap-3 w-full">
+            {(displayColumns || []).map((col: any) => (
+              <VehicleColumn
+                key={col?.id || col?.vehicleId || col?.vehicleName}
+                column={col}
+                mode={activeTab}
+                readOnly={!isEditing}
+                className="w-full"
+                onChildClick={handleChildClick}
+                onReorderChild={handleDirectReorder}
+                onChangeLocation={async () => { await performAutoSave(); }}
+                onDeleteTrip={async () => { await performAutoSave(); }}
+              />
+            ))}
+            {(displayColumns || []).length === 0 && (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                稼働中の車両がありません
+              </div>
+            )}
+          </div>
+        )}
+
+        {mobileTab === "family" && activeTab === "outbound" && (
+          <div className="w-full">
+            <FamilyPickupColumn
+              className="w-full"
+              children={board?.familyPickup?.children || []}
+              onChildClick={handleChildClick}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* デスクトップ作業エリア (hidden md:flex) */}
+      <div className="hidden md:flex flex-1 overflow-auto print:overflow-visible">
         <div className="flex gap-4 min-h-full pb-4 print:flex-wrap print:gap-6 print:pb-0 items-start">
           {/* Unassigned pool */}
           <div className="print:hidden">
@@ -912,27 +1018,7 @@ export default function BoardPage() {
               readOnly={!isEditing}
               onChildClick={handleChildClick} 
               onAssignTo={async (child, targetTripId) => {
-                console.log('[Assign] onAssignTo called:', { 
-                  activeTab, 
-                  childId: child.id, 
-                  childName: child.name, 
-                  targetTripId,
-                  boardColsCount: board?.columns?.length,
-                  tripIds: (board?.columns || []).flatMap((c: any) => (c.trips || []).map((t: any) => t.id))
-                });
                 moveChild(activeTab, child.id, "unassigned", targetTripId);
-                const state = useBoardStore.getState();
-                const afterBoard = activeTab === "inbound" ? state.inboundBoard : state.outboundBoard;
-                console.log('[Assign Success]', { 
-                  activeTab,
-                  childId: child.id,
-                  targetTripId,
-                  colsAfter: (afterBoard.columns || []).map((c: any) => ({
-                    name: c.vehicleName,
-                    trips: (c.trips || []).map((t: any) => ({ id: t.id, count: t.children?.length }))
-                  })),
-                  unassignedAfter: (afterBoard.unassigned?.children || []).length
-                });
                 await performAutoSave();
               }}
             />
@@ -965,19 +1051,19 @@ export default function BoardPage() {
       </div>
 
       {/* Legend */}
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-500 border-t border-gray-200 pt-3">
+      <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-gray-500 border-t border-gray-200 pt-2 shrink-0">
         <span className="font-medium">凡例:</span>
-        <span className="flex items-center gap-1.5">
-          <div className="w-3 h-3 bg-blue-500 rounded-full" /> 通常
+        <span className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-blue-500 rounded-full" /> 通常
         </span>
-        <span className="flex items-center gap-1.5">
-          <div className="w-3 h-3 bg-amber-500 rounded-full" /> 満員
+        <span className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-amber-500 rounded-full" /> 満員
         </span>
-        <span className="flex items-center gap-1.5">
-          <div className="w-3 h-3 bg-red-500 rounded-full" /> 定員超過
+        <span className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-red-500 rounded-full" /> 定員超過
         </span>
-        <span className="flex items-center gap-1.5">
-          <div className="w-3 h-3 bg-amber-100 border border-amber-300 rounded-sm" /> 配慮事項あり
+        <span className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-amber-100 border border-amber-300 rounded-sm" /> 配慮事項
         </span>
       </div>
     </div>

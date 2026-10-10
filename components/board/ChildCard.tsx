@@ -21,7 +21,7 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       data-testid={`child-card-${magnet.childId}`}
       data-child-name={magnet.name}
       className={cn(
-        "w-full text-left group flex items-center gap-2 p-2.5 rounded-lg border-2 shadow-sm shrink-0",
+        "w-full text-left group flex items-center gap-1.5 md:gap-2 py-1.5 px-2 md:py-2 md:px-2.5 rounded-lg border-2 shadow-sm shrink-0",
         "hover:shadow-md hover:border-blue-300 transition-all duration-150 relative",
         magnet.has_caution ? "bg-green-50 border-green-200 hover:border-green-400" : "bg-white",
         onClick ? "cursor-pointer" : ""
@@ -43,36 +43,36 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
       />
 
       {/* Main content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-sm font-semibold text-gray-800 truncate">
+      <div className="flex-1 min-w-0 py-0.5">
+        <div className="flex items-center gap-1 md:gap-1.5 flex-wrap">
+          <span className="text-xs md:text-sm font-bold md:font-semibold text-gray-800 truncate">
             {magnet.name}
           </span>
           {magnet.status === "late" && (
-            <span className="text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded border border-yellow-200 whitespace-nowrap">
+            <span className="text-[9px] md:text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1 py-0.2 rounded border border-yellow-200 whitespace-nowrap">
               遅刻 {magnet.status_time}
             </span>
           )}
           {magnet.status === "early_leave" && (
-            <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-1 py-0.5 rounded border border-purple-200 whitespace-nowrap">
+            <span className="text-[9px] md:text-[10px] font-bold bg-purple-50 text-purple-700 px-1 py-0.2 rounded border border-purple-200 whitespace-nowrap">
               早退 {magnet.status_time}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 mt-0.5">
+        <div className="flex items-center gap-1 mt-0.5 text-[11px] md:text-xs text-gray-500">
           <div
-            className="w-2 h-2 rounded-full"
+            className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full shrink-0"
             style={{ backgroundColor: magnet.color }}
           />
-          <span className="text-xs text-gray-500 truncate">{magnet.school_name}</span>
+          <span className="truncate">{magnet.school_name}</span>
         </div>
       </div>
 
       {/* Pickup time badge */}
       {mode === "inbound" && (
-        <div className="flex items-center gap-1 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
-          <Clock className="w-3 h-3 text-gray-400" />
-          <span className="text-xs font-bold font-mono text-gray-600">{magnet.pickup_time || "-"}</span>
+        <div className="flex items-center gap-0.5 md:gap-1 shrink-0 bg-gray-50 px-1 md:px-1.5 py-0.5 rounded border border-gray-200">
+          <Clock className="w-2.5 h-2.5 md:w-3 md:h-3 text-gray-400" />
+          <span className="text-[11px] md:text-xs font-bold font-mono text-gray-600">{magnet.pickup_time || "-"}</span>
         </div>
       )}
 
