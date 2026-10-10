@@ -57,7 +57,7 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
       </div>
       <div
         data-testid="unassigned-pool"
-        className="flex-1 p-2 md:p-3 min-h-[150px] md:max-h-[500px] overflow-y-auto overflow-x-hidden space-y-1.5 md:space-y-2 transition-colors"
+        className="flex-1 p-2 md:p-3 min-h-[150px] overflow-y-auto overflow-x-hidden space-y-1.5 md:space-y-2 transition-colors"
       >
         {(children || []).map((magnet) => (
           <ChildCard 
@@ -108,7 +108,6 @@ export default function BoardPage() {
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [isAutoAssigned, setIsAutoAssigned] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [mobileTab, setMobileTab] = useState<"unassigned" | "vehicles" | "family">("unassigned");
   
   const isSavingRef = useRef(false);
   // 閲覧モード(false) / 編集モード(true)。ページ表示直後・日付変更直後は必ず閲覧モード
@@ -124,12 +123,6 @@ export default function BoardPage() {
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
-
-  useEffect(() => {
-    if (activeTab === "inbound" && mobileTab === "family") {
-      setMobileTab("unassigned");
-    }
-  }, [activeTab, mobileTab]);
 
   // 本日の稼働シフトを日別設定から動的に構築
   const dynamicShifts = (dailyStaff || [])
@@ -922,45 +915,13 @@ export default function BoardPage() {
         </div>
       )}
 
-      {/* モバイル用サブタブ切り替えバー (md:hidden) */}
-      <div className="flex md:hidden gap-1 p-1 bg-gray-200/80 rounded-lg shrink-0 mb-2 print:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileTab("unassigned")}
-          className={`flex-1 py-1 px-1.5 rounded text-xs font-bold transition-all text-center ${
-            mobileTab === "unassigned" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          📋 未割り当て ({(board?.unassigned?.children || []).length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileTab("vehicles")}
-          className={`flex-1 py-1 px-1.5 rounded text-xs font-bold transition-all text-center ${
-            mobileTab === "vehicles" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          🚗 車両一覧 ({displayColumns.reduce((sum: number, c: any) => sum + (c.trips || []).reduce((ts: number, t: any) => ts + (t.children || []).length, 0), 0)})
-        </button>
-        {activeTab === "outbound" && (
-          <button
-            type="button"
-            onClick={() => setMobileTab("family")}
-            className={`flex-1 py-1 px-1.5 rounded text-xs font-bold transition-all text-center ${
-              mobileTab === "family" ? "bg-white text-emerald-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            🏠 家族迎え ({(board?.familyPickup?.children || []).length})
-          </button>
-        )}
-      </div>
-
-      {/* モバイル作業エリア (md:hidden) */}
-      <div className="flex md:hidden flex-1 min-h-0 overflow-y-auto pb-4 print:hidden">
-        {mobileTab === "unassigned" && (
-          <div className="w-full">
+      {/* Board (カンバン方式・左右スワイプ対応) */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden print:overflow-visible min-h-0 touch-pan-x">
+        <div className="flex flex-row gap-3 md:gap-4 h-full min-h-full pb-2 md:pb-4 items-start snap-x snap-mandatory md:snap-none">
+          {/* 未割り当て列 */}
+          <div className="w-[86vw] min-w-[86vw] md:w-64 md:min-w-0 shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
             <UnassignedPool 
-              className="w-full"
+              className="w-full h-full max-h-full"
               children={(board?.unassigned?.children || [])} 
               mode={activeTab} 
               readOnly={!isEditing}
@@ -971,77 +932,31 @@ export default function BoardPage() {
               }}
             />
           </div>
-        )}
 
-        {mobileTab === "vehicles" && (
-          <div className="flex flex-col gap-3 w-full">
-            {(displayColumns || []).map((col: any) => (
+          {/* 車両列群 */}
+          {(displayColumns || []).map((col: any) => (
+            <div
+              key={col?.id || col?.vehicleId || col?.vehicleName}
+              className="w-[86vw] min-w-[86vw] md:w-64 md:min-w-0 shrink-0 snap-start h-full max-h-full flex flex-col print:w-auto print:flex-1"
+            >
               <VehicleColumn
-                key={col?.id || col?.vehicleId || col?.vehicleName}
                 column={col}
                 mode={activeTab}
                 readOnly={!isEditing}
-                className="w-full"
+                className="w-full h-full max-h-full"
                 onChildClick={handleChildClick}
                 onReorderChild={handleDirectReorder}
                 onChangeLocation={async () => { await performAutoSave(); }}
                 onDeleteTrip={async () => { await performAutoSave(); }}
               />
-            ))}
-            {(displayColumns || []).length === 0 && (
-              <div className="text-center py-8 text-gray-400 text-sm">
-                稼働中の車両がありません
-              </div>
-            )}
-          </div>
-        )}
-
-        {mobileTab === "family" && activeTab === "outbound" && (
-          <div className="w-full">
-            <FamilyPickupColumn
-              className="w-full"
-              children={board?.familyPickup?.children || []}
-              onChildClick={handleChildClick}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* デスクトップ作業エリア (hidden md:flex) */}
-      <div className="hidden md:flex flex-1 overflow-auto print:overflow-visible">
-        <div className="flex gap-4 min-h-full pb-4 print:flex-wrap print:gap-6 print:pb-0 items-start">
-          {/* Unassigned pool */}
-          <div className="print:hidden">
-            <UnassignedPool 
-              children={(board?.unassigned?.children || [])} 
-              mode={activeTab} 
-              readOnly={!isEditing}
-              onChildClick={handleChildClick} 
-              onAssignTo={async (child, targetTripId) => {
-                moveChild(activeTab, child.id, "unassigned", targetTripId);
-                await performAutoSave();
-              }}
-            />
-          </div>
-
-          {/* Vehicle columns */}
-          {(displayColumns || []).map((col: any) => (
-            <VehicleColumn
-              key={col?.id || col?.vehicleId || col?.vehicleName}
-              column={col}
-              mode={activeTab}
-              readOnly={!isEditing}
-              onChildClick={handleChildClick}
-              onReorderChild={handleDirectReorder}
-              onChangeLocation={async () => { await performAutoSave(); }}
-              onDeleteTrip={async () => { await performAutoSave(); }}
-            />
+            </div>
           ))}
 
           {/* 家族迎え専用列（送りタブのみ） */}
           {activeTab === "outbound" && (
-            <div className="print:hidden">
+            <div className="w-[86vw] min-w-[86vw] md:w-56 md:min-w-0 shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
               <FamilyPickupColumn
+                className="w-full h-full max-h-full"
                 children={board?.familyPickup?.children || []}
                 onChildClick={handleChildClick}
               />
