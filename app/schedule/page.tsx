@@ -501,17 +501,17 @@ export default function SchedulePage() {
                           <td key={staff} className="border-r border-gray-200 p-0.5 relative text-center">
                             {/* Print view: simple colored div */}
                             <div className={cn(
-                              "hidden print:flex flex-col items-center justify-center schedule-badge",
+                              "hidden print:flex print:flex-row print:gap-1 print:items-center print:justify-center print:max-w-none print:w-full print:py-0.5 schedule-badge",
                               attendance === "通常" ? "border-transparent" : "border",
                               colorClass
                             )}>
                               {attendanceParts.sub ? (
                                 <>
-                                  <span className="leading-tight">{attendanceParts.main}</span>
-                                  <span className="text-[8px] leading-tight opacity-90">{attendanceParts.sub}</span>
+                                  <span className="leading-tight print:text-[10px] print:font-bold">{attendanceParts.main}</span>
+                                  <span className="leading-tight print:text-[9.5px] print:whitespace-nowrap opacity-90">{attendanceParts.sub}</span>
                                 </>
                               ) : (
-                                <span>{displayLabel}</span>
+                                <span className="leading-tight print:text-[10px] print:font-bold">{displayLabel}</span>
                               )}
                             </div>
 
@@ -525,12 +525,12 @@ export default function SchedulePage() {
                               onClick={() => !isWeekend && setSelectedCell({ dateStr, staff })}
                             >
                               {attendanceParts.sub ? (
-                                <div className="flex flex-col items-center justify-center py-1 px-1.5 rounded text-xs font-semibold leading-tight w-full max-w-[120px] mx-auto">
-                                  <span className="truncate">{attendanceParts.main}</span>
-                                  <span className="text-[10px] opacity-90 truncate mt-0.5">{attendanceParts.sub}</span>
+                                <div className="flex flex-col items-center justify-center py-1 px-1.5 rounded text-xs font-semibold leading-tight w-full max-w-[120px] mx-auto print:flex-row print:gap-1 print:items-center print:justify-center print:max-w-none print:w-full print:py-0.5">
+                                  <span className="truncate print:text-[10px] print:font-bold">{attendanceParts.main}</span>
+                                  <span className="text-[10px] opacity-90 truncate mt-0.5 print:mt-0 print:text-[9.5px] print:whitespace-nowrap">{attendanceParts.sub}</span>
                                 </div>
                               ) : (
-                                <span className="text-xs font-semibold px-1 py-0.5 rounded leading-tight text-center max-w-full truncate">
+                                <span className="text-xs font-semibold px-1 py-0.5 rounded leading-tight text-center max-w-full truncate print:text-[10px] print:font-bold">
                                   {displayLabel || "-"}
                                 </span>
                               )}
@@ -623,19 +623,21 @@ export default function SchedulePage() {
             line-height: 1.15 !important;
           }
 
-          /* バッジスタイル: 枠内にスッキリ収まるように微小パディング */
+          /* バッジスタイル: 枠内にスッキリ収まるように微小パディング（印刷時は1行横並び） */
           .print-schedule-table .schedule-badge {
             display: flex !important;
-            flex-direction: column !important;
+            flex-direction: row !important;
             justify-content: center !important;
             align-items: center !important;
+            gap: 3px !important;
             width: 96% !important;
             margin: 0 auto !important;
             padding: 1px 2px !important;
-            font-size: 8.5px !important;
+            font-size: 9.5px !important;
             font-weight: bold !important;
             border-radius: 3px !important;
-            line-height: 1.1 !important;
+            line-height: 1.15 !important;
+            white-space: nowrap !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
