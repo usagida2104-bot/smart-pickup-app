@@ -79,8 +79,13 @@ export function VehicleColumn({ column, mode, onChildClick, onReorderChild, onCh
               </span>
             )}
             {column.driverStatus === "early_leave" && (
-              <span className="text-[9px] font-bold bg-purple-50 text-purple-700 px-1 py-0.2 rounded border border-purple-200">
+              <span className="text-[9px] font-bold bg-rose-50 text-rose-700 px-1 py-0.2 rounded border border-rose-200">
                 早退 {column.driverStatusTime}
+              </span>
+            )}
+            {column.driverStatus === "middle_leave" && (
+              <span className="text-[9px] font-bold bg-purple-100 text-purple-800 px-1 py-0.2 rounded border border-purple-200">
+                中抜け {column.driverStatusTime}
               </span>
             )}
           </div>

@@ -25,7 +25,7 @@ export interface Staff {
   is_driver: boolean;
   homeAddress?: string | null;
   assignedVehicleId?: string | null;
-  status?: "present" | "absent" | "late" | "early_leave";
+  status?: "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training";
   status_time?: string | null;
   unit_name?: string | null;
   role?: string | null;
@@ -70,7 +70,7 @@ export interface DailyStaff {
   id: string;
   target_date: string;
   staff_id: string;
-  status: "present" | "absent" | "late" | "early_leave";
+  status: "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training";
   status_time: string | null;
   role?: string | null;
   assigned_vehicle_id?: string | null;
@@ -150,7 +150,7 @@ export interface VehicleColumn {
   vehicleName: string;
   driverId: string;
   driverName: string;
-  driverStatus?: "present" | "absent" | "late" | "early_leave";
+  driverStatus?: "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training";
   driverStatusTime?: string | null;
   capacity: number;
   trips: Trip[];

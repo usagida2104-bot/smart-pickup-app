@@ -7,7 +7,8 @@ import { CalendarIcon, Printer, Sparkles, ChevronLeft, ChevronRight, X } from "l
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-import { fetchMonthlySchedule, saveMonthlySchedule } from "@/lib/supabase/service";
+import { fetchMonthlySchedule, saveMonthlySchedule, upsertDailyStaff } from "@/lib/supabase/service";
+import { useMasterStore } from "@/lib/store/masterStore";
 import { Loader2 } from "lucide-react";
 
 const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
@@ -23,12 +24,16 @@ const ATTENDANCES = [
   { id: "通常", label: "通常", colorClass: "bg-gray-100 text-gray-700" },
   { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-700 font-bold" },
   { id: "研修", label: "研修", colorClass: "bg-amber-100 text-amber-800 font-bold" },
-  { id: "遅刻", label: "遅刻", colorClass: "bg-red-100 text-red-700 font-bold" },
-  { id: "早退", label: "早退", colorClass: "bg-red-100 text-red-700 font-bold" },
+  { id: "遅刻", label: "遅刻", colorClass: "bg-amber-100 text-amber-800 font-bold" },
+  { id: "早退", label: "早退", colorClass: "bg-rose-100 text-rose-700 font-bold" },
+  { id: "中抜け", label: "中抜け", colorClass: "bg-purple-100 text-purple-700 font-bold" },
 ];
 
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7〜21時
+const MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
 export const getCellData = (raw: string) => {
-  if (!raw) return { role: "フリー", attendance: "通常", time: "" };
+  if (!raw) return { role: "フリー", attendance: "通常", time: "", endTime: "" };
   const parts = raw.split("|");
   let role = parts[0] || "フリー";
   let attendanceRaw = parts[1] || "通常";
@@ -40,19 +45,67 @@ export const getCellData = (raw: string) => {
 
   let attendance = attendanceRaw;
   let time = "";
-  if (attendanceRaw.includes(":")) {
-    const attParts = attendanceRaw.split(":", 2);
-    attendance = attParts[0];
-    time = attParts[1];
+  let endTime = "";
+
+  const firstColon = attendanceRaw.indexOf(":");
+  if (firstColon !== -1) {
+    attendance = attendanceRaw.substring(0, firstColon);
+    const timePart = attendanceRaw.substring(firstColon + 1);
+    if (timePart.includes("-")) {
+      const [t1, t2] = timePart.split("-");
+      time = t1 || "";
+      endTime = t2 || "";
+    } else if (timePart.includes("~") || timePart.includes("〜")) {
+      const [t1, t2] = timePart.split(/[~〜]/);
+      time = t1 || "";
+      endTime = t2 || "";
+    } else {
+      time = timePart;
+    }
   }
 
-  return { role, attendance, time };
+  return { role, attendance, time, endTime };
 };
 
-export const packCellData = (role: string, attendance: string, time?: string) => {
-  const attStr = (time && (attendance === "遅刻" || attendance === "早退")) ? `${attendance}:${time}` : attendance;
+export const packCellData = (role: string, attendance: string, time?: string, endTime?: string) => {
+  let attStr = attendance;
+  if (attendance === "遅刻" || attendance === "早退") {
+    if (time) attStr = `${attendance}:${time}`;
+  } else if (attendance === "中抜け") {
+    if (time && endTime) {
+      attStr = `${attendance}:${time}-${endTime}`;
+    } else if (time) {
+      attStr = `${attendance}:${time}`;
+    }
+  }
   return `${role}|${attStr}`;
 };
+
+export const formatAttendanceBadge = (status: string, time?: string, endTime?: string) => {
+  const clean = (t?: string) => {
+    if (!t) return "";
+    const [h, m] = t.split(":");
+    return `${(h || "00").padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
+  };
+
+  if (status === "早退" && time) return `早退 (〜${clean(time)})`;
+  if (status === "遅刻" && time) return `遅刻 (${clean(time)}〜)`;
+  if (status === "中抜け" && time && endTime) return `中抜け (${clean(time)}〜${clean(endTime)})`;
+  if (status === "中抜け" && time) return `中抜け (${clean(time)})`;
+  return status;
+};
+
+export function attendanceToStatus(attendance: string): "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training" {
+  switch (attendance) {
+    case "休み": return "absent";
+    case "遅刻": return "late";
+    case "早退": return "early_leave";
+    case "中抜け": return "middle_leave";
+    case "研修": return "training";
+    case "通常":
+    default: return "present";
+  }
+}
 
 export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -62,30 +115,97 @@ export default function SchedulePage() {
   const [selectedCell, setSelectedCell] = useState<{ dateStr: string; staff: string } | null>(null);
   const [tempRole, setTempRole] = useState("フリー");
   const [tempAttendance, setTempAttendance] = useState("通常");
+  // 遅刻・早退用
   const [tempHour, setTempHour] = useState("13");
   const [tempMinute, setTempMinute] = useState("00");
+  // 中抜け用
+  const [tempStartHour, setTempStartHour] = useState("11");
+  const [tempStartMinute, setTempStartMinute] = useState("00");
+  const [tempEndHour, setTempEndHour] = useState("12");
+  const [tempEndMinute, setTempEndMinute] = useState("00");
 
   useEffect(() => {
     if (selectedCell) {
       const raw = scheduleData[selectedCell.dateStr]?.[selectedCell.staff] || "";
-      const { role, attendance, time } = getCellData(raw);
+      const { role, attendance, time, endTime } = getCellData(raw);
       setTempRole(role);
       setTempAttendance(attendance);
-      if (time) {
-        const parts = time.split(":");
-        setTempHour(parts[0]?.padStart(2, "0") || "13");
-        setTempMinute(parts[1]?.padStart(2, "0") || "00");
+
+      if (attendance === "中抜け") {
+        if (time) {
+          const [h, m] = time.split(":");
+          setTempStartHour(h?.padStart(2, "0") || "11");
+          setTempStartMinute(m?.padStart(2, "0") || "00");
+        } else {
+          setTempStartHour("11");
+          setTempStartMinute("00");
+        }
+        if (endTime) {
+          const [h, m] = endTime.split(":");
+          setTempEndHour(h?.padStart(2, "0") || "12");
+          setTempEndMinute(m?.padStart(2, "0") || "00");
+        } else {
+          setTempEndHour("12");
+          setTempEndMinute("00");
+        }
+      } else if (attendance === "遅刻" || attendance === "早退") {
+        if (time) {
+          const [h, m] = time.split(":");
+          setTempHour(h?.padStart(2, "0") || (attendance === "遅刻" ? "10" : "13"));
+          setTempMinute(m?.padStart(2, "0") || "00");
+        } else {
+          setTempHour(attendance === "遅刻" ? "10" : "13");
+          setTempMinute(attendance === "遅刻" ? "00" : "30");
+        }
       } else {
         setTempHour("13");
         setTempMinute("00");
+        setTempStartHour("11");
+        setTempStartMinute("00");
+        setTempEndHour("12");
+        setTempEndMinute("00");
       }
     }
   }, [selectedCell, scheduleData]);
 
-  const handleSaveCell = () => {
+  const handleSaveCell = async () => {
     if (selectedCell) {
-      const timeStr = `${tempHour}:${tempMinute}`;
-      updateCell(selectedCell.dateStr, selectedCell.staff, packCellData(tempRole, tempAttendance, timeStr));
+      let timeStr: string | undefined = undefined;
+      let endTimeStr: string | undefined = undefined;
+
+      if (tempAttendance === "遅刻" || tempAttendance === "早退") {
+        timeStr = `${tempHour}:${tempMinute}`;
+      } else if (tempAttendance === "中抜け") {
+        timeStr = `${tempStartHour}:${tempStartMinute}`;
+        endTimeStr = `${tempEndHour}:${tempEndMinute}`;
+      }
+
+      const packed = packCellData(tempRole, tempAttendance, timeStr, endTimeStr);
+      updateCell(selectedCell.dateStr, selectedCell.staff, packed);
+
+      // 日別設定（daily_staff）への即時連動
+      try {
+        const { staff: masterStaff } = useMasterStore.getState();
+        const matched = masterStaff.find(s => s.name.includes(selectedCell.staff));
+        if (matched) {
+          const statusVal = attendanceToStatus(tempAttendance);
+          const fullTimeStr = tempAttendance === "中抜け" 
+            ? `${timeStr}-${endTimeStr}` 
+            : (timeStr || null);
+
+          await upsertDailyStaff({
+            id: `d-staff-${selectedCell.dateStr}-${matched.id}`,
+            target_date: selectedCell.dateStr,
+            staff_id: matched.id,
+            status: statusVal,
+            status_time: fullTimeStr,
+            role: tempRole !== "フリー" ? tempRole : matched.role || null,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to sync daily_staff from schedule:", err);
+      }
+
       setSelectedCell(null);
     }
   };
@@ -329,30 +449,23 @@ export default function SchedulePage() {
                       </td>
                       {STAFF_LIST.map(staff => {
                         const rawData = dayData[staff] || "";
-                        const { role, attendance, time } = getCellData(rawData);
+                        const { role, attendance, time, endTime } = getCellData(rawData);
                         
                         let displayLabel = role === "フリー" ? "" : role;
                         let colorClass = ROLES.find(r => r.id === role)?.colorClass || "bg-transparent text-gray-800";
                         
-                        let formattedTime = "";
-                        if (time) {
-                          const tParts = time.split(":");
-                          formattedTime = `${(tParts[0] || "00").padStart(2, "0")}:${(tParts[1] || "00").padStart(2, "0")}`;
-                        }
-                        
                         if (attendance !== "通常") {
+                          displayLabel = formatAttendanceBadge(attendance, time, endTime);
                           if (attendance === "休み") {
-                            displayLabel = "休み";
                             colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
                           } else if (attendance === "研修") {
-                            displayLabel = "研修";
                             colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
                           } else if (attendance === "遅刻") {
-                            displayLabel = formattedTime ? `遅刻 (${formattedTime}〜)` : "遅刻";
-                            colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
+                            colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
                           } else if (attendance === "早退") {
-                            displayLabel = formattedTime ? `早退 (〜${formattedTime})` : "早退";
-                            colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
+                            colorClass = "bg-rose-100 text-rose-700 font-bold border-rose-200";
+                          } else if (attendance === "中抜け") {
+                            colorClass = "bg-purple-100 text-purple-700 font-bold border-purple-200";
                           }
                         }
 
@@ -378,13 +491,15 @@ export default function SchedulePage() {
                             {/* Screen view: clickable cell */}
                             <div 
                               className={cn(
-                                "print:hidden h-12 w-full rounded-lg cursor-pointer flex flex-col items-center justify-center transition-opacity hover:opacity-80 relative border",
+                                "print:hidden h-12 w-full rounded-lg cursor-pointer flex flex-col items-center justify-center transition-opacity hover:opacity-80 relative border px-1",
                                 role === "フリー" && attendance === "通常" ? "bg-white border-dashed border-gray-300 text-gray-400" : "border-transparent",
                                 colorClass
                               )}
                               onClick={() => !isWeekend && setSelectedCell({ dateStr, staff })}
                             >
-                              <span className="text-sm font-bold">{displayLabel || "-"}</span>
+                              <span className="text-xs font-semibold px-1 py-0.5 rounded leading-tight text-center max-w-full truncate">
+                                {displayLabel || "-"}
+                              </span>
                             </div>
                           </td>
                         );
@@ -507,9 +622,12 @@ export default function SchedulePage() {
                       if (a.id !== "通常") {
                         setTempRole("フリー");
                       }
-                      if (a.id !== "遅刻" && a.id !== "早退") {
-                        setTempHour("13");
+                      if (a.id === "遅刻" && (!tempHour || tempHour === "13")) {
+                        setTempHour("10");
                         setTempMinute("00");
+                      } else if (a.id === "早退" && (!tempHour || tempHour === "10")) {
+                        setTempHour("13");
+                        setTempMinute("30");
                       }
                     }}
                     className={cn(
@@ -521,16 +639,20 @@ export default function SchedulePage() {
                   </button>
                 ))}
               </div>
+
+              {/* 遅刻・早退の時刻入力 */}
               {(tempAttendance === "遅刻" || tempAttendance === "早退") && (
                 <div className="mt-3 flex items-center gap-3 bg-purple-50 p-3 rounded-lg border border-purple-100">
-                  <label className="text-sm font-bold text-purple-700">時間</label>
+                  <label className="text-sm font-bold text-purple-700 shrink-0">
+                    {tempAttendance === "遅刻" ? "出勤時刻" : "退勤時刻"}
+                  </label>
                   <div className="flex items-center gap-1 flex-1">
                     <select
                       value={tempHour}
                       onChange={(e) => setTempHour(e.target.value)}
-                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center"
+                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center bg-white"
                     >
-                      {Array.from({ length: 13 }, (_, i) => i + 7).map(h => {
+                      {HOURS.map(h => {
                          const hs = String(h).padStart(2, "0");
                          return <option key={hs} value={hs}>{hs}</option>;
                       })}
@@ -539,12 +661,70 @@ export default function SchedulePage() {
                     <select
                       value={tempMinute}
                       onChange={(e) => setTempMinute(e.target.value)}
-                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center"
+                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center bg-white"
                     >
-                      {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map(m => (
+                      {MINUTES.map(m => (
                          <option key={m} value={m}>{m}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 中抜けの開始・終了時刻入力 */}
+              {tempAttendance === "中抜け" && (
+                <div className="mt-3 flex flex-col gap-2 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                  <label className="text-xs font-bold text-purple-800">中抜け時間帯</label>
+                  <div className="flex items-center gap-2">
+                    {/* 開始時刻 */}
+                    <div className="flex items-center gap-1 flex-1">
+                      <select
+                        value={tempStartHour}
+                        onChange={(e) => setTempStartHour(e.target.value)}
+                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                      >
+                        {HOURS.map(h => {
+                           const hs = String(h).padStart(2, "0");
+                           return <option key={hs} value={hs}>{hs}</option>;
+                        })}
+                      </select>
+                      <span className="font-bold text-purple-700">:</span>
+                      <select
+                        value={tempStartMinute}
+                        onChange={(e) => setTempStartMinute(e.target.value)}
+                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                      >
+                        {MINUTES.map(m => (
+                           <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <span className="text-sm font-bold text-purple-700">〜</span>
+
+                    {/* 終了時刻 */}
+                    <div className="flex items-center gap-1 flex-1">
+                      <select
+                        value={tempEndHour}
+                        onChange={(e) => setTempEndHour(e.target.value)}
+                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                      >
+                        {HOURS.map(h => {
+                           const hs = String(h).padStart(2, "0");
+                           return <option key={hs} value={hs}>{hs}</option>;
+                        })}
+                      </select>
+                      <span className="font-bold text-purple-700">:</span>
+                      <select
+                        value={tempEndMinute}
+                        onChange={(e) => setTempEndMinute(e.target.value)}
+                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                      >
+                        {MINUTES.map(m => (
+                           <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               )}

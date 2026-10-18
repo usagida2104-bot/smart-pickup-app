@@ -16,9 +16,10 @@ import {
 import { TransportMode, DailyAttendance, DailyStaff, DailyVehicle } from "@/types";
 import { cn } from "@/lib/utils";
 import { useMasterStore } from "@/lib/store/masterStore";
-import { fetchDailyData, upsertDailyAttendance, upsertDailyStaff, upsertDailyVehicle } from "@/lib/supabase/service";
+import { fetchDailyData, upsertDailyAttendance, upsertDailyStaff, upsertDailyVehicle, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { supabase } from "@/lib/supabase/client";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString } from "@/lib/store/dateStore";
+import { getCellData, attendanceToStatus } from "@/app/schedule/page";
 
 const TIME_OPTIONS = Array.from({ length: 13 * 12 + 1 }).map((_, i) => {
   const h = Math.floor(i / 12) + 8;
@@ -30,7 +31,8 @@ const getStatusColor = (status?: string) => {
   switch (status) {
     case "absent": return "text-slate-600 bg-slate-100 border-slate-300";
     case "late": return "text-amber-700 bg-amber-50 border-amber-200";
-    case "early_leave": return "text-purple-700 bg-purple-50 border-purple-200";
+    case "early_leave": return "text-rose-700 bg-rose-50 border-rose-200";
+    case "middle_leave": return "text-purple-700 bg-purple-50 border-purple-200";
     case "present":
     default: return "text-pink-700 bg-pink-50 border-pink-200";
   }
@@ -154,16 +156,61 @@ function DailySetupPageContent() {
         setAttendances(mergedAtts);
         setGlobalAttendances(mergedAtts);
 
-        // Staff logic
+        // Staff logic (担当スケジュールとの同期)
+        const monthStr = targetDateStr.substring(0, 7);
+        let daySchedule: Record<string, string> = {};
+        try {
+          const monthlySchedule = await fetchMonthlySchedule(monthStr);
+          if (monthlySchedule && monthlySchedule[targetDateStr]) {
+            daySchedule = monthlySchedule[targetDateStr];
+          }
+        } catch (e) {
+          console.error("Failed to fetch monthly schedule for daily-setup sync:", e);
+        }
+
         const mergedStaff = staff.map((s) => {
           const existing = fetchedStaff.find((ds: any) => ds.staff_id === s.id);
-          return existing ? { ...existing, staff: s } : {
+
+          // スケジュール表にこのスタッフの設定があるか探索
+          let schedStatus: "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training" | undefined = undefined;
+          let schedTime: string | null = null;
+          let schedRole: string | undefined = undefined;
+
+          const schedKey = Object.keys(daySchedule).find(k => s.name.includes(k) || k.includes(s.name));
+          if (schedKey) {
+            const { role, attendance, time, endTime } = getCellData(daySchedule[schedKey]);
+            if (attendance !== "通常") {
+              schedStatus = attendanceToStatus(attendance);
+              if (attendance === "中抜け") {
+                schedTime = time && endTime ? `${time}-${endTime}` : (time || null);
+              } else {
+                schedTime = time || null;
+              }
+            } else {
+              schedStatus = "present";
+            }
+            if (role && role !== "フリー") {
+              schedRole = role;
+            }
+          }
+
+          if (existing) {
+            return {
+              ...existing,
+              status: existing.status || schedStatus || "present",
+              status_time: existing.status_time !== undefined ? existing.status_time : (schedTime || null),
+              role: existing.role || schedRole || s.role,
+              staff: s
+            };
+          }
+
+          return {
             id: `d-staff-${targetDateStr}-${s.id}`,
             target_date: targetDateStr,
             staff_id: s.id,
-            status: "present",
-            status_time: null,
-            role: s.role,
+            status: schedStatus || "present",
+            status_time: schedTime || null,
+            role: schedRole || s.role,
             assigned_vehicle_id: null,
             staff: s,
           };
@@ -329,7 +376,11 @@ function DailySetupPageContent() {
     performSave(updated);
   };
 
-  const updateDailyStaffStatus = async (staffId: string, status: "present" | "absent" | "late" | "early_leave", time?: string | null) => {
+  const updateDailyStaffStatus = async (
+    staffId: string, 
+    status: "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training", 
+    time?: string | null
+  ) => {
     const target = dailyStaff.find(s => s.staff_id === staffId);
     if (!target) return;
     const updated = {
@@ -338,9 +389,11 @@ function DailySetupPageContent() {
       status_time: time !== undefined ? time : target.status_time
     };
     if (status === "late") {
-      updated.status_time = updated.status_time || "13:45";
+      updated.status_time = time !== undefined ? time : (target.status_time || "10:00");
     } else if (status === "early_leave") {
-      updated.status_time = updated.status_time || "15:00";
+      updated.status_time = time !== undefined ? time : (target.status_time || "13:30");
+    } else if (status === "middle_leave") {
+      updated.status_time = time !== undefined ? time : (target.status_time || "11:00-12:00");
     } else {
       updated.status_time = null;
     }
@@ -354,7 +407,8 @@ function DailySetupPageContent() {
         staff_id: updated.staff_id,
         status: updated.status,
         status_time: updated.status_time,
-        role: updated.role
+        role: updated.role,
+        assigned_vehicle_id: updated.assigned_vehicle_id
       });
     } catch (err) {
       console.error(err);
@@ -1027,7 +1081,7 @@ function DailySetupPageContent() {
                       const s = ds?.staff;
                       if (!s) return null;
                       const isDriver = s?.is_driver;
-                      const isPresent = ds?.status === "present" || ds?.status === "late" || ds?.status === "early_leave";
+                      const isPresent = ds?.status === "present" || ds?.status === "late" || ds?.status === "early_leave" || ds?.status === "middle_leave";
                       const canDrive = isDriver && isPresent;
                       
                       const currentlyUsedVehicleIds = (dailyStaff || [])
@@ -1076,14 +1130,15 @@ function DailySetupPageContent() {
                                 <SelectContent>
                                   <SelectItem value="present"><span className="text-pink-700 font-bold">出勤（通常）</span></SelectItem>
                                   <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻（遅番）</span></SelectItem>
-                                  <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
+                                  <SelectItem value="early_leave"><span className="text-rose-700 font-bold">早退</span></SelectItem>
+                                  <SelectItem value="middle_leave"><span className="text-purple-700 font-bold">中抜け</span></SelectItem>
                                   <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
                                 </SelectContent>
                               </Select>
 
                               {(ds?.status === "late" || ds?.status === "early_leave") && (
                                 <Select
-                                  value={ds?.status_time || "14:00"}
+                                  value={ds?.status_time || (ds?.status === "late" ? "10:00" : "13:30")}
                                   onValueChange={(v) => updateDailyStaffStatus(ds?.staff_id, ds?.status as any, v)}
                                 >
                                   <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
@@ -1096,6 +1151,42 @@ function DailySetupPageContent() {
                                   </SelectContent>
                                 </Select>
                               )}
+
+                              {ds?.status === "middle_leave" && (() => {
+                                const timeStr = ds?.status_time || "11:00-12:00";
+                                const [startT = "11:00", endT = "12:00"] = timeStr.split(/[-~〜]/);
+                                return (
+                                  <div className="flex items-center gap-1">
+                                    <Select
+                                      value={startT}
+                                      onValueChange={(v) => updateDailyStaffStatus(ds?.staff_id, "middle_leave", `${v}-${endT}`)}
+                                    >
+                                      <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="max-h-[200px]">
+                                        {TIME_OPTIONS.map((time) => (
+                                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <span className="text-xs font-bold text-gray-500">〜</span>
+                                    <Select
+                                      value={endT}
+                                      onValueChange={(v) => updateDailyStaffStatus(ds?.staff_id, "middle_leave", `${startT}-${v}`)}
+                                    >
+                                      <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="max-h-[200px]">
+                                        {TIME_OPTIONS.map((time) => (
+                                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
