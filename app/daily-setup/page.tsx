@@ -533,8 +533,8 @@ export default function DailySetupPage() {
           <TableHeader>
             <TableRow className="bg-gray-50">
               <TableHead className="w-[180px] whitespace-nowrap">児童名</TableHead>
-              <TableHead className="min-w-[160px] whitespace-nowrap">① 出欠</TableHead>
-              <TableHead className="w-[180px] whitespace-nowrap">② 下校時間</TableHead>
+              <TableHead className="w-[180px] whitespace-nowrap">① 下校時間</TableHead>
+              <TableHead className="min-w-[160px] whitespace-nowrap">② 出欠</TableHead>
               <TableHead className="whitespace-nowrap">学校</TableHead>
               <TableHead className="min-w-[240px] whitespace-nowrap">③ 送迎区分（迎え / 送り）</TableHead>
               <TableHead className="w-[60px] text-right whitespace-nowrap">操作</TableHead>
@@ -566,43 +566,7 @@ export default function DailySetupPage() {
                     </div>
                   </TableCell>
 
-                  {/* ① Status column (Daily Attendance Status) */}
-                  <TableCell className="whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <Select 
-                        value={att.attendance_status || "present"}
-                        onValueChange={(v: "present" | "absent" | "late" | "early_leave") => updateAttendanceStatus(child.id, v)}
-                      >
-                        <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(att.attendance_status || "present"))}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="present"><span className="text-pink-700 font-bold">出席</span></SelectItem>
-                          <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
-                          <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
-                          <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      {(att.attendance_status === "late" || att.attendance_status === "early_leave") && (
-                        <Select
-                          value={att.attendance_time || "14:00"}
-                          onValueChange={(v) => updateAttendanceStatus(child.id, att.attendance_status as any, v)}
-                        >
-                          <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[200px]">
-                            {TIME_OPTIONS.map((time) => (
-                              <SelectItem key={time} value={time}>{time}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                  </TableCell>
-
-                  {/* ② Time column (下校時間 - 欠席時は自動でdisabled・グレーアウト) */}
+                  {/* ① Time column (下校時間 - 欠席時は自動でdisabled・グレーアウト) */}
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <Clock className={cn("w-4 h-4 text-gray-400 shrink-0", isPickupDisabled && "opacity-40")} />
@@ -659,6 +623,42 @@ export default function DailySetupPage() {
                           <option key={m} value={m}>{m}</option>
                         ))}
                       </select>
+                    </div>
+                  </TableCell>
+
+                  {/* ② Status column (Daily Attendance Status) */}
+                  <TableCell className="whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <Select 
+                        value={att.attendance_status || "present"}
+                        onValueChange={(v: "present" | "absent" | "late" | "early_leave") => updateAttendanceStatus(child.id, v)}
+                      >
+                        <SelectTrigger className={cn("w-[110px] h-8 text-xs font-bold border", getStatusColor(att.attendance_status || "present"))}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="present"><span className="text-pink-700 font-bold">出席</span></SelectItem>
+                          <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
+                          <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
+                          <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {(att.attendance_status === "late" || att.attendance_status === "early_leave") && (
+                        <Select
+                          value={att.attendance_time || "14:00"}
+                          onValueChange={(v) => updateAttendanceStatus(child.id, att.attendance_status as any, v)}
+                        >
+                          <SelectTrigger className="w-[85px] h-8 text-xs font-bold bg-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {TIME_OPTIONS.map((time) => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </TableCell>
 
@@ -802,48 +802,11 @@ export default function DailySetupPage() {
                 {child.school?.name ?? "学校未設定"}
               </div>
 
-              {/* 中段: 【出欠】 ➔ 【下校時間】 の並び（ユーザー指定の最重要ポイント） */}
+              {/* 中段: 【下校時間】 ➔ 【出欠】 の並び（ユーザー指定の最重要ポイント） */}
               <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 border-t border-gray-100">
-                {/* ① 出欠ステータス */}
+                {/* ① 下校時間 */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-semibold text-gray-500">① 出欠</span>
-                  <div className="flex items-center gap-1.5">
-                    <Select
-                      value={att.attendance_status || "present"}
-                      onValueChange={(v: "present" | "absent" | "late" | "early_leave") => updateAttendanceStatus(child.id, v)}
-                    >
-                      <SelectTrigger className={cn("w-[95px] h-8 text-xs font-bold border", getStatusColor(att.attendance_status || "present"))}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="present"><span className="text-pink-700 font-bold">出席</span></SelectItem>
-                        <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
-                        <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
-                        <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {(att.attendance_status === "late" || att.attendance_status === "early_leave") && (
-                      <Select
-                        value={att.attendance_time || "14:00"}
-                        onValueChange={(v) => updateAttendanceStatus(child.id, att.attendance_status as any, v)}
-                      >
-                        <SelectTrigger className="w-[80px] h-8 text-xs font-bold bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[200px]">
-                          {TIME_OPTIONS.map((time) => (
-                            <SelectItem key={time} value={time}>{time}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                </div>
-
-                {/* ② 下校時間 */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-semibold text-gray-500">② 下校時間</span>
+                  <span className="text-[11px] font-semibold text-gray-500">① 下校時間</span>
                   <div className="flex items-center gap-1">
                     <Clock className={cn("w-3.5 h-3.5 text-gray-400 shrink-0", isPickupDisabled && "opacity-40")} />
                     {/* Hour Select */}
@@ -896,6 +859,43 @@ export default function DailySetupPage() {
                         <option key={m} value={m}>{m}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+
+                {/* ② 出欠ステータス */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-gray-500">② 出欠</span>
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      value={att.attendance_status || "present"}
+                      onValueChange={(v: "present" | "absent" | "late" | "early_leave") => updateAttendanceStatus(child.id, v)}
+                    >
+                      <SelectTrigger className={cn("w-[95px] h-8 text-xs font-bold border", getStatusColor(att.attendance_status || "present"))}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="present"><span className="text-pink-700 font-bold">出席</span></SelectItem>
+                        <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
+                        <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
+                        <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {(att.attendance_status === "late" || att.attendance_status === "early_leave") && (
+                      <Select
+                        value={att.attendance_time || "14:00"}
+                        onValueChange={(v) => updateAttendanceStatus(child.id, att.attendance_status as any, v)}
+                      >
+                        <SelectTrigger className="w-[80px] h-8 text-xs font-bold bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[200px]">
+                          {TIME_OPTIONS.map((time) => (
+                            <SelectItem key={time} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
               </div>
