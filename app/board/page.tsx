@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, CalendarIcon, Sparkles, RotateCcw, Save, Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,10 @@ import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, Daily
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState } from "@/lib/supabase/service";
+import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString } from "@/lib/store/dateStore";
 
 function formatDate(date: Date) {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const day = date.getDate().toString().padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatLocalDate(date);
 }
 
 function addDays(date: Date, days: number) {
@@ -97,12 +96,51 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
   );
 }
 
-export default function BoardPage() {
+function BoardPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { selectedDateStr, setSelectedDateStr, setIsEditing: setGlobalIsEditing } = useDateStore();
+
+  const queryDate = searchParams.get("date");
+  const initialDateStr = queryDate && isValidDateString(queryDate)
+    ? queryDate
+    : (selectedDateStr && isValidDateString(selectedDateStr) ? selectedDateStr : getTodayDateString());
+
   const { children, attendances } = useMasterStore();
   const { staff: masterStaff, vehicles: masterVehicles } = useMasterStore();
   const { inboundBoard, outboundBoard, setBoard, moveChild, reorderChild } = useBoardStore();
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound">("inbound");
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => parseDateString(initialDateStr));
+
+  // 初回マウント時、ストアおよびURLクエリパラメータの初期同期
+  useEffect(() => {
+    setSelectedDateStr(initialDateStr);
+    if (!queryDate || !isValidDateString(queryDate)) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("date", initialDateStr);
+      router.replace(`${pathname}?${params.toString()}`);
+    }
+  }, []);
+
+  // ブラウザの戻る/進む等でクエリの date が変化した場合の同期
+  useEffect(() => {
+    const qDate = searchParams.get("date");
+    if (qDate && isValidDateString(qDate)) {
+      const curStr = formatDate(selectedDate);
+      if (qDate !== curStr) {
+        setSelectedDate(parseDateString(qDate));
+        setSelectedDateStr(qDate);
+      }
+    }
+  }, [searchParams]);
+
+  // アンマウント時に編集フラグをクリア
+  useEffect(() => {
+    return () => {
+      setGlobalIsEditing(false);
+    };
+  }, [setGlobalIsEditing]);
   
   const [selectedChild, setSelectedChild] = useState<{ magnet: ChildMagnet; columnId: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -118,6 +156,7 @@ export default function BoardPage() {
   const setEditingMode = (v: boolean) => {
     isEditingRef.current = v;
     setIsEditing(v);
+    setGlobalIsEditing(v);
   };
   // ローカルステートとして管理（masterStoreには存在しないため）
   const [dailyStaff, setDailyStaff] = useState<any[]>([]);
@@ -322,7 +361,13 @@ export default function BoardPage() {
       setIsAutoAssigned(false);
       setSelectedChild(null);
     }
+    const newDateStr = formatDate(date);
     setSelectedDate(date);
+    setSelectedDateStr(newDateStr);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", newDateStr);
+    router.replace(`${pathname}?${params.toString()}`);
   };
 
   // 編集中のタブ閉じ・リロード警告
@@ -1299,5 +1344,17 @@ export default function BoardPage() {
         }
       `}</style>
     </>
+  );
+}
+
+export default function BoardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    }>
+      <BoardPageContent />
+    </Suspense>
   );
 }

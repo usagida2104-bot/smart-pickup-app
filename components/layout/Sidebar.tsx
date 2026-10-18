@@ -21,6 +21,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
 
+import { useDateStore } from "@/lib/store/dateStore";
+
 const navItems = [
   {
     label: "ダッシュボード",
@@ -74,10 +76,31 @@ export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const { logout } = useAuth();
   const { isOpen, setIsOpen } = useSidebarStore();
+  const { selectedDateStr, isEditing, setIsEditing } = useDateStore();
 
   useEffect(() => {
     setIsOpen(false);
   }, [pathname, setIsOpen]);
+
+  const getTargetHref = (baseHref: string) => {
+    if (["/board", "/daily-setup", "/schedule"].includes(baseHref)) {
+      return selectedDateStr ? `${baseHref}?date=${selectedDateStr}` : baseHref;
+    }
+    return baseHref;
+  };
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetHref: string) => {
+    // 自身と同じページへの遷移であれば警告不要
+    if (isEditing && !targetHref.startsWith(pathname)) {
+      const ok = window.confirm("未保存の変更があります。移動しますか？");
+      if (!ok) {
+        e.preventDefault();
+        return;
+      }
+      setIsEditing(false);
+    }
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -132,12 +155,13 @@ export function Sidebar({ className }: { className?: string }) {
 
               const isActive = pathname === item.href;
               const Icon = item.icon;
+              const targetHref = getTargetHref(item.href);
 
               return (
                 <li key={item.href}>
                   <Link
-                    href={item.href}
-                    onClick={() => setIsOpen(false)}
+                    href={targetHref}
+                    onClick={(e) => handleNavClick(e, targetHref)}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
                       isActive

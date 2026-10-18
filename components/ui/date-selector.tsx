@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatLocalDate, parseDateString } from "@/lib/store/dateStore";
 
 interface DateSelectorProps {
   selectedDate: Date;
@@ -14,7 +15,7 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
     weekday: "long",
   });
 
-  const formatDate = (date: Date) => date.toISOString().split("T")[0];
+  const formatDate = (date: Date) => formatLocalDate(date);
   const addDays = (date: Date, days: number) => {
     const d = new Date(date);
     d.setDate(d.getDate() + days);
@@ -49,7 +50,7 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
             value={formatDate(selectedDate)}
             onChange={(e) => {
               if (e.target.value) {
-                const d = new Date(e.target.value);
+                const d = parseDateString(e.target.value);
                 onChange(d);
               }
             }}

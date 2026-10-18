@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { CheckCircle2, XCircle, Users, Clock, ChevronLeft, ChevronRight, Loader2, CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useMasterStore } from "@/lib/store/masterStore";
 import { fetchDailyData, upsertDailyAttendance, upsertDailyStaff, upsertDailyVehicle } from "@/lib/supabase/service";
 import { supabase } from "@/lib/supabase/client";
+import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString } from "@/lib/store/dateStore";
 
 const TIME_OPTIONS = Array.from({ length: 13 * 12 + 1 }).map((_, i) => {
   const h = Math.floor(i / 12) + 8;
@@ -43,10 +45,7 @@ const STATUS_CONFIG: Record<TransportMode, { label: string; color: string; bg: s
 };
 
 function formatDate(date: Date) {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const day = date.getDate().toString().padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatLocalDate(date);
 }
 
 function addDays(date: Date, days: number) {
@@ -58,9 +57,19 @@ function addDays(date: Date, days: number) {
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 8); // 8〜21時
 const MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 
-export default function DailySetupPage() {
+function DailySetupPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { selectedDateStr, setSelectedDateStr } = useDateStore();
+
+  const queryDate = searchParams.get("date");
+  const initialDateStr = queryDate && isValidDateString(queryDate)
+    ? queryDate
+    : (selectedDateStr && isValidDateString(selectedDateStr) ? selectedDateStr : getTodayDateString());
+
   const { children, staff, vehicles, attendances: globalAttendances, setAttendances: setGlobalAttendances, updateChild } = useMasterStore();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => parseDateString(initialDateStr));
   const [attendances, setAttendances] = useState<DailyAttendance[]>([]);
   const [dailyStaff, setDailyStaff] = useState<DailyStaff[]>([]);
   const [dailyVehicles, setDailyVehicles] = useState<DailyVehicle[]>([]);
@@ -68,6 +77,39 @@ export default function DailySetupPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [selectedSpotChildId, setSelectedSpotChildId] = useState<string>("");
+
+  // 初回マウント時、ストアおよびURLクエリパラメータの初期同期
+  useEffect(() => {
+    setSelectedDateStr(initialDateStr);
+    if (!queryDate || !isValidDateString(queryDate)) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("date", initialDateStr);
+      router.replace(`${pathname}?${params.toString()}`);
+    }
+  }, []);
+
+  // ブラウザの戻る/進む等でクエリの date が変化した場合の同期
+  useEffect(() => {
+    const qDate = searchParams.get("date");
+    if (qDate && isValidDateString(qDate)) {
+      const curStr = formatDate(selectedDate);
+      if (qDate !== curStr) {
+        setSelectedDate(parseDateString(qDate));
+        setSelectedDateStr(qDate);
+      }
+    }
+  }, [searchParams]);
+
+  // 日付変更ハンドラー
+  const handleDateChange = (date: Date) => {
+    const newDateStr = formatDate(date);
+    setSelectedDate(date);
+    setSelectedDateStr(newDateStr);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", newDateStr);
+    router.replace(`${pathname}?${params.toString()}`);
+  };
 
 
   useEffect(() => {
@@ -441,7 +483,7 @@ export default function DailySetupPage() {
 
       {/* Date Selector */}
       <div className="mb-4 md:mb-6">
-        <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
+        <DateSelector selectedDate={selectedDate} onChange={handleDateChange} />
       </div>
 
       {/* Tabs */}
@@ -1198,5 +1240,17 @@ export default function DailySetupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DailySetupPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    }>
+      <DailySetupPageContent />
+    </Suspense>
   );
 }
