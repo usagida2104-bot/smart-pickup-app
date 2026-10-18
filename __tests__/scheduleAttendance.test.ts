@@ -3,6 +3,7 @@ import {
   getCellData,
   packCellData,
   formatAttendanceBadge,
+  getAttendanceDisplayParts,
   attendanceToStatus,
 } from "../app/schedule/page";
 
@@ -47,6 +48,15 @@ describe("schedule attendance & time parsing tests", () => {
     expect(formatAttendanceBadge("中抜け", "11:00", "12:00")).toBe("中抜け (11:00〜12:00)");
     expect(formatAttendanceBadge("通常")).toBe("通常");
     expect(formatAttendanceBadge("休み")).toBe("休み");
+  });
+
+  it("getAttendanceDisplayParts formats 2-row badge accurately", () => {
+    expect(getAttendanceDisplayParts("早退", "13:30")).toEqual({ main: "早退", sub: "〜13:30" });
+    expect(getAttendanceDisplayParts("遅刻", "10:30")).toEqual({ main: "遅刻", sub: "10:30〜" });
+    expect(getAttendanceDisplayParts("中抜け", "11:00", "12:00")).toEqual({ main: "中抜け", sub: "11:00〜12:00" });
+    expect(getAttendanceDisplayParts("中抜け", "11:00")).toEqual({ main: "中抜け", sub: "11:00〜" });
+    expect(getAttendanceDisplayParts("通常")).toEqual({ main: "通常", sub: "" });
+    expect(getAttendanceDisplayParts("休み")).toEqual({ main: "休み", sub: "" });
   });
 
   it("attendanceToStatus maps Japanese attendance to system status correctly", () => {

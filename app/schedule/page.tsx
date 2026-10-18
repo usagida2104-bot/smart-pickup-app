@@ -24,9 +24,9 @@ const ATTENDANCES = [
   { id: "通常", label: "通常", colorClass: "bg-gray-100 text-gray-700" },
   { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-700 font-bold" },
   { id: "研修", label: "研修", colorClass: "bg-amber-100 text-amber-800 font-bold" },
-  { id: "遅刻", label: "遅刻", colorClass: "bg-amber-100 text-amber-800 font-bold" },
-  { id: "早退", label: "早退", colorClass: "bg-rose-100 text-rose-700 font-bold" },
-  { id: "中抜け", label: "中抜け", colorClass: "bg-purple-100 text-purple-700 font-bold" },
+  { id: "遅刻", label: "遅刻", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
+  { id: "早退", label: "早退", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
+  { id: "中抜け", label: "中抜け", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
 ];
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7〜21時
@@ -81,18 +81,34 @@ export const packCellData = (role: string, attendance: string, time?: string, en
   return `${role}|${attStr}`;
 };
 
-export const formatAttendanceBadge = (status: string, time?: string, endTime?: string) => {
-  const clean = (t?: string) => {
-    if (!t) return "";
-    const [h, m] = t.split(":");
-    return `${(h || "00").padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
-  };
+const cleanTimeStr = (t?: string) => {
+  if (!t) return "";
+  const [h, m] = t.split(":");
+  return `${(h || "00").padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
+};
 
-  if (status === "早退" && time) return `早退 (〜${clean(time)})`;
-  if (status === "遅刻" && time) return `遅刻 (${clean(time)}〜)`;
-  if (status === "中抜け" && time && endTime) return `中抜け (${clean(time)}〜${clean(endTime)})`;
-  if (status === "中抜け" && time) return `中抜け (${clean(time)})`;
+export const formatAttendanceBadge = (status: string, time?: string, endTime?: string) => {
+  if (status === "早退" && time) return `早退 (〜${cleanTimeStr(time)})`;
+  if (status === "遅刻" && time) return `遅刻 (${cleanTimeStr(time)}〜)`;
+  if (status === "中抜け" && time && endTime) return `中抜け (${cleanTimeStr(time)}〜${cleanTimeStr(endTime)})`;
+  if (status === "中抜け" && time) return `中抜け (${cleanTimeStr(time)})`;
   return status;
+};
+
+export const getAttendanceDisplayParts = (status: string, time?: string, endTime?: string) => {
+  if (status === "早退" && time) {
+    return { main: "早退", sub: `〜${cleanTimeStr(time)}` };
+  }
+  if (status === "遅刻" && time) {
+    return { main: "遅刻", sub: `${cleanTimeStr(time)}〜` };
+  }
+  if (status === "中抜け" && time) {
+    return {
+      main: "中抜け",
+      sub: endTime ? `${cleanTimeStr(time)}〜${cleanTimeStr(endTime)}` : `${cleanTimeStr(time)}〜`,
+    };
+  }
+  return { main: status, sub: "" };
 };
 
 export function attendanceToStatus(attendance: string): "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training" {
@@ -424,12 +440,18 @@ export default function SchedulePage() {
 
           {/* Schedule Table */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto print:overflow-visible print:shadow-none print:border-none print:w-full flex-1">
-            <table className="w-full text-sm text-left border-collapse min-w-[600px] md:min-w-0 print-schedule-table">
+            <table className="w-full table-fixed text-sm text-left border-collapse min-w-[650px] md:min-w-0 print-schedule-table">
+              <colgroup>
+                <col className="w-20 md:w-24 shrink-0" />
+                {STAFF_LIST.map(staff => (
+                  <col key={staff} style={{ width: `${100 / STAFF_LIST.length}%` }} />
+                ))}
+              </colgroup>
               <thead className="bg-gray-100 text-gray-700 border-b border-gray-200">
                 <tr>
-                  <th className="py-3 px-4 border-r border-gray-200 font-bold text-center w-20">日付</th>
+                  <th className="py-3 px-2 md:px-4 border-r border-gray-200 font-bold text-center w-20 md:w-24">日付</th>
                   {STAFF_LIST.map(staff => (
-                    <th key={staff} className="py-3 px-4 border-r border-gray-200 font-bold text-center">
+                    <th key={staff} className="py-3 px-2 md:px-4 border-r border-gray-200 font-bold text-center truncate">
                       {staff}
                     </th>
                   ))}
@@ -443,7 +465,7 @@ export default function SchedulePage() {
                       <td className={cn(
                         "border-r border-gray-200 text-center font-medium",
                         isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
-                        "py-2 px-4"
+                        "py-2 px-2 md:px-4"
                       )}>
                         {month}/{day}({dayOfWeek})
                       </td>
@@ -453,19 +475,17 @@ export default function SchedulePage() {
                         
                         let displayLabel = role === "フリー" ? "" : role;
                         let colorClass = ROLES.find(r => r.id === role)?.colorClass || "bg-transparent text-gray-800";
+                        let attendanceParts = { main: "", sub: "" };
                         
                         if (attendance !== "通常") {
                           displayLabel = formatAttendanceBadge(attendance, time, endTime);
+                          attendanceParts = getAttendanceDisplayParts(attendance, time, endTime);
                           if (attendance === "休み") {
                             colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
                           } else if (attendance === "研修") {
                             colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
-                          } else if (attendance === "遅刻") {
-                            colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
-                          } else if (attendance === "早退") {
-                            colorClass = "bg-rose-100 text-rose-700 font-bold border-rose-200";
-                          } else if (attendance === "中抜け") {
-                            colorClass = "bg-purple-100 text-purple-700 font-bold border-purple-200";
+                          } else if (attendance === "遅刻" || attendance === "早退" || attendance === "中抜け") {
+                            colorClass = "bg-red-50 text-red-700 font-bold border-red-200";
                           }
                         }
 
@@ -481,11 +501,18 @@ export default function SchedulePage() {
                           <td key={staff} className="border-r border-gray-200 p-0.5 relative text-center">
                             {/* Print view: simple colored div */}
                             <div className={cn(
-                              "hidden print:inline-block schedule-badge",
+                              "hidden print:flex flex-col items-center justify-center schedule-badge",
                               attendance === "通常" ? "border-transparent" : "border",
                               colorClass
                             )}>
-                              {displayLabel}
+                              {attendanceParts.sub ? (
+                                <>
+                                  <span className="leading-tight">{attendanceParts.main}</span>
+                                  <span className="text-[8px] leading-tight opacity-90">{attendanceParts.sub}</span>
+                                </>
+                              ) : (
+                                <span>{displayLabel}</span>
+                              )}
                             </div>
 
                             {/* Screen view: clickable cell */}
@@ -497,9 +524,16 @@ export default function SchedulePage() {
                               )}
                               onClick={() => !isWeekend && setSelectedCell({ dateStr, staff })}
                             >
-                              <span className="text-xs font-semibold px-1 py-0.5 rounded leading-tight text-center max-w-full truncate">
-                                {displayLabel || "-"}
-                              </span>
+                              {attendanceParts.sub ? (
+                                <div className="flex flex-col items-center justify-center py-1 px-1.5 rounded text-xs font-semibold leading-tight w-full max-w-[120px] mx-auto">
+                                  <span className="truncate">{attendanceParts.main}</span>
+                                  <span className="text-[10px] opacity-90 truncate mt-0.5">{attendanceParts.sub}</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs font-semibold px-1 py-0.5 rounded leading-tight text-center max-w-full truncate">
+                                  {displayLabel || "-"}
+                                </span>
+                              )}
                             </div>
                           </td>
                         );
@@ -591,10 +625,14 @@ export default function SchedulePage() {
 
           /* バッジスタイル: 枠内にスッキリ収まるように微小パディング */
           .print-schedule-table .schedule-badge {
-            display: inline-block !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
             width: 96% !important;
-            padding: 1.5px 2px !important;
-            font-size: 9px !important;
+            margin: 0 auto !important;
+            padding: 1px 2px !important;
+            font-size: 8.5px !important;
             font-weight: bold !important;
             border-radius: 3px !important;
             line-height: 1.1 !important;
@@ -642,26 +680,26 @@ export default function SchedulePage() {
 
               {/* 遅刻・早退の時刻入力 */}
               {(tempAttendance === "遅刻" || tempAttendance === "早退") && (
-                <div className="mt-3 flex items-center gap-3 bg-purple-50 p-3 rounded-lg border border-purple-100">
-                  <label className="text-sm font-bold text-purple-700 shrink-0">
+                <div className="mt-3 flex items-center gap-3 bg-red-50 p-3 rounded-lg border border-red-100">
+                  <label className="text-sm font-bold text-red-700 shrink-0">
                     {tempAttendance === "遅刻" ? "出勤時刻" : "退勤時刻"}
                   </label>
                   <div className="flex items-center gap-1 flex-1">
                     <select
                       value={tempHour}
                       onChange={(e) => setTempHour(e.target.value)}
-                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center bg-white"
+                      className="px-2 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 font-medium w-full text-center bg-white"
                     >
                       {HOURS.map(h => {
                          const hs = String(h).padStart(2, "0");
                          return <option key={hs} value={hs}>{hs}</option>;
                       })}
                     </select>
-                    <span className="font-bold text-purple-700">:</span>
+                    <span className="font-bold text-red-700">:</span>
                     <select
                       value={tempMinute}
                       onChange={(e) => setTempMinute(e.target.value)}
-                      className="px-2 py-1.5 rounded border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 font-medium w-full text-center bg-white"
+                      className="px-2 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 font-medium w-full text-center bg-white"
                     >
                       {MINUTES.map(m => (
                          <option key={m} value={m}>{m}</option>
@@ -673,26 +711,26 @@ export default function SchedulePage() {
 
               {/* 中抜けの開始・終了時刻入力 */}
               {tempAttendance === "中抜け" && (
-                <div className="mt-3 flex flex-col gap-2 bg-purple-50 p-3 rounded-lg border border-purple-100">
-                  <label className="text-xs font-bold text-purple-800">中抜け時間帯</label>
+                <div className="mt-3 flex flex-col gap-2 bg-red-50 p-3 rounded-lg border border-red-100">
+                  <label className="text-xs font-bold text-red-800">中抜け時間帯</label>
                   <div className="flex items-center gap-2">
                     {/* 開始時刻 */}
                     <div className="flex items-center gap-1 flex-1">
                       <select
                         value={tempStartHour}
                         onChange={(e) => setTempStartHour(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
                       >
                         {HOURS.map(h => {
                            const hs = String(h).padStart(2, "0");
                            return <option key={hs} value={hs}>{hs}</option>;
                         })}
                       </select>
-                      <span className="font-bold text-purple-700">:</span>
+                      <span className="font-bold text-red-700">:</span>
                       <select
                         value={tempStartMinute}
                         onChange={(e) => setTempStartMinute(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
                       >
                         {MINUTES.map(m => (
                            <option key={m} value={m}>{m}</option>
@@ -700,25 +738,25 @@ export default function SchedulePage() {
                       </select>
                     </div>
 
-                    <span className="text-sm font-bold text-purple-700">〜</span>
+                    <span className="text-sm font-bold text-red-700">〜</span>
 
                     {/* 終了時刻 */}
                     <div className="flex items-center gap-1 flex-1">
                       <select
                         value={tempEndHour}
                         onChange={(e) => setTempEndHour(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
                       >
                         {HOURS.map(h => {
                            const hs = String(h).padStart(2, "0");
                            return <option key={hs} value={hs}>{hs}</option>;
                         })}
                       </select>
-                      <span className="font-bold text-purple-700">:</span>
+                      <span className="font-bold text-red-700">:</span>
                       <select
                         value={tempEndMinute}
                         onChange={(e) => setTempEndMinute(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-purple-200 text-xs font-medium w-full text-center bg-white"
+                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
                       >
                         {MINUTES.map(m => (
                            <option key={m} value={m}>{m}</option>
