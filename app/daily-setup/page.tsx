@@ -525,17 +525,18 @@ export default function DailySetupPage() {
         </div>
       </div>
 
-      {/* Attendance List (Table Format) */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      {/* Attendance List (Desktop: Table Format / Mobile: Card Format) */}
+      {/* ===== デスクトップ表示（md以上: テーブル形式） ===== */}
+      <div className="hidden md:block rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead className="w-[200px] whitespace-nowrap">児童名</TableHead>
+              <TableHead className="w-[180px] whitespace-nowrap">児童名</TableHead>
               <TableHead className="min-w-[160px] whitespace-nowrap">① 出欠</TableHead>
-              <TableHead className="w-[180px] whitespace-nowrap">下校時間</TableHead>
+              <TableHead className="w-[180px] whitespace-nowrap">② 下校時間</TableHead>
               <TableHead className="whitespace-nowrap">学校</TableHead>
-              <TableHead className="min-w-[240px] whitespace-nowrap">② 送迎区分（迎え / 送り）</TableHead>
+              <TableHead className="min-w-[240px] whitespace-nowrap">③ 送迎区分（迎え / 送り）</TableHead>
               <TableHead className="w-[60px] text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -544,11 +545,14 @@ export default function DailySetupPage() {
               const child = children.find((c) => c.id === att.child_id);
               if (!child) return null;
               const config = STATUS_CONFIG[att.status];
+              const isAbsent = att.attendance_status === "absent";
+              const isPickupDisabled = isAbsent || !["both", "pickup_only"].includes(att.status);
+
               return (
                 <TableRow key={att.child_id} className={cn(
                   "hover:bg-gray-50/50",
-                  att.attendance_status === "absent" && "bg-gray-50 opacity-60",
-                  att.attendance_status !== "absent" && child.has_caution && "bg-green-50 hover:bg-green-100/50"
+                  isAbsent && "bg-gray-50 opacity-60",
+                  !isAbsent && child.has_caution && "bg-green-50 hover:bg-green-100/50"
                 )}>
                   {/* Name column */}
                   <TableCell className="whitespace-nowrap">
@@ -562,7 +566,7 @@ export default function DailySetupPage() {
                     </div>
                   </TableCell>
 
-                  {/* Status column (Daily Attendance Status) */}
+                  {/* ① Status column (Daily Attendance Status) */}
                   <TableCell className="whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Select 
@@ -598,10 +602,10 @@ export default function DailySetupPage() {
                     </div>
                   </TableCell>
 
-                  {/* Time column */}
+                  {/* ② Time column (下校時間 - 欠席時は自動でdisabled・グレーアウト) */}
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                      <Clock className={cn("w-4 h-4 text-gray-400 shrink-0", isPickupDisabled && "opacity-40")} />
                       
                       {/* Hour Select */}
                       <select
@@ -615,11 +619,11 @@ export default function DailySetupPage() {
                             updatePickupTime(att.child_id, `${h}:${min}`);
                           }
                         }}
-                        disabled={!["both", "pickup_only"].includes(att.status)}
+                        disabled={isPickupDisabled}
                         className={cn(
-                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none cursor-pointer text-center font-medium focus:ring-2 focus:ring-blue-500",
+                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none text-center font-medium focus:ring-2 focus:ring-blue-500",
                           !att.pickup_time ? "bg-gray-50 text-gray-400 border-dashed" : "bg-white",
-                          !["both", "pickup_only"].includes(att.status) && "opacity-40 cursor-not-allowed bg-gray-50 text-gray-400"
+                          isPickupDisabled ? "opacity-40 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200" : "cursor-pointer"
                         )}
                       >
                         <option value="">--</option>
@@ -629,7 +633,7 @@ export default function DailySetupPage() {
                         })}
                       </select>
                       
-                      <span className="font-bold text-gray-500">:</span>
+                      <span className={cn("font-bold text-gray-500", isPickupDisabled && "opacity-40")}>:</span>
                       
                       {/* Minute Select */}
                       <select
@@ -643,11 +647,11 @@ export default function DailySetupPage() {
                             updatePickupTime(att.child_id, `${hr}:${m}`);
                           }
                         }}
-                        disabled={!["both", "pickup_only"].includes(att.status)}
+                        disabled={isPickupDisabled}
                         className={cn(
-                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none cursor-pointer text-center font-medium focus:ring-2 focus:ring-blue-500",
+                          "w-16 px-2 py-1.5 rounded-md text-sm border outline-none text-center font-medium focus:ring-2 focus:ring-blue-500",
                           !att.pickup_time ? "bg-gray-50 text-gray-400 border-dashed" : "bg-white",
-                          !["both", "pickup_only"].includes(att.status) && "opacity-40 cursor-not-allowed bg-gray-50 text-gray-400"
+                          isPickupDisabled ? "opacity-40 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200" : "cursor-pointer"
                         )}
                       >
                         <option value="">--</option>
@@ -671,20 +675,20 @@ export default function DailySetupPage() {
                     </div>
                   </TableCell>
 
-                  {/* Transport mode columns: 迎え / 送り */}
+                  {/* ③ Transport mode columns: 迎え / 送り */}
                   <TableCell>
                     <div className="flex items-center gap-3">
                       {/* 迎え */}
                       <label className={cn(
-                        "flex items-center gap-1.5 cursor-pointer select-none",
-                        att.attendance_status === "absent" ? "opacity-40 cursor-not-allowed" : ""
+                        "flex items-center gap-1.5 select-none",
+                        isAbsent ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
                       )}>
                         <input
                           type="checkbox"
-                          disabled={att.attendance_status === "absent"}
+                          disabled={isAbsent}
                           checked={att.status === "both" || att.status === "pickup_only"}
                           onChange={(e) => {
-                            if (att.attendance_status === "absent") return;
+                            if (isAbsent) return;
                             const wantsDropoff = att.status === "both" || att.status === "dropoff_only";
                             if (e.target.checked) {
                               updateStatus(att.child_id, wantsDropoff ? "both" : "pickup_only");
@@ -701,15 +705,15 @@ export default function DailySetupPage() {
 
                       {/* 送り */}
                       <label className={cn(
-                        "flex items-center gap-1.5 cursor-pointer select-none",
-                        att.attendance_status === "absent" ? "opacity-40 cursor-not-allowed" : ""
+                        "flex items-center gap-1.5 select-none",
+                        isAbsent ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
                       )}>
                         <input
                           type="checkbox"
-                          disabled={att.attendance_status === "absent"}
+                          disabled={isAbsent}
                           checked={att.status === "both" || att.status === "dropoff_only"}
                           onChange={(e) => {
-                            if (att.attendance_status === "absent") return;
+                            if (isAbsent) return;
                             const wantsPickup = att.status === "both" || att.status === "pickup_only";
                             if (e.target.checked) {
                               updateStatus(att.child_id, wantsPickup ? "both" : "dropoff_only");
@@ -722,10 +726,10 @@ export default function DailySetupPage() {
                         <span className="text-sm font-semibold text-indigo-700">送り</span>
                       </label>
 
-                      {att.status === "no_transport" && att.attendance_status !== "absent" && (
+                      {att.status === "no_transport" && !isAbsent && (
                         <span className="text-xs text-gray-400 font-medium">（自家送迎）</span>
                       )}
-                      {att.attendance_status === "absent" && (
+                      {isAbsent && (
                         <span className="text-xs text-gray-400 font-medium">（欠席）</span>
                       )}
                     </div>
@@ -749,6 +753,214 @@ export default function DailySetupPage() {
           </TableBody>
         </Table>
         </div>
+      </div>
+
+      {/* ===== モバイル表示（md未満: カード形式リスト） ===== */}
+      <div className="md:hidden space-y-3">
+        {attendances.map((att) => {
+          const child = children.find((c) => c.id === att.child_id);
+          if (!child) return null;
+          const isAbsent = att.attendance_status === "absent";
+          const isPickupDisabled = isAbsent || !["both", "pickup_only"].includes(att.status);
+
+          return (
+            <div
+              key={att.child_id}
+              className={cn(
+                "p-3.5 rounded-xl border bg-white shadow-sm space-y-3 transition-colors",
+                isAbsent && "bg-gray-50/70 border-gray-200 opacity-70",
+                !isAbsent && child.has_caution && "bg-green-50/50 border-green-200"
+              )}
+            >
+              {/* 上部: 児童名・学校・削除ボタン */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: child.school?.color_code ?? "#ccc" }}
+                  />
+                  <span className="font-bold text-gray-900 text-base truncate">{child.name}</span>
+                  {child.unit_name && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4.5 shrink-0">
+                      {child.unit_name}
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRemove(att.child_id)}
+                  className="text-gray-400 hover:text-red-500 h-8 w-8 shrink-0"
+                  title="一覧から除外"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {/* 学校名 */}
+              <div className="text-xs text-gray-500 truncate -mt-1">
+                {child.school?.name ?? "学校未設定"}
+              </div>
+
+              {/* 中段: 【出欠】 ➔ 【下校時間】 の並び（ユーザー指定の最重要ポイント） */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 border-t border-gray-100">
+                {/* ① 出欠ステータス */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-gray-500">① 出欠</span>
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      value={att.attendance_status || "present"}
+                      onValueChange={(v: "present" | "absent" | "late" | "early_leave") => updateAttendanceStatus(child.id, v)}
+                    >
+                      <SelectTrigger className={cn("w-[95px] h-8 text-xs font-bold border", getStatusColor(att.attendance_status || "present"))}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="present"><span className="text-pink-700 font-bold">出席</span></SelectItem>
+                        <SelectItem value="absent"><span className="text-slate-600 font-bold">休み</span></SelectItem>
+                        <SelectItem value="late"><span className="text-amber-700 font-bold">遅刻</span></SelectItem>
+                        <SelectItem value="early_leave"><span className="text-purple-700 font-bold">早退</span></SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {(att.attendance_status === "late" || att.attendance_status === "early_leave") && (
+                      <Select
+                        value={att.attendance_time || "14:00"}
+                        onValueChange={(v) => updateAttendanceStatus(child.id, att.attendance_status as any, v)}
+                      >
+                        <SelectTrigger className="w-[80px] h-8 text-xs font-bold bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[200px]">
+                          {TIME_OPTIONS.map((time) => (
+                            <SelectItem key={time} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
+
+                {/* ② 下校時間 */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-gray-500">② 下校時間</span>
+                  <div className="flex items-center gap-1">
+                    <Clock className={cn("w-3.5 h-3.5 text-gray-400 shrink-0", isPickupDisabled && "opacity-40")} />
+                    {/* Hour Select */}
+                    <select
+                      value={att.pickup_time ? att.pickup_time.split(":")[0] : ""}
+                      onChange={(e) => {
+                        const h = e.target.value;
+                        const min = att.pickup_time ? att.pickup_time.split(":")[1] : "00";
+                        if (!h) {
+                          updatePickupTime(att.child_id, "");
+                        } else {
+                          updatePickupTime(att.child_id, `${h}:${min}`);
+                        }
+                      }}
+                      disabled={isPickupDisabled}
+                      className={cn(
+                        "w-14 px-1 py-1 rounded-md text-xs border outline-none text-center font-medium",
+                        !att.pickup_time ? "bg-gray-50 text-gray-400 border-dashed" : "bg-white",
+                        isPickupDisabled ? "opacity-40 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200" : "cursor-pointer"
+                      )}
+                    >
+                      <option value="">--</option>
+                      {HOURS.map((h) => {
+                        const hStr = h.toString().padStart(2, "0");
+                        return <option key={hStr} value={hStr}>{hStr}</option>;
+                      })}
+                    </select>
+                    <span className={cn("font-bold text-gray-500 text-xs", isPickupDisabled && "opacity-40")}>:</span>
+                    {/* Minute Select */}
+                    <select
+                      value={att.pickup_time ? att.pickup_time.split(":")[1] : ""}
+                      onChange={(e) => {
+                        const m = e.target.value;
+                        const hr = att.pickup_time ? att.pickup_time.split(":")[0] : "14";
+                        if (!m) {
+                          updatePickupTime(att.child_id, "");
+                        } else {
+                          updatePickupTime(att.child_id, `${hr}:${m}`);
+                        }
+                      }}
+                      disabled={isPickupDisabled}
+                      className={cn(
+                        "w-14 px-1 py-1 rounded-md text-xs border outline-none text-center font-medium",
+                        !att.pickup_time ? "bg-gray-50 text-gray-400 border-dashed" : "bg-white",
+                        isPickupDisabled ? "opacity-40 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200" : "cursor-pointer"
+                      )}
+                    >
+                      <option value="">--</option>
+                      {MINUTES.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 下段: ③ 送迎区分（迎え / 送り） */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
+                <span className="text-[11px] font-semibold text-gray-500">③ 送迎区分</span>
+                <div className="flex items-center gap-3">
+                  <label className={cn(
+                    "flex items-center gap-1.5 select-none",
+                    isAbsent ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
+                  )}>
+                    <input
+                      type="checkbox"
+                      disabled={isAbsent}
+                      checked={att.status === "both" || att.status === "pickup_only"}
+                      onChange={(e) => {
+                        if (isAbsent) return;
+                        const wantsDropoff = att.status === "both" || att.status === "dropoff_only";
+                        if (e.target.checked) {
+                          updateStatus(att.child_id, wantsDropoff ? "both" : "pickup_only");
+                        } else {
+                          updateStatus(att.child_id, wantsDropoff ? "dropoff_only" : "no_transport");
+                        }
+                      }}
+                      className="w-4 h-4 accent-blue-600"
+                    />
+                    <span className="font-semibold text-blue-700">迎え</span>
+                  </label>
+
+                  <div className="w-px h-3.5 bg-gray-300" />
+
+                  <label className={cn(
+                    "flex items-center gap-1.5 select-none",
+                    isAbsent ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
+                  )}>
+                    <input
+                      type="checkbox"
+                      disabled={isAbsent}
+                      checked={att.status === "both" || att.status === "dropoff_only"}
+                      onChange={(e) => {
+                        if (isAbsent) return;
+                        const wantsPickup = att.status === "both" || att.status === "pickup_only";
+                        if (e.target.checked) {
+                          updateStatus(att.child_id, wantsPickup ? "both" : "dropoff_only");
+                        } else {
+                          updateStatus(att.child_id, wantsPickup ? "pickup_only" : "no_transport");
+                        }
+                      }}
+                      className="w-4 h-4 accent-indigo-600"
+                    />
+                    <span className="font-semibold text-indigo-700">送り</span>
+                  </label>
+
+                  {att.status === "no_transport" && !isAbsent && (
+                    <span className="text-[11px] text-gray-400 font-medium">（自家送迎）</span>
+                  )}
+                  {isAbsent && (
+                    <span className="text-[11px] text-gray-400 font-medium">（欠席）</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
       </>
       )}
