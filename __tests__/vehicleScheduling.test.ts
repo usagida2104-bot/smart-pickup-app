@@ -213,5 +213,71 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
       const uchiyamaTrips = (activeDrivingStaff[1].trips || []).filter((t) => t.children.length > 0);
       expect(uchiyamaTrips.length).toBe(1); // 1便のみ（2便目は非表示）
     });
+
+    it("simultaneously prepares inbound and outbound boards for A4 portrait 2-tier print layout", () => {
+      const mockInboundCols = [
+        {
+          id: "staff-1",
+          staffName: "増子",
+          trips: [
+            { tripIndex: 1, vehicleName: "ステップワゴン", children: [{ name: "児童A", pickup_time: "14:10" }] },
+            { tripIndex: 2, vehicleName: "ステップワゴン", children: [] },
+          ],
+        },
+        {
+          id: "staff-2",
+          staffName: "内山",
+          trips: [
+            { tripIndex: 1, vehicleName: "ボクシー", children: [{ name: "児童B", pickup_time: "14:15" }] },
+          ],
+        },
+        {
+          id: "staff-3",
+          staffName: "室",
+          trips: [{ tripIndex: 1, children: [] }],
+        },
+      ];
+
+      const mockOutboundCols = [
+        {
+          id: "staff-1",
+          staffName: "増子",
+          trips: [
+            { tripIndex: 1, vehicleName: "ステップワゴン", children: [{ name: "児童A", pickup_time: "17:00" }] },
+            { tripIndex: 2, vehicleName: "ステップワゴン", children: [{ name: "児童B", pickup_time: "17:40" }] },
+          ],
+        },
+        {
+          id: "staff-2",
+          staffName: "内山",
+          trips: [{ tripIndex: 1, vehicleName: "ボクシー", children: [] }],
+        },
+      ];
+
+      const mockFamilyPickup = {
+        children: [
+          { id: "child-fp-1", name: "児童C", pickup_time: "16:30" },
+        ],
+      };
+
+      // 迎え（上段）の運行スタッフ
+      const activeInbound = mockInboundCols.filter(col =>
+        (col.trips || []).some(t => (t.children || []).length > 0)
+      );
+      expect(activeInbound.length).toBe(2);
+      expect(activeInbound.map(s => s.staffName)).toEqual(["増子", "内山"]);
+
+      // 送り（下段）の運行スタッフ
+      const activeOutbound = mockOutboundCols.filter(col =>
+        (col.trips || []).some(t => (t.children || []).length > 0)
+      );
+      expect(activeOutbound.length).toBe(1);
+      expect(activeOutbound[0].staffName).toBe("増子");
+      expect(activeOutbound[0].trips.filter(t => t.children.length > 0).length).toBe(2);
+
+      // 送りの家族迎え枠
+      expect(mockFamilyPickup.children.length).toBe(1);
+      expect(mockFamilyPickup.children[0].name).toBe("児童C");
+    });
   });
 });
