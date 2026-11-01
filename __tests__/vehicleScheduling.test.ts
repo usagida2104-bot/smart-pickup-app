@@ -161,4 +161,57 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
       expect(staff1Trip2?.vehicleId).toBe("v1");
     });
   });
+
+  describe("Print Layout Filtering (Active Driving Staff & Non-empty Trips)", () => {
+    it("filters out staff with zero assigned children from print output", () => {
+      const mockColumns = [
+        {
+          id: "staff-1",
+          staffName: "増子",
+          trips: [
+            { tripIndex: 1, children: [{ name: "児童A", pickup_time: "14:10" }] },
+            { tripIndex: 2, children: [{ name: "児童B", pickup_time: "15:10" }] },
+          ],
+        },
+        {
+          id: "staff-2",
+          staffName: "内山",
+          trips: [
+            { tripIndex: 1, children: [{ name: "児童C", pickup_time: "14:10" }] },
+            { tripIndex: 2, children: [] }, // 2便目は空
+          ],
+        },
+        {
+          id: "staff-3",
+          staffName: "室",
+          trips: [
+            { tripIndex: 1, children: [] },
+            { tripIndex: 2, children: [] }, // 全便空（運転しない）
+          ],
+        },
+        {
+          id: "staff-4",
+          staffName: "須田",
+          trips: [
+            { tripIndex: 1, children: [] }, // 全便空（運転しない）
+          ],
+        },
+      ];
+
+      // 印刷対象スタッフ（児童が1名以上いるスタッフのみ）
+      const activeDrivingStaff = mockColumns.filter((col) =>
+        (col.trips || []).some((trip) => (trip.children || []).length > 0)
+      );
+
+      expect(activeDrivingStaff.length).toBe(2);
+      expect(activeDrivingStaff.map((s) => s.staffName)).toEqual(["増子", "内山"]);
+
+      // スタッフごとの有効運行便
+      const masukoTrips = (activeDrivingStaff[0].trips || []).filter((t) => t.children.length > 0);
+      expect(masukoTrips.length).toBe(2); // 1便と2便の両方
+
+      const uchiyamaTrips = (activeDrivingStaff[1].trips || []).filter((t) => t.children.length > 0);
+      expect(uchiyamaTrips.length).toBe(1); // 1便のみ（2便目は非表示）
+    });
+  });
 });
