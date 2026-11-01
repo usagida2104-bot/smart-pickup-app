@@ -16,7 +16,8 @@ import { useMasterStore } from "@/lib/store/masterStore";
 import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, DailyStaff, DailyVehicle } from "@/types";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
-import { fetchDailyData, saveBoardState } from "@/lib/supabase/service";
+import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
+import { getCellData } from "@/app/schedule/page";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString } from "@/lib/store/dateStore";
 
 function formatDate(date: Date) {
@@ -161,6 +162,35 @@ function BoardPageContent() {
   // ローカルステートとして管理（masterStoreには存在しないため）
   const [dailyStaff, setDailyStaff] = useState<any[]>([]);
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
+
+  // 作成者（localStorage保持）
+  const [creatorName, setCreatorName] = useState<string>("");
+  // 当日の各リーダー（ぽっけ、ぽっけⅡ、日中）
+  const [leaders, setLeaders] = useState<{ pokke: string; pokke2: string; nichu: string }>({
+    pokke: "-",
+    pokke2: "-",
+    nichu: "-",
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("board_creator_name");
+      if (saved) {
+        setCreatorName(saved);
+      }
+    } catch (e) {
+      console.warn("Failed to load creator name from localStorage", e);
+    }
+  }, []);
+
+  const handleCreatorChange = (name: string) => {
+    setCreatorName(name);
+    try {
+      localStorage.setItem("board_creator_name", name);
+    } catch (e) {
+      console.warn("Failed to save creator name to localStorage", e);
+    }
+  };
 
   const board = activeTab === "inbound" ? inboundBoard : outboundBoard;
 
@@ -491,6 +521,54 @@ function BoardPageContent() {
             : { vehicle_id: v.id, is_active: v.is_active ?? true, vehicle: v };
         });
         setDailyVehicles(mergedVehicles);
+
+        // 担当スケジュールからのリーダー情報取得
+        const monthStr = targetDateStr.substring(0, 7);
+        let daySchedule: Record<string, string> = {};
+        try {
+          const monthlySchedule = await fetchMonthlySchedule(monthStr);
+          if (monthlySchedule && monthlySchedule[targetDateStr]) {
+            daySchedule = monthlySchedule[targetDateStr];
+          }
+        } catch (e) {
+          console.error("Failed to fetch monthly schedule for leaders:", e);
+        }
+
+        let leaderPokke = "-";
+        let leaderPokke2 = "-";
+        let leaderNichu = "-";
+
+        // 1. スケジュール表のセルデータから探索
+        Object.entries(daySchedule).forEach(([staffName, cellRaw]) => {
+          const { role } = getCellData(cellRaw);
+          if (/ぽっけ[2２ⅡII]リーダー/.test(role)) {
+            leaderPokke2 = staffName;
+          } else if (/ぽっけリーダー/.test(role)) {
+            leaderPokke = staffName;
+          } else if (/日中.*リーダー/.test(role)) {
+            leaderNichu = staffName;
+          }
+        });
+
+        // 2. dailyStaffのroleからもフォールバック探索
+        mergedStaff.forEach((ds: any) => {
+          const role = ds.role || "";
+          const name = ds.staff?.name || "";
+          if (!name) return;
+          if (/ぽっけ[2２ⅡII]リーダー/.test(role) && leaderPokke2 === "-") {
+            leaderPokke2 = name;
+          } else if (/ぽっけリーダー/.test(role) && leaderPokke === "-") {
+            leaderPokke = name;
+          } else if (/日中.*リーダー/.test(role) && leaderNichu === "-") {
+            leaderNichu = name;
+          }
+        });
+
+        setLeaders({
+          pokke: leaderPokke,
+          pokke2: leaderPokke2,
+          nichu: leaderNichu,
+        });
 
         const dayOfWeek = selectedDate.getDay();
 
@@ -955,6 +1033,22 @@ function BoardPageContent() {
               <Printer className="w-3 h-3" />
               印刷
             </Button>
+            {/* 作成者選択ドロップダウン */}
+            <div className="flex items-center gap-1 bg-white border border-gray-300 rounded px-1.5 h-6 sm:h-7 shrink-0 text-gray-700">
+              <span className="text-[10.5px] sm:text-xs font-bold text-gray-600 whitespace-nowrap">作成者:</span>
+              <select
+                value={creatorName}
+                onChange={(e) => handleCreatorChange(e.target.value)}
+                className="text-[11px] sm:text-xs bg-transparent border-none text-gray-800 font-semibold focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="">(未選択)</option>
+                {masterStaff.map((s) => (
+                  <option key={s.id} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button variant="outline" size="sm" disabled={!isEditing} onClick={() => handleReset()} className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs shrink-0 disabled:opacity-40">
               <RotateCcw className="w-3 h-3" />
               リセット
@@ -1126,7 +1220,7 @@ function BoardPageContent() {
     <div className="hidden print:flex flex-col font-sans text-black board-print-container print-container w-full">
       <div>
         {/* 印刷ヘッダー */}
-        <div className="mb-2 border-b-2 border-gray-400 pb-1.5 flex justify-between items-end">
+        <div className="mb-2 border-b-2 border-gray-400 pb-1 flex justify-between items-end">
           <div>
             <div className="flex items-baseline gap-3">
               <h1 className="text-[16px] font-bold leading-tight">
@@ -1134,15 +1228,24 @@ function BoardPageContent() {
               </h1>
               <span className="text-[13px] font-bold text-gray-800">{displayDate}</span>
             </div>
-            <p className="text-xs font-semibold text-gray-700 mt-1">
-              利用者数: ぽっけ {countPokke}名 / ぽっけⅡ {countPokke2}名 / 日中一時 {countNichu}名 （合計 {totalPresentCount}名）
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1">
+              <p className="text-xs font-semibold text-gray-700">
+                利用者数: ぽっけ {countPokke}名 / ぽっけⅡ {countPokke2}名 / 日中一時 {countNichu}名 （合計 {totalPresentCount}名）
+              </p>
+              <p className="text-xs font-medium text-gray-700">
+                リーダー: [ぽっけ] {leaders.pokke} / [ぽっけⅡ] {leaders.pokke2} / [日中] {leaders.nichu}
+              </p>
+            </div>
           </div>
           <div className="text-right flex flex-col items-end gap-1 shrink-0">
             <p className="text-[9px] text-gray-500">出力日時: {new Date().toLocaleString("ja-JP")}</p>
             <div className="text-xs font-semibold text-gray-800 flex items-center">
               <span>作成者: </span>
-              <span className="inline-block border-b border-gray-600 w-24 ml-1"></span>
+              {creatorName ? (
+                <span className="font-bold underline ml-1">{creatorName}</span>
+              ) : (
+                <span className="inline-block border-b border-gray-600 w-24 ml-1"></span>
+              )}
             </div>
           </div>
         </div>
@@ -1155,13 +1258,12 @@ function BoardPageContent() {
               <div key={col.id} className="break-inside-avoid mb-1 border border-gray-300 rounded p-1 bg-white">
                 {/* 車両ヘッダー */}
                 <div className="flex items-center justify-between gap-1 mb-1 border-b-2 border-gray-400 pb-0.5 bg-gray-50 px-1 text-xs font-bold text-gray-900">
-                  <div className="flex items-center gap-1 min-w-0">
+                  <div className="flex items-center gap-1 min-w-0 truncate">
                     <span className="shrink-0">🚗</span>
-                    <span className="truncate">{col.vehicleName}</span>
+                    <span className="truncate">
+                      {col.driverName || "(未定)"}（{col.vehicleName}）
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs font-bold text-gray-800">
-                    運転: {col.driverName || "未定"}
-                  </span>
                 </div>
 
                 {/* 便別テーブル */}
@@ -1184,13 +1286,11 @@ function BoardPageContent() {
                           </div>
                         )}
                         <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-[1.2]">
-                          <thead>
-                            <tr className="bg-gray-100 border-b border-gray-400 text-[11px]">
-                              <th className="border border-gray-400 px-1 py-0.5 w-[12%] text-center font-bold">順</th>
-                              <th className="border border-gray-400 px-1.5 py-0.5 w-[60%] font-bold">児童名</th>
-                              <th className="border border-gray-400 px-1 py-0.5 w-[28%] text-center font-bold">時間</th>
-                            </tr>
-                          </thead>
+                          <colgroup>
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "60%" }} />
+                            <col style={{ width: "28%" }} />
+                          </colgroup>
                           <tbody>
                             {sortedChildren.map((child: any, idx: number) => (
                               <tr key={child.id} className="border-b border-gray-300">
@@ -1222,13 +1322,11 @@ function BoardPageContent() {
               </span>
             </div>
             <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-[1.2]">
-              <thead>
-                <tr className="bg-gray-100 border-b border-gray-400 text-[11px]">
-                  <th className="border border-gray-400 px-1 py-0.5 w-[12%] text-center font-bold">順</th>
-                  <th className="border border-gray-400 px-1.5 py-0.5 w-[60%] font-bold">児童名</th>
-                  <th className="border border-gray-400 px-1 py-0.5 w-[28%] text-center font-bold">時間</th>
-                </tr>
-              </thead>
+              <colgroup>
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "60%" }} />
+                <col style={{ width: "28%" }} />
+              </colgroup>
               <tbody>
                 {[...(board.familyPickup?.children || [])].sort((a: any, b: any) => {
                   const timeA = a.pickup_time || "99:99";

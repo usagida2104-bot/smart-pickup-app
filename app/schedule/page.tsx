@@ -15,6 +15,7 @@ const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
 
 const ROLES = [
   { id: "ぽっけリーダー", label: "ぽっけリーダー", colorClass: "bg-[#dbeafe] text-[#1d4ed8]" },
+  { id: "ぽっけⅡリーダー", label: "ぽっけⅡリーダー", colorClass: "bg-[#fef3c7] text-[#b45309]" },
   { id: "日中リーダー", label: "日中リーダー", colorClass: "bg-[#dcfce7] text-[#15803d]" },
   { id: "集団担当", label: "集団担当", colorClass: "bg-slate-100 text-slate-800" },
   { id: "フリー", label: "(空欄)", colorClass: "bg-transparent text-gray-800" },
