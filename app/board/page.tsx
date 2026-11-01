@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { getCellData } from "@/app/schedule/page";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString, changeDateByDays } from "@/lib/store/dateStore";
+import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getTripTimeSummary } from "@/lib/vehicleUtils";
 
 function formatDate(date: Date) {
   return formatLocalDate(date);
@@ -302,7 +303,7 @@ function BoardPageContent() {
       // APIを通さず、直接ローカルでアルゴリズムを実行
       const result = autoAssignVehicles({ attendances: currentAttendances as any[], shifts: inputShifts });
 
-      const newColumns = displayColumns.map((originalCol: any, cIdx: number) => {
+      const mergedColumns = displayColumns.map((originalCol: any, cIdx: number) => {
         const assignedCol = result.columns.find((c: any) => c.id === originalCol.id) || result.columns[cIdx];
         const newTrips = (assignedCol?.trips || []).map((t: any) => {
           const existingTrip = (originalCol.trips || []).find((ot: any) => ot.tripIndex === t.tripIndex);
@@ -323,12 +324,16 @@ function BoardPageContent() {
         };
       });
 
+      // ★時間重複（ダブルブッキング）完全排除アルゴリズム★
+      // 1便目同士の重複禁止、2便目は1便目終了後の空き車両のみを再利用
+      const newColumns = assignVehiclesWithoutOverlap(mergedColumns, availableVehiclesForSelect);
+
       // === デバッグ用コンソールログ ===
       console.log("=== 自動配車デバッグログ ===");
       console.log(`対象児童総数: ${currentAttendances.length}人`);
       newColumns.forEach((col: any) => {
-        const tripsLog = (col.trips || []).map((t: any) => `${t.tripIndex}便: ${(t.children || []).length}人`).join(", ");
-        console.log(`${col.vehicleName} [${tripsLog}]`);
+        const tripsLog = (col.trips || []).map((t: any) => `${t.tripIndex}便 (${t.vehicleName}): ${(t.children || []).length}人`).join(", ");
+        console.log(`${col.staffName || col.driverName} [${tripsLog}]`);
       });
       console.log(`未割り当て残数: ${result.unassigned.length}人`);
       console.log("============================");
@@ -1262,6 +1267,7 @@ function BoardPageContent() {
                 column={col}
                 mode={activeTab}
                 availableVehicles={availableVehiclesForSelect}
+                allColumns={displayColumns}
                 readOnly={!isEditing}
                 className="w-full h-full max-h-full"
                 onChildClick={handleChildClick}
@@ -1312,6 +1318,7 @@ function BoardPageContent() {
                 column={col}
                 mode={activeTab}
                 availableVehicles={availableVehiclesForSelect}
+                allColumns={displayColumns}
                 readOnly={!isEditing}
                 className="w-full"
                 onChildClick={handleChildClick}
@@ -1386,62 +1393,212 @@ function BoardPageContent() {
           </div>
         </div>
 
-        {/* 便別運行表（スタッフ × 便ごとにブロック出力） */}
+        {/* スタッフ単位運行表（スタッフごとに縦1列、上段: 1便 / 下段: 2便 を固定配置） */}
         <div className="grid grid-cols-4 gap-2">
-          {displayColumns
-            .flatMap((col: any) => {
-              const staffName = col.staffName || col.driverName || "(未定)";
-              return (col.trips || [])
-                .filter((trip: any) => (trip.children || []).length > 0)
-                .map((trip: any) => ({
-                  blockId: `${col.id}-${trip.id}`,
-                  staffName,
-                  tripIndex: trip.tripIndex,
-                  vehicleName: trip.vehicleName || col.vehicleName || "車未定",
-                  children: trip.children || [],
-                }));
-            })
-            .map((block: any) => {
-              const sortedChildren = [...block.children].sort((a: any, b: any) => {
-                const timeA = a.pickup_time || "99:99";
-                const timeB = b.pickup_time || "99:99";
-                return timeA.localeCompare(timeB);
-              });
-              return (
-                <div key={block.blockId} className="break-inside-avoid mb-1 border border-gray-300 rounded p-1 bg-white">
-                  {/* 便ヘッダー: 【1便】 スタッフ名（車種名） */}
-                  <div className="flex items-center justify-between gap-1 mb-1 border-b-2 border-gray-400 pb-0.5 bg-gray-50 px-1 text-xs font-bold text-gray-900">
-                    <div className="flex items-center gap-1 min-w-0 truncate">
-                      <span className="shrink-0">🚗</span>
-                      <span className="truncate">
-                        【{block.tripIndex}便】 {block.staffName}（{block.vehicleName}）
+          {displayColumns.map((col: any) => {
+            const staffName = col.staffName || col.driverName || "担当スタッフ";
+            const trip1 = (col.trips || []).find((t: any) => t.tripIndex === 1);
+            const trip2 = (col.trips || []).find((t: any) => t.tripIndex === 2);
+            const additionalTrips = (col.trips || []).filter((t: any) => t.tripIndex > 2);
+
+            const trip1Children = trip1?.children || [];
+            const trip2Children = trip2?.children || [];
+
+            const hasTrip1Children = trip1Children.length > 0;
+            const hasTrip2Children = trip2Children.length > 0;
+
+            const theme1 = getVehicleColorTheme(trip1?.vehicleName);
+            const theme2 = getVehicleColorTheme(trip2?.vehicleName);
+
+            const timeSummary1 = getTripTimeSummary(trip1Children);
+            const timeSummary2 = getTripTimeSummary(trip2Children);
+
+            const sortedTrip1 = [...trip1Children].sort((a: any, b: any) => {
+              const timeA = a.pickup_time || "99:99";
+              const timeB = b.pickup_time || "99:99";
+              return timeA.localeCompare(timeB);
+            });
+
+            const sortedTrip2 = [...trip2Children].sort((a: any, b: any) => {
+              const timeA = a.pickup_time || "99:99";
+              const timeB = b.pickup_time || "99:99";
+              return timeA.localeCompare(timeB);
+            });
+
+            return (
+              <div key={col.id} className="break-inside-avoid mb-1 border-2 border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black">
+                {/* スタッフヘッダー: 👤 スタッフ名 */}
+                <div className="px-1.5 py-1 bg-gray-100 border-b border-gray-400 flex items-center justify-between">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="text-[12px] font-bold text-gray-900 truncate">👤 {staffName}</span>
+                    {col.staffRole && col.staffRole !== "一般スタッフ" && (
+                      <span className="text-[9px] font-semibold text-gray-600 bg-gray-200 px-1 rounded shrink-0">
+                        {col.staffRole}
                       </span>
+                    )}
+                  </div>
+                  {col.driverStatus && col.driverStatus !== "present" && (
+                    <span className="text-[8.5px] font-bold text-rose-800 bg-rose-50 border border-rose-300 px-1 rounded shrink-0">
+                      {col.driverStatus === "late" ? `遅刻 ${col.driverStatusTime}` : col.driverStatus === "early_leave" ? `早退 ${col.driverStatusTime}` : `中抜け ${col.driverStatusTime}`}
+                    </span>
+                  )}
+                </div>
+
+                {/* 1便・2便の縦並び配置（上段: 1便 / 下段: 2便） */}
+                <div className="flex flex-col divide-y divide-gray-300 flex-1">
+                  {/* 【上段: 1便目】 */}
+                  <div className="p-1 flex flex-col flex-1 min-h-[95px]">
+                    <div className="flex items-center justify-between gap-1 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1 rounded-sm">
+                      <div className="flex items-center gap-1 min-w-0 truncate">
+                        <span className="font-bold text-[10.5px] text-gray-900 shrink-0">【1便】</span>
+                        {/* 車種カラータグ（薄いカラーバッジ） */}
+                        <span className={cn("text-[9.5px] font-bold px-1.5 py-0.2 rounded border shrink-0", theme1.printBg, theme1.printText, theme1.printBorder)}>
+                          🚗 {trip1?.vehicleName || "車未定"}
+                        </span>
+                      </div>
+                      {/* 運行時間サマリー */}
+                      {timeSummary1 && (
+                        <span className="text-[9px] font-mono font-bold text-gray-700 shrink-0">
+                          ({timeSummary1})
+                        </span>
+                      )}
                     </div>
+
+                    {hasTrip1Children ? (
+                      <table className="w-full text-left border-collapse border border-gray-400 text-[10.5px] leading-tight">
+                        <colgroup>
+                          <col style={{ width: "12%" }} />
+                          <col style={{ width: "60%" }} />
+                          <col style={{ width: "28%" }} />
+                        </colgroup>
+                        <tbody>
+                          {sortedTrip1.map((child: any, idx: number) => (
+                            <tr key={child.id} className="border-b border-gray-300">
+                              <td className="border border-gray-400 px-1 py-0.5 text-center font-semibold text-[10px]">{idx + 1}</td>
+                              <td className="border border-gray-400 px-1.5 py-0.5 font-bold text-[11.5px] truncate">
+                                {child.name}
+                                {child.status === "late" && <span className="text-amber-700 text-[9px] ml-1 font-bold">遅</span>}
+                                {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-1 font-bold">早</span>}
+                              </td>
+                              <td className="border border-gray-400 px-1 py-0.5 font-mono text-center font-bold text-[11px]">{child.pickup_time || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center text-[10px] text-gray-400 italic py-3">
+                        （運行なし）
+                      </div>
+                    )}
                   </div>
 
-                  <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-[1.2]">
-                    <colgroup>
-                      <col style={{ width: "12%" }} />
-                      <col style={{ width: "60%" }} />
-                      <col style={{ width: "28%" }} />
-                    </colgroup>
-                    <tbody>
-                      {sortedChildren.map((child: any, idx: number) => (
-                        <tr key={child.id} className="border-b border-gray-300">
-                          <td className="border border-gray-400 px-1 py-0.5 text-center font-semibold text-[11px]">{idx + 1}</td>
-                          <td className="border border-gray-400 px-1.5 py-0.5 font-bold text-[12.5px] truncate">
-                            {child.name}
-                            {child.status === "late" && <span className="text-amber-700 text-[10px] ml-1 font-bold">遅刻</span>}
-                            {child.status === "early_leave" && <span className="text-purple-700 text-[10px] ml-1 font-bold">早退</span>}
-                          </td>
-                          <td className="border border-gray-400 px-1 py-0.5 font-mono text-center font-bold text-[12px]">{child.pickup_time || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {/* 【下段: 2便目】 */}
+                  <div className="p-1 flex flex-col flex-1 min-h-[95px] bg-slate-50/40">
+                    <div className="flex items-center justify-between gap-1 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1 rounded-sm">
+                      <div className="flex items-center gap-1 min-w-0 truncate">
+                        <span className="font-bold text-[10.5px] text-gray-900 shrink-0">【2便】</span>
+                        {/* 車種カラータグ（薄いカラーバッジ） */}
+                        <span className={cn("text-[9.5px] font-bold px-1.5 py-0.2 rounded border shrink-0", theme2.printBg, theme2.printText, theme2.printBorder)}>
+                          🚗 {trip2?.vehicleName || "車未定"}
+                        </span>
+                      </div>
+                      {/* 運行時間サマリー */}
+                      {timeSummary2 && (
+                        <span className="text-[9px] font-mono font-bold text-gray-700 shrink-0">
+                          ({timeSummary2})
+                        </span>
+                      )}
+                    </div>
+
+                    {hasTrip2Children ? (
+                      <table className="w-full text-left border-collapse border border-gray-400 text-[10.5px] leading-tight">
+                        <colgroup>
+                          <col style={{ width: "12%" }} />
+                          <col style={{ width: "60%" }} />
+                          <col style={{ width: "28%" }} />
+                        </colgroup>
+                        <tbody>
+                          {sortedTrip2.map((child: any, idx: number) => (
+                            <tr key={child.id} className="border-b border-gray-300">
+                              <td className="border border-gray-400 px-1 py-0.5 text-center font-semibold text-[10px]">{idx + 1}</td>
+                              <td className="border border-gray-400 px-1.5 py-0.5 font-bold text-[11.5px] truncate">
+                                {child.name}
+                                {child.status === "late" && <span className="text-amber-700 text-[9px] ml-1 font-bold">遅</span>}
+                                {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-1 font-bold">早</span>}
+                              </td>
+                              <td className="border border-gray-400 px-1 py-0.5 font-mono text-center font-bold text-[11px]">{child.pickup_time || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center text-[10px] text-gray-400 italic py-3">
+                        （運行なし）
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3便目以降がある場合 */}
+                  {additionalTrips.map((addTrip: any) => {
+                    const addChildren = addTrip?.children || [];
+                    const hasAddChildren = addChildren.length > 0;
+                    const addTheme = getVehicleColorTheme(addTrip?.vehicleName);
+                    const addTimeSummary = getTripTimeSummary(addChildren);
+                    const sortedAdd = [...addChildren].sort((a: any, b: any) => {
+                      const timeA = a.pickup_time || "99:99";
+                      const timeB = b.pickup_time || "99:99";
+                      return timeA.localeCompare(timeB);
+                    });
+
+                    return (
+                      <div key={addTrip.id} className="p-1 flex flex-col flex-1 min-h-[95px] bg-slate-50/70">
+                        <div className="flex items-center justify-between gap-1 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1 rounded-sm">
+                          <div className="flex items-center gap-1 min-w-0 truncate">
+                            <span className="font-bold text-[10.5px] text-gray-900 shrink-0">【{addTrip.tripIndex}便】</span>
+                            <span className={cn("text-[9.5px] font-bold px-1.5 py-0.2 rounded border shrink-0", addTheme.printBg, addTheme.printText, addTheme.printBorder)}>
+                              🚗 {addTrip?.vehicleName || "車未定"}
+                            </span>
+                          </div>
+                          {addTimeSummary && (
+                            <span className="text-[9px] font-mono font-bold text-gray-700 shrink-0">
+                              ({addTimeSummary})
+                            </span>
+                          )}
+                        </div>
+
+                        {hasAddChildren ? (
+                          <table className="w-full text-left border-collapse border border-gray-400 text-[10.5px] leading-tight">
+                            <colgroup>
+                              <col style={{ width: "12%" }} />
+                              <col style={{ width: "60%" }} />
+                              <col style={{ width: "28%" }} />
+                            </colgroup>
+                            <tbody>
+                              {sortedAdd.map((child: any, idx: number) => (
+                                <tr key={child.id} className="border-b border-gray-300">
+                                  <td className="border border-gray-400 px-1 py-0.5 text-center font-semibold text-[10px]">{idx + 1}</td>
+                                  <td className="border border-gray-400 px-1.5 py-0.5 font-bold text-[11.5px] truncate">
+                                    {child.name}
+                                    {child.status === "late" && <span className="text-amber-700 text-[9px] ml-1 font-bold">遅</span>}
+                                    {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-1 font-bold">早</span>}
+                                  </td>
+                                  <td className="border border-gray-400 px-1 py-0.5 font-mono text-center font-bold text-[11px]">{child.pickup_time || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center text-[10px] text-gray-400 italic py-3">
+                            （運行なし）
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
         </div>
 
         {/* ===== 家族迎え枠（送りのみ） ===== */}

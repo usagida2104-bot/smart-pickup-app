@@ -1,15 +1,17 @@
 "use client";
 
-import { AlertTriangle, User, Users, Plus, Trash2, Car } from "lucide-react";
+import { AlertTriangle, User, Users, Plus, Trash2, Car, Clock } from "lucide-react";
 import { VehicleColumn as VehicleColumnType, ChildMagnet, Trip } from "@/types";
 import { ChildCard } from "./ChildCard";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/lib/store/boardStore";
+import { getVehicleColorTheme, getTripTimeSummary, getConflictingVehicleIds } from "@/lib/vehicleUtils";
 
 interface VehicleColumnProps {
   column: VehicleColumnType;
   mode: "inbound" | "outbound";
   availableVehicles?: { id: string; name: string; capacity: number }[];
+  allColumns?: VehicleColumnType[];
   onChildClick?: (magnet: ChildMagnet, columnId: string) => void;
   onReorderChild?: (columnId: string, childId: string, direction: -1 | 1) => void;
   onChangeLocation?: (mode: "inbound" | "outbound", columnId: string, type: "start" | "end", val: "office" | "home") => void;
@@ -23,6 +25,7 @@ export function VehicleColumn({
   column,
   mode,
   availableVehicles = [],
+  allColumns = [],
   onChildClick,
   onReorderChild,
   onChangeLocation,
@@ -127,82 +130,105 @@ export function VehicleColumn({
           const isOverCapacity = (trip?.children || []).length > capacity;
           const isFull = (trip?.children || []).length >= capacity;
           const fillPct = Math.min(((trip?.children || []).length / capacity) * 100, 100);
+          const vehicleTheme = getVehicleColorTheme(trip?.vehicleName);
+          const timeSummary = getTripTimeSummary(trip?.children);
+          const conflictingList = getConflictingVehicleIds(allColumns, column.id, trip?.id, trip?.children || []);
           
           return (
             <div key={trip?.id || Math.random().toString()} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
               {/* Trip Header (便・車種選択・定員バー) */}
-              <div className="w-full px-2.5 py-1.5 border-b border-gray-100 flex items-center justify-between gap-1 overflow-hidden bg-gray-50/50">
-                {/* 便名 ＆ 車種選択ドロップダウン */}
-                <div className="flex items-center gap-1 min-w-0 flex-1">
-                  <span className="font-bold text-[11px] text-gray-700 bg-gray-200 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
-                    【{trip?.tripIndex || 1}便】
-                  </span>
-                  
-                  {/* 便ごとの車種選択UI（送迎ボードから直接変更可能） */}
-                  <select
-                    value={String(trip.vehicleId || "")}
-                    disabled={readOnly}
-                    onChange={(e) => handleVehicleChange(trip.id, e.target.value)}
-                    className={cn(
-                      "text-[10.5px] font-bold border rounded px-1.5 py-0.5 h-6 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer min-w-[105px] max-w-[145px] truncate transition-colors",
-                      !trip.vehicleId ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-white border-gray-300 hover:border-gray-400",
-                      readOnly && "opacity-80 cursor-default bg-gray-100"
-                    )}
-                    title={trip.vehicleName || "使用車両を選択"}
-                  >
-                    <option value="" disabled>車両を選択 ▼</option>
-                    {availableVehicles.map((v) => (
-                      <option key={v.id} value={String(v.id)}>
-                        {v.name} (定員{v.capacity}人)
-                      </option>
-                    ))}
-                  </select>
+              <div className="w-full px-2 py-1.5 border-b border-gray-100 flex flex-col gap-1 bg-gray-50/70">
+                <div className="flex items-center justify-between gap-1 overflow-hidden">
+                  {/* 便名 ＆ 車種選択ドロップダウン */}
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <span className="font-bold text-[11px] text-gray-700 bg-gray-200 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                      【{trip?.tripIndex || 1}便】
+                    </span>
 
-                  {/* 2便目以降の削除ボタン */}
-                  {(trip?.tripIndex > 1 || (column?.trips || []).length > 1) && trip?.tripIndex !== 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTrip(trip)}
+                    {/* 車種カラータグ（薄いカラーバッジ） */}
+                    {trip?.vehicleName && (
+                      <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0 hidden sm:inline-flex items-center gap-0.5", vehicleTheme.badgeBg, vehicleTheme.badgeText, vehicleTheme.badgeBorder)}>
+                        🚗 {vehicleTheme.label}
+                      </span>
+                    )}
+                    
+                    {/* 便ごとの車種選択UI（送迎ボードから直接変更可能＆重複使用防止） */}
+                    <select
+                      value={String(trip.vehicleId || "")}
                       disabled={readOnly}
-                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                      title={`${trip?.tripIndex || 1}便目を削除`}
+                      onChange={(e) => handleVehicleChange(trip.id, e.target.value)}
+                      className={cn(
+                        "text-[10.5px] font-bold border rounded px-1.5 py-0.5 h-6 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer min-w-[100px] max-w-[140px] truncate transition-colors",
+                        !trip.vehicleId ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-white border-gray-300 hover:border-gray-400",
+                        readOnly && "opacity-80 cursor-default bg-gray-100"
+                      )}
+                      title={trip.vehicleName || "使用車両を選択"}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <option value="" disabled>車両を選択 ▼</option>
+                      {availableVehicles.map((v) => {
+                        const conflict = conflictingList.find((c) => c.vehicleId === String(v.id));
+                        return (
+                          <option key={v.id} value={String(v.id)} disabled={Boolean(conflict)}>
+                            {v.name} (定員{v.capacity}人){conflict ? ` ⚠️ ${conflict.conflictStaffName}が${conflict.conflictTripIndex}便で使用中` : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {/* 2便目以降の削除ボタン */}
+                    {(trip?.tripIndex > 1 || (column?.trips || []).length > 1) && trip?.tripIndex !== 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTrip(trip)}
+                        disabled={readOnly}
+                        className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                        title={`${trip?.tripIndex || 1}便目を削除`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* 超過バッジ */}
+                  {isOverCapacity && (
+                    <div className="flex items-center gap-0.5 px-1 py-0.5 bg-red-500 rounded text-[9.5px] text-white font-bold shrink-0">
+                      <AlertTriangle className="w-3 h-3" />
+                      超過
+                    </div>
                   )}
+                  
+                  {/* 定員プログレスバー / 残席カウント */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <div className="w-8 sm:w-10 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-300",
+                          isOverCapacity ? "bg-red-500" : isFull ? "bg-amber-500" : "bg-blue-500"
+                        )}
+                        style={{ width: `${fillPct}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Users className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold font-mono shrink-0",
+                          isOverCapacity ? "text-red-600" : "text-gray-600"
+                        )}
+                      >
+                        {(trip.children || []).length}/{capacity}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                
-                {/* 超過バッジ */}
-                {isOverCapacity && (
-                  <div className="flex items-center gap-0.5 px-1 py-0.5 bg-red-500 rounded text-[9.5px] text-white font-bold shrink-0">
-                    <AlertTriangle className="w-3 h-3" />
-                    超過
+
+                {/* 運行時間サマリー表示（乗車児童の最早〜最遅時間） */}
+                {timeSummary && (
+                  <div className="flex items-center gap-1 px-1 text-[10px] text-gray-600">
+                    <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span className="font-mono font-semibold">運行時間: {timeSummary}</span>
                   </div>
                 )}
-                
-                {/* 定員プログレスバー / 残席カウント */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <div className="w-8 sm:w-10 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-300",
-                        isOverCapacity ? "bg-red-500" : isFull ? "bg-amber-500" : "bg-blue-500"
-                      )}
-                      style={{ width: `${fillPct}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <Users className="w-2.5 h-2.5 text-gray-400 shrink-0" />
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold font-mono shrink-0",
-                        isOverCapacity ? "text-red-600" : "text-gray-600"
-                      )}
-                    >
-                      {(trip.children || []).length}/{capacity}
-                    </span>
-                  </div>
-                </div>
               </div>
 
               {/* Trip settings (出発地・到着地) */}
