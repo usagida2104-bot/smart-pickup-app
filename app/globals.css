@@ -75,7 +75,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 8mm 10mm; /* 上下8mm、左右10mmの保存・ファイリング用マージン */
+    margin: 5mm 7mm; /* スマホ印刷での改ページ溢れを防止し、1/1ページに収める上下5mm・左右7mmマージン */
   }
 
   * {
@@ -84,34 +84,46 @@
     print-color-adjust: exact !important;
   }
 
+  html,
   body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
     background-color: white !important;
     -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Prevent page breaks inside items */
-  .break-inside-avoid {
-    page-break-inside: avoid;
-    break-inside: avoid;
-    page-break-after: avoid;
+  /* 改ページ完全防止 */
+  .break-inside-avoid,
+  .print-block,
+  .staff-card,
+  .family-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
   
   .print-page,
+  .print-container,
   .board-print-container {
     width: 100% !important;
-    max-width: 190mm !important;
+    max-width: 196mm !important;
     height: 100% !important;
-    max-height: 281mm !important;
+    max-height: 285mm !important;
     overflow: hidden !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     page-break-after: avoid !important;
+    break-after: avoid !important;
     display: flex !important;
     flex-direction: column !important;
-    justify-content: flex-start !important;
+    justify-content: space-between !important;
     box-sizing: border-box !important;
-    padding: 2px !important;
+    padding: 0 !important;
   }
 
   .board-print-container table,
@@ -130,5 +142,11 @@
     padding: 1px 2px !important;
     line-height: 1.15 !important;
     vertical-align: middle !important;
+  }
+
+  .board-print-container tr,
+  .print-container tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
