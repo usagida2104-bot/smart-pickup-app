@@ -5,7 +5,7 @@ import { getCellData, packCellData } from "../app/schedule/page";
 const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
 
 describe("scheduleGenerator tests", () => {
-  it("generates schedule assigning leaders once per week per staff without holiday assignment", () => {
+  it("generates schedule assigning [ぽっけリーダー, 日中リーダー, 集団担当] once per week per staff without holiday assignment", () => {
     // 2026年11月（11/3文化の日、11/23勤労感謝の日あり）
     const year = 2026;
     const month = 11;
@@ -26,24 +26,33 @@ describe("scheduleGenerator tests", () => {
     // 11/23 (勤労感謝の日・祝日) には何も割り当てられていないこと
     expect(result["2026-11-23"]).toBeUndefined();
 
-    // 11/2 (月) の割り当てをチェック（3リーダーが異なるスタッフに割り当てられていること）
+    // 11/2 (月) の割り当てをチェック（3役職が異なるスタッフに割り当てられていること）
     const day1102 = result["2026-11-02"];
     expect(day1102).toBeDefined();
     const roles1102 = Object.values(day1102).map(raw => getCellData(raw).role);
     expect(roles1102).toContain("ぽっけリーダー");
-    expect(roles1102).toContain("ぽっけⅡリーダー");
     expect(roles1102).toContain("日中リーダー");
+    expect(roles1102).toContain("集団担当");
 
     // フル稼働の週（第2週: 11/9月〜11/13金、5日間すべて平日祝日なし）での検証
     const week2Dates = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"];
     const week2RolesCount: Record<string, Record<string, number>> = {};
     STAFF_LIST.forEach(s => {
-      week2RolesCount[s] = { "ぽっけリーダー": 0, "ぽっけⅡリーダー": 0, "日中リーダー": 0 };
+      week2RolesCount[s] = { "ぽっけリーダー": 0, "日中リーダー": 0, "集団担当": 0 };
     });
 
     for (const dStr of week2Dates) {
       const dayData = result[dStr];
       expect(dayData).toBeDefined();
+
+      // 各日に3役職が重複なく1名ずつ割り当てられていること
+      const todayRoles = STAFF_LIST.map(s => getCellData(dayData[s]).role).filter(r => r !== "フリー");
+      expect(todayRoles.length).toBe(3);
+      expect(new Set(todayRoles).size).toBe(3);
+      expect(todayRoles).toContain("ぽっけリーダー");
+      expect(todayRoles).toContain("日中リーダー");
+      expect(todayRoles).toContain("集団担当");
+
       for (const s of STAFF_LIST) {
         const { role } = getCellData(dayData[s]);
         if (role !== "フリー") {
@@ -52,15 +61,15 @@ describe("scheduleGenerator tests", () => {
       }
     }
 
-    // 5人のスタッフがそれぞれ各リーダーを原則1回ずつ担当していること（週1回均等）
+    // 5人のスタッフがそれぞれ [ぽっけリーダー, 日中リーダー, 集団担当] を原則1回ずつ担当していること（週1回均等）
     for (const s of STAFF_LIST) {
       expect(week2RolesCount[s]["ぽっけリーダー"]).toBe(1);
-      expect(week2RolesCount[s]["ぽっけⅡリーダー"]).toBe(1);
       expect(week2RolesCount[s]["日中リーダー"]).toBe(1);
+      expect(week2RolesCount[s]["集団担当"]).toBe(1);
     }
   });
 
-  it("skips staff with non-normal attendance (休み、遅刻、早退、研修等) from leader roles", () => {
+  it("skips staff with non-normal attendance (休み、遅刻、早退、研修等) from target roles", () => {
     const year = 2026;
     const month = 11;
     // 11/09に「増子」が研修、「内山」が休み
@@ -81,7 +90,7 @@ describe("scheduleGenerator tests", () => {
     );
 
     const dayData = result["2026-11-09"];
-    // 増子と内山にはリーダーが割り当てられず、出勤状態が保たれていること
+    // 増子と内山には役職が割り当てられず、出勤状態が保たれていること
     const masukoCell = getCellData(dayData["増子"]);
     expect(masukoCell.attendance).toBe("研修");
     expect(masukoCell.role).toBe("フリー");
@@ -90,10 +99,10 @@ describe("scheduleGenerator tests", () => {
     expect(uchiyamaCell.attendance).toBe("休み");
     expect(uchiyamaCell.role).toBe("フリー");
 
-    // 残りの3人（熊田、逵、大平）に3リーダーが割り当てられていること
+    // 残りの3人（熊田、逵、大平）に3役職が割り当てられていること
     const assignedLeaders = [dayData["熊田"], dayData["逵"], dayData["大平"]].map(c => getCellData(c).role);
     expect(assignedLeaders).toContain("ぽっけリーダー");
-    expect(assignedLeaders).toContain("ぽっけⅡリーダー");
     expect(assignedLeaders).toContain("日中リーダー");
+    expect(assignedLeaders).toContain("集団担当");
   });
 });

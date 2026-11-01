@@ -16,10 +16,10 @@ import { generateOptimizedSchedule } from "@/lib/scheduleGenerator";
 const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
 
 const ROLES = [
-  { id: "ぽっけリーダー", label: "ぽっけリーダー", colorClass: "bg-[#dbeafe] text-[#1d4ed8]" },
-  { id: "ぽっけⅡリーダー", label: "ぽっけⅡリーダー", colorClass: "bg-[#fef3c7] text-[#b45309]" },
-  { id: "日中リーダー", label: "日中リーダー", colorClass: "bg-[#dcfce7] text-[#15803d]" },
-  { id: "集団担当", label: "集団担当", colorClass: "bg-slate-100 text-slate-800" },
+  { id: "ぽっけリーダー", label: "ぽっけリーダー", colorClass: "bg-blue-100 text-blue-800 border border-blue-200" },
+  { id: "日中リーダー", label: "日中リーダー", colorClass: "bg-emerald-100 text-emerald-800 border border-emerald-200" },
+  { id: "集団担当", label: "集団担当", colorClass: "bg-slate-100 text-slate-800 border border-slate-300" },
+  { id: "ぽっけⅡリーダー", label: "ぽっけⅡリーダー", colorClass: "bg-amber-100 text-amber-800 border border-amber-200" },
   { id: "フリー", label: "(空欄)", colorClass: "bg-transparent text-gray-800" },
 ];
 
@@ -461,7 +461,7 @@ export default function SchedulePage() {
                             {/* Print view: simple colored div */}
                             <div className={cn(
                               "hidden print:flex print:flex-row print:gap-1 print:items-center print:justify-center print:max-w-none print:w-full print:py-0.5 schedule-badge",
-                              attendance === "通常" ? "border-transparent" : "border",
+                              attendance === "通常" && role === "フリー" ? "border-transparent" : "border",
                               colorClass
                             )}>
                               {attendanceParts.sub ? (
