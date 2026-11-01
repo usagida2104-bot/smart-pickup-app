@@ -26,7 +26,7 @@ const ROLES = [
 const ATTENDANCES = [
   { id: "通常", label: "通常", colorClass: "bg-gray-100 text-gray-700" },
   { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-700 font-bold" },
-  { id: "研修", label: "研修", colorClass: "bg-slate-100 text-slate-700 font-bold border-slate-300" },
+  { id: "研修", label: "研修", colorClass: "bg-amber-50 text-amber-800 font-bold border-amber-200 print:bg-yellow-100 print:text-yellow-900 print:border-yellow-300" },
   { id: "遅刻", label: "遅刻", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
   { id: "早退", label: "早退", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
   { id: "中抜け", label: "中抜け", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
@@ -442,7 +442,7 @@ export default function SchedulePage() {
                           if (attendance === "休み") {
                             colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
                           } else if (attendance === "研修") {
-                            colorClass = "bg-slate-100 text-slate-700 font-bold border-slate-300";
+                            colorClass = "bg-amber-50 text-amber-800 font-bold border-amber-200 print:bg-yellow-100 print:text-yellow-900 print:border-yellow-300";
                           } else if (attendance === "遅刻" || attendance === "早退" || attendance === "中抜け") {
                             colorClass = "bg-red-50 text-red-700 font-bold border-red-200";
                           }
@@ -674,23 +674,23 @@ export default function SchedulePage() {
               {(tempAttendance === "中抜け" || tempAttendance === "研修") && (
                 <div className={cn(
                   "mt-3 flex flex-col gap-2 p-3 rounded-lg border",
-                  tempAttendance === "研修" ? "bg-slate-50 border-slate-200" : "bg-red-50 border-red-100"
+                  tempAttendance === "研修" ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-100"
                 )}>
                   <div className="flex items-center justify-between">
                     <label className={cn(
                       "text-xs font-bold",
-                      tempAttendance === "研修" ? "text-slate-800" : "text-red-800"
+                      tempAttendance === "研修" ? "text-amber-900" : "text-red-800"
                     )}>
                       {tempAttendance === "研修" ? "研修時間帯" : "中抜け時間帯"}
                     </label>
                     {tempAttendance === "研修" && (
-                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded p-0.5">
+                      <div className="flex items-center gap-1 bg-white border border-amber-200 rounded p-0.5">
                         <button
                           type="button"
                           onClick={() => setTempTrainingHasTime(false)}
                           className={cn(
                             "px-2 py-0.5 rounded text-[11px] font-bold transition-colors",
-                            !tempTrainingHasTime ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-700"
+                            !tempTrainingHasTime ? "bg-amber-600 text-white" : "text-amber-800 hover:text-amber-950"
                           )}
                         >
                           終日
@@ -700,7 +700,7 @@ export default function SchedulePage() {
                           onClick={() => setTempTrainingHasTime(true)}
                           className={cn(
                             "px-2 py-0.5 rounded text-[11px] font-bold transition-colors",
-                            tempTrainingHasTime ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-700"
+                            tempTrainingHasTime ? "bg-amber-600 text-white" : "text-amber-800 hover:text-amber-950"
                           )}
                         >
                           時間指定
@@ -717,7 +717,7 @@ export default function SchedulePage() {
                         onChange={(e) => setTempStartHour(e.target.value)}
                         className={cn(
                           "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
-                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                          tempAttendance === "研修" ? "border-amber-300 focus:ring-amber-400" : "border-red-200 focus:ring-red-400"
                         )}
                       >
                         {HOURS.map(h => {
@@ -725,13 +725,13 @@ export default function SchedulePage() {
                            return <option key={hs} value={hs}>{hs}</option>;
                         })}
                       </select>
-                      <span className={cn("font-bold", tempAttendance === "研修" ? "text-slate-600" : "text-red-700")}>:</span>
+                      <span className={cn("font-bold", tempAttendance === "研修" ? "text-amber-800" : "text-red-700")}>:</span>
                       <select
                         value={tempStartMinute}
                         onChange={(e) => setTempStartMinute(e.target.value)}
                         className={cn(
                           "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
-                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                          tempAttendance === "研修" ? "border-amber-300 focus:ring-amber-400" : "border-red-200 focus:ring-red-400"
                         )}
                       >
                         {MINUTES.map(m => (
@@ -740,7 +740,7 @@ export default function SchedulePage() {
                       </select>
                     </div>
 
-                    <span className={cn("text-sm font-bold", tempAttendance === "研修" ? "text-slate-600" : "text-red-700")}>〜</span>
+                    <span className={cn("text-sm font-bold", tempAttendance === "研修" ? "text-amber-800" : "text-red-700")}>〜</span>
 
                     {/* 終了時刻 */}
                     <div className="flex items-center gap-1 flex-1">
@@ -749,7 +749,7 @@ export default function SchedulePage() {
                         onChange={(e) => setTempEndHour(e.target.value)}
                         className={cn(
                           "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
-                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                          tempAttendance === "研修" ? "border-amber-300 focus:ring-amber-400" : "border-red-200 focus:ring-red-400"
                         )}
                       >
                         {HOURS.map(h => {
@@ -757,13 +757,13 @@ export default function SchedulePage() {
                            return <option key={hs} value={hs}>{hs}</option>;
                         })}
                       </select>
-                      <span className={cn("font-bold", tempAttendance === "研修" ? "text-slate-600" : "text-red-700")}>:</span>
+                      <span className={cn("font-bold", tempAttendance === "研修" ? "text-amber-800" : "text-red-700")}>:</span>
                       <select
                         value={tempEndMinute}
                         onChange={(e) => setTempEndMinute(e.target.value)}
                         className={cn(
                           "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
-                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                          tempAttendance === "研修" ? "border-amber-300 focus:ring-amber-400" : "border-red-200 focus:ring-red-400"
                         )}
                       >
                         {MINUTES.map(m => (
@@ -773,7 +773,7 @@ export default function SchedulePage() {
                     </div>
                   </div>
                   ) : (
-                    <p className="text-xs text-slate-500 py-1">
+                    <p className="text-xs text-amber-800 py-1">
                       終日研修として記録されます（業務は割り当てられません）。
                     </p>
                   )}
