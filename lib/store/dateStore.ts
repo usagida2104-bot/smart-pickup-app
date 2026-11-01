@@ -18,6 +18,24 @@ export function getTodayDateString(): string {
 }
 
 /**
+ * 安全な日付加減算（月またぎ・タイムゾーンずれ防止）
+ * YYYY-MM-DD 文字列から正午基準で加減算し、結果の YYYY-MM-DD 文字列を返す
+ */
+export function changeDateByDays(currentDateStr: string, days: number): string {
+  if (!currentDateStr || !isValidDateString(currentDateStr)) {
+    currentDateStr = getTodayDateString();
+  }
+  const [year, month, day] = currentDateStr.split("-").map(Number);
+  // 正午 (12:00:00) を指定してローカルタイムゾーン・夏時間の境界ズレを完全防止
+  const date = new Date(year, month - 1, day, 12, 0, 0);
+  date.setDate(date.getDate() + days);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * YYYY-MM-DD 形式の文字列が有効な日付かどうかを検証
  */
 export function isValidDateString(dateStr: string | null | undefined): boolean {

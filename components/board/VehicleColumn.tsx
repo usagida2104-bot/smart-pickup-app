@@ -57,7 +57,7 @@ export function VehicleColumn({
 
   const handleVehicleChange = (tripId: string, vehicleId: string) => {
     if (readOnly) return;
-    const selected = availableVehicles.find(v => v.id === vehicleId);
+    const selected = availableVehicles.find(v => String(v.id) === String(vehicleId));
     if (!selected) return;
     updateTripVehicle(mode, column.id, tripId, selected.id, selected.name, selected.capacity);
     onUpdateTripVehicle && onUpdateTripVehicle();
@@ -83,7 +83,7 @@ export function VehicleColumn({
       data-count={totalChildrenCount}
       className={cn(
         "vehicle-column flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm min-w-0",
-        className || "w-64 shrink-0"
+        className || "w-72 shrink-0"
       )}
     >
       {/* Column Header (スタッフ人ベース見出し) */}
@@ -140,11 +140,11 @@ export function VehicleColumn({
                   
                   {/* 便ごとの車種選択UI（送迎ボードから直接変更可能） */}
                   <select
-                    value={trip.vehicleId || ""}
+                    value={String(trip.vehicleId || "")}
                     disabled={readOnly}
                     onChange={(e) => handleVehicleChange(trip.id, e.target.value)}
                     className={cn(
-                      "text-[10.5px] font-bold border rounded px-1 py-0.5 h-6 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer min-w-0 flex-1 truncate transition-colors",
+                      "text-[10.5px] font-bold border rounded px-1.5 py-0.5 h-6 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer min-w-[105px] max-w-[145px] truncate transition-colors",
                       !trip.vehicleId ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-white border-gray-300 hover:border-gray-400",
                       readOnly && "opacity-80 cursor-default bg-gray-100"
                     )}
@@ -152,7 +152,7 @@ export function VehicleColumn({
                   >
                     <option value="" disabled>車両を選択 ▼</option>
                     {availableVehicles.map((v) => (
-                      <option key={v.id} value={v.id}>
+                      <option key={v.id} value={String(v.id)}>
                         {v.name} (定員{v.capacity}人)
                       </option>
                     ))}
@@ -182,7 +182,7 @@ export function VehicleColumn({
                 
                 {/* 定員プログレスバー / 残席カウント */}
                 <div className="flex items-center gap-1 shrink-0">
-                  <div className="w-10 sm:w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
+                  <div className="w-8 sm:w-10 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-300",

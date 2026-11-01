@@ -304,25 +304,40 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const state = get();
     const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
     const board = state[boardKey];
+    const strColId = String(columnId);
+    const strTripId = String(tripId);
 
     const newColumns = (board.columns || []).map((col) => {
-      if (col.id === columnId || col.shiftId === columnId || col.staffId === columnId) {
-        return {
-          ...col,
-          trips: (col.trips || []).map((t) => {
-            if (t.id === tripId) {
-              return {
-                ...t,
-                vehicleId,
-                vehicleName,
-                capacity,
-              };
-            }
-            return t;
-          }),
-        };
-      }
-      return col;
+      const isTargetCol = String(col.id) === strColId ||
+                          String(col.shiftId) === strColId ||
+                          String(col.staffId) === strColId ||
+                          String(col.driverId) === strColId ||
+                          (col.trips || []).some(t => String(t.id) === strTripId);
+
+      if (!isTargetCol) return col;
+
+      const newTrips = (col.trips || []).map((t, idx) => {
+        const isTargetTrip = String(t.id) === strTripId ||
+                             String(t.tripIndex) === strTripId ||
+                             idx === Number(tripId);
+        if (isTargetTrip) {
+          return {
+            ...t,
+            vehicleId: vehicleId || null,
+            vehicleName: vehicleName || "車両未選択",
+            capacity: Number(capacity) || 6,
+          };
+        }
+        return t;
+      });
+
+      return {
+        ...col,
+        // 1便目ならカラム全体の車両名・キャパシティも同期
+        capacity: newTrips[0]?.capacity || col.capacity,
+        vehicleName: newTrips[0]?.vehicleName || col.vehicleName,
+        trips: newTrips,
+      };
     });
 
     set({

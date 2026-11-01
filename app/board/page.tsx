@@ -104,37 +104,29 @@ function BoardPageContent() {
   const { selectedDateStr, setSelectedDateStr, setIsEditing: setGlobalIsEditing } = useDateStore();
 
   const queryDate = searchParams.get("date");
-  const initialDateStr = queryDate && isValidDateString(queryDate)
+  const effectiveDateStr = (queryDate && isValidDateString(queryDate))
     ? queryDate
     : (selectedDateStr && isValidDateString(selectedDateStr) ? selectedDateStr : getTodayDateString());
+
+  // URL・ストアから単一の真実源として selectedDate を導出（State不整合・巻き戻りを完全遮断）
+  const selectedDate = parseDateString(effectiveDateStr);
 
   const { children, attendances } = useMasterStore();
   const { staff: masterStaff, vehicles: masterVehicles } = useMasterStore();
   const { inboundBoard, outboundBoard, setBoard, moveChild, reorderChild } = useBoardStore();
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound">("inbound");
-  const [selectedDate, setSelectedDate] = useState<Date>(() => parseDateString(initialDateStr));
 
-  // 初回マウント時、ストアおよびURLクエリパラメータの初期同期
+  // 初回マウント時および日付変更時のURLクエリとdateStoreの確実な同期
   useEffect(() => {
-    setSelectedDateStr(initialDateStr);
+    setSelectedDateStr(effectiveDateStr);
     if (!queryDate || !isValidDateString(queryDate)) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("date", initialDateStr);
-      router.replace(`${pathname}?${params.toString()}`);
-    }
-  }, []);
-
-  // ブラウザの戻る/進む等でクエリの date が変化した場合の同期
-  useEffect(() => {
-    const qDate = searchParams.get("date");
-    if (qDate && isValidDateString(qDate)) {
-      const curStr = formatDate(selectedDate);
-      if (qDate !== curStr) {
-        setSelectedDate(parseDateString(qDate));
-        setSelectedDateStr(qDate);
+      const currentUrlParams = new URLSearchParams(window.location.search);
+      if (!currentUrlParams.get("date")) {
+        currentUrlParams.set("date", effectiveDateStr);
+        router.replace(`${pathname}?${currentUrlParams.toString()}`);
       }
     }
-  }, [searchParams]);
+  }, [queryDate, effectiveDateStr, pathname, router, setSelectedDateStr]);
 
   // アンマウント時に編集フラグをクリア
   useEffect(() => {
@@ -411,12 +403,11 @@ function BoardPageContent() {
       setSelectedChild(null);
     }
     const newDateStr = formatDate(date);
-    setSelectedDate(date);
     setSelectedDateStr(newDateStr);
 
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("date", newDateStr);
-    router.replace(`${pathname}?${params.toString()}`);
+    const currentUrlParams = new URLSearchParams(window.location.search);
+    currentUrlParams.set("date", newDateStr);
+    router.replace(`${pathname}?${currentUrlParams.toString()}`);
   };
 
   // 編集中のタブ閉じ・リロード警告
@@ -682,8 +673,8 @@ function BoardPageContent() {
               ];
             } else {
               trips = trips.map((t: any, idx: number) => {
-                const matchedV = availableVehiclesList.find((v: any) => v.id === t.vehicleId)
-                  || masterVehicles.find((v: any) => v.id === t.vehicleId)
+                const matchedV = availableVehiclesList.find((v: any) => String(v.id) === String(t.vehicleId))
+                  || masterVehicles.find((v: any) => String(v.id) === String(t.vehicleId))
                   || defaultVehicle;
                 return {
                   ...t,
@@ -795,7 +786,7 @@ function BoardPageContent() {
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, selectedDate, masterStaff, masterVehicles, reloadKey]);
+  }, [children, effectiveDateStr, masterStaff, masterVehicles, reloadKey]);
 
   // 同期用useEffect (児童・出欠情報が更新されたらボード上の情報を最新化)
   // ★ 保存中（isSavingRef.current）は発火しない → 配車直後の状態を保護

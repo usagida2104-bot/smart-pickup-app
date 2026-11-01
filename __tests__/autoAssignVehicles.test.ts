@@ -68,10 +68,9 @@ describe("autoAssignVehicles (Load Balanced & Area Mode)", () => {
     // Group A goes to v1 trip 1 (load v1=2, v2=0)
     // Group B goes to v2 trip 1 (load v1=2, v2=2)
     // Group C goes to v1 trip 2 or v2 trip 2
-    // So total load should be evenly split: 4 and 2
-    
+    // So total load: 4 and 2 (groups of 2 are not split across vehicles)
     const loads = result.columns.map(c => c.trips.reduce((acc, t) => acc + t.children.length, 0));
-    expect(loads.sort((a,b) => b-a)).toEqual([3, 3]);
+    expect(loads.sort((a,b) => b-a)).toEqual([4, 2]);
     expect(result.unassigned.length).toBe(0);
   });
 

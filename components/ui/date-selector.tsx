@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatLocalDate, parseDateString } from "@/lib/store/dateStore";
+import { formatLocalDate, parseDateString, changeDateByDays, getTodayDateString } from "@/lib/store/dateStore";
 
 interface DateSelectorProps {
   selectedDate: Date;
@@ -15,18 +15,9 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
     weekday: "long",
   });
 
-  const formatDate = (date: Date) => formatLocalDate(date);
-  const addDays = (date: Date, days: number) => {
-    const d = new Date(date);
-    d.setDate(d.getDate() + days);
-    return d;
-  };
-
-  const today = new Date();
-  const isToday =
-    selectedDate.getFullYear() === today.getFullYear() &&
-    selectedDate.getMonth() === today.getMonth() &&
-    selectedDate.getDate() === today.getDate();
+  const currentDateStr = formatLocalDate(selectedDate);
+  const todayStr = getTodayDateString();
+  const isToday = currentDateStr === todayStr;
 
   return (
     <div className={`flex items-center justify-between gap-1 sm:gap-2 md:gap-3 p-1.5 sm:p-2 md:py-1.5 md:px-3 rounded-lg md:rounded-xl border shadow-sm overflow-x-auto print:hidden ${isToday ? "bg-white border-gray-200" : "bg-amber-50 border-amber-300"}`}>
@@ -34,7 +25,10 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
         variant="ghost"
         size="icon"
         className="h-7 w-7 sm:h-8 sm:w-8 shrink-0"
-        onClick={() => onChange(addDays(selectedDate, -1))}
+        onClick={() => {
+          const prevDateStr = changeDateByDays(currentDateStr, -1);
+          onChange(parseDateString(prevDateStr));
+        }}
       >
         <ChevronLeft className="w-4 h-4 md:w-4.5 md:h-4.5" />
       </Button>
@@ -47,7 +41,7 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
           </div>
           <input 
             type="date" 
-            value={formatDate(selectedDate)}
+            value={currentDateStr}
             onChange={(e) => {
               if (e.target.value) {
                 const d = parseDateString(e.target.value);
@@ -72,14 +66,17 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
           variant="ghost"
           size="icon"
           className="h-7 w-7 sm:h-8 sm:w-8"
-          onClick={() => onChange(addDays(selectedDate, 1))}
+          onClick={() => {
+            const nextDateStr = changeDateByDays(currentDateStr, 1);
+            onChange(parseDateString(nextDateStr));
+          }}
         >
           <ChevronRight className="w-4 h-4 md:w-4.5 md:h-4.5" />
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onChange(new Date())}
+          onClick={() => onChange(parseDateString(todayStr))}
           className="h-7 md:h-7 px-2 md:px-2.5 text-xs ml-0.5 sm:ml-1 whitespace-nowrap"
         >
           今日
