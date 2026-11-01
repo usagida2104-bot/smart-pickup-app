@@ -19,6 +19,14 @@ interface BoardStore {
     toIndex?: number
   ) => void;
   isOverCapacity: (mode: "inbound" | "outbound", tripId: string) => boolean;
+  updateTripVehicle: (
+    mode: "inbound" | "outbound",
+    columnId: string,
+    tripId: string,
+    vehicleId: string,
+    vehicleName: string,
+    capacity: number
+  ) => void;
   updateTripLocation: (mode: "inbound" | "outbound", tripId: string, locationType: "start" | "end", location: "office" | "home") => void;
   reorderChild: (mode: "inbound" | "outbound", tripId: string, childId: string, direction: -1 | 1) => void;
   addTrip: (mode: "inbound" | "outbound", columnId: string) => void;
@@ -114,7 +122,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     // 3. 車両リストをディープコピーして更新（全車両の全便から除外した上で、対象車両・対象便に追加）
     let assigned = false;
     const newColumns = (currentBoard.columns || []).map(col => {
-      const isTargetVehicle = String(col.vehicleId) === strVehicleId || String(col.id) === strVehicleId;
+      const isTargetVehicle = String(col.vehicleId) === strVehicleId || String(col.id) === strVehicleId || String(col.staffId) === strVehicleId;
 
       const newTrips = (col.trips || []).map((trip, idx) => {
         // 一旦この児童を全便から削除（重複防止）
@@ -219,10 +227,11 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       // 車両便への追加（toDropZoneId が trip.id または vehicleId または shiftId のいずれかにマッチ）
       let foundTargetTrip = false;
       for (const col of newColumns) {
-        // trip.id または col.id または col.vehicleId で照合
+        // trip.id または col.id または col.staffId または col.vehicleId で照合
         const trip = (col.trips || []).find(
           t => String(t?.id ?? '') === String(toDropZoneId ?? '') ||
                String(col?.id ?? '') === String(toDropZoneId ?? '') ||
+               String(col?.staffId ?? '') === String(toDropZoneId ?? '') ||
                String(col?.vehicleId ?? '') === String(toDropZoneId ?? '')
         );
 
@@ -248,7 +257,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       // もし既存トリップで見つからず、toDropZoneId が車両IDそのものだった場合
       if (!foundTargetTrip) {
         for (const col of newColumns) {
-          if (String(col.vehicleId) === String(toDropZoneId) || String(col.id) === String(toDropZoneId)) {
+          if (String(col.vehicleId) === String(toDropZoneId) || String(col.id) === String(toDropZoneId) || String(col.staffId) === String(toDropZoneId)) {
             if ((col.trips || []).length === 0) {
               col.trips = [{ id: `${col.shiftId || col.id}-trip-1`, tripIndex: 1, children: [movedChild] }];
             } else {
@@ -284,10 +293,44 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     for (const col of board.columns) {
       const trip = (col.trips || []).find(t => t.id === tripId);
       if (trip) {
-        return (trip.children || []).length > col.capacity;
+        const cap = trip.capacity || col.capacity || 99;
+        return (trip.children || []).length > cap;
       }
     }
     return false;
+  },
+
+  updateTripVehicle: (mode, columnId, tripId, vehicleId, vehicleName, capacity) => {
+    const state = get();
+    const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
+    const board = state[boardKey];
+
+    const newColumns = (board.columns || []).map((col) => {
+      if (col.id === columnId || col.shiftId === columnId || col.staffId === columnId) {
+        return {
+          ...col,
+          trips: (col.trips || []).map((t) => {
+            if (t.id === tripId) {
+              return {
+                ...t,
+                vehicleId,
+                vehicleName,
+                capacity,
+              };
+            }
+            return t;
+          }),
+        };
+      }
+      return col;
+    });
+
+    set({
+      [boardKey]: {
+        ...board,
+        columns: newColumns,
+      },
+    });
   },
 
   updateTripLocation: (mode, tripId, locationType, location) => {
@@ -348,15 +391,19 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const state = get();
     const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
     const newColumns = board.columns.map((col) => {
-      if (col.id === columnId) {
+      if (col.id === columnId || col.shiftId === columnId || col.staffId === columnId) {
         const tripIndex = (col.trips || []).length + 1;
+        const lastTrip = col.trips && col.trips.length > 0 ? col.trips[col.trips.length - 1] : null;
         return {
           ...col,
           trips: [
             ...(col.trips || []),
             {
-              id: `${col.shiftId}-trip-${tripIndex}`,
+              id: `${col.shiftId || col.id}-trip-${tripIndex}`,
               tripIndex,
+              vehicleId: lastTrip?.vehicleId || null,
+              vehicleName: lastTrip?.vehicleName || "車両未選択",
+              capacity: lastTrip?.capacity || col.capacity || 6,
               children: [],
               isNew: true,
             }

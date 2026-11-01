@@ -1071,7 +1071,6 @@ function DailySetupPageContent() {
                   <TableHead className="whitespace-nowrap">職員名</TableHead>
                   <TableHead className="whitespace-nowrap">役職</TableHead>
                   <TableHead className="whitespace-nowrap">出勤ステータス</TableHead>
-                  <TableHead className="whitespace-nowrap">担当車両</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1189,40 +1188,12 @@ function DailySetupPageContent() {
                               })()}
                             </div>
                           </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {canDrive ? (
-                              <Select
-                                value={ds?.assigned_vehicle_id || "none"}
-                                onValueChange={(val) => assignDriverToVehicle(ds?.staff_id, val === "none" ? null : val)}
-                              >
-                                <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
-                                  <SelectValue placeholder="担当車両を選択" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">（未割り当て / 運転なし）</SelectItem>
-                                  {availableVehicles.map((dv) => (
-                                    <SelectItem 
-                                      key={dv?.vehicle_id} 
-                                      value={dv?.vehicle_id}
-                                      disabled={currentlyUsedVehicleIds.includes(dv?.vehicle_id)}
-                                    >
-                                      {dv?.vehicle?.name} {currentlyUsedVehicleIds.includes(dv?.vehicle_id) ? "(使用中)" : ""}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <span className="text-xs text-gray-400 font-medium">
-                                {ds?.status === "absent" ? "-" : "添乗のみ（設定不可）"}
-                              </span>
-                            )}
-                          </TableCell>
                         </TableRow>
                       );
                     });
                   } catch (e) {
                     console.error("Error rendering staff tab:", e);
-                    return <TableRow><TableCell colSpan={4} className="text-center text-red-500 py-4">スタッフデータの読み込みに失敗しました。</TableCell></TableRow>;
+                    return <TableRow><TableCell colSpan={3} className="text-center text-red-500 py-4">スタッフデータの読み込みに失敗しました。</TableCell></TableRow>;
                   }
                 })()}
               </TableBody>
@@ -1238,8 +1209,8 @@ function DailySetupPageContent() {
               <TableHeader>
                 <TableRow className="bg-gray-50">
                   <TableHead className="whitespace-nowrap">車両名</TableHead>
+                  <TableHead className="whitespace-nowrap">定員</TableHead>
                   <TableHead className="whitespace-nowrap">稼働ステータス</TableHead>
-                  <TableHead className="whitespace-nowrap">ドライバー (担当職員)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1248,63 +1219,34 @@ function DailySetupPageContent() {
                     return (dailyVehicles || []).map(dv => {
                       const v = dv?.vehicle;
                       if (!v) return null;
-                      const driver = (dailyStaff || []).find(ds => ds?.assigned_vehicle_id === dv?.vehicle_id && ds?.status !== "absent");
                       return (
                         <TableRow key={dv?.vehicle_id} className={cn(!dv?.is_active && "bg-gray-100 opacity-60")}>
-                          <TableCell className="font-medium whitespace-nowrap">{v?.name}</TableCell>
+                          <TableCell className="font-medium whitespace-nowrap">
+                            <span className="font-bold text-gray-800">{v?.name}</span>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-gray-600 font-semibold">
+                            {v?.capacity}人乗り
+                          </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <Select
                               value={dv?.is_active ? "active" : "inactive"}
                               onValueChange={(val) => updateDailyVehicleActive(dv?.vehicle_id, val === "active")}
                             >
-                              <SelectTrigger className="w-[140px] h-8 text-xs font-bold border">
+                              <SelectTrigger className={cn(
+                                "w-[160px] h-8 text-xs font-bold border",
+                                dv?.is_active ? "bg-emerald-50 text-emerald-800 border-emerald-300" : "bg-gray-100 text-gray-500 border-gray-300"
+                              )}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="active">使用可能</SelectItem>
-                                <SelectItem value="inactive">使用不可</SelectItem>
+                                <SelectItem value="active">
+                                  <span className="text-emerald-700 font-bold">🟢 本日使用可能（稼働）</span>
+                                </SelectItem>
+                                <SelectItem value="inactive">
+                                  <span className="text-gray-500 font-bold">⚪ 使用しない（休車）</span>
+                                </SelectItem>
                               </SelectContent>
                             </Select>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {dv?.is_active ? (
-                              <Select
-                                value={driver ? driver?.staff_id : "none"}
-                                onValueChange={(val) => {
-                                  const newDriverId = val === "none" ? null : val;
-                                  if (driver && driver?.staff_id !== newDriverId) {
-                                    assignDriverToVehicle(driver.staff_id, null);
-                                  }
-                                  if (newDriverId) {
-                                    assignDriverToVehicle(newDriverId, dv.vehicle_id);
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="w-[180px] h-8 text-xs font-bold border">
-                                  <SelectValue placeholder="未割り当て" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">未割り当て</SelectItem>
-                                  {(dailyStaff || [])
-                                    .filter(ds => ds?.staff?.is_driver && ds?.status !== "absent")
-                                    .map(ds => {
-                                      const isAssignedToOther = ds?.assigned_vehicle_id && ds?.assigned_vehicle_id !== dv?.vehicle_id;
-                                      return (
-                                        <SelectItem 
-                                          key={ds?.staff_id} 
-                                          value={ds?.staff_id}
-                                          disabled={!!isAssignedToOther}
-                                        >
-                                          {ds?.staff?.name} {isAssignedToOther ? "(他車両)" : ""}
-                                        </SelectItem>
-                                      );
-                                    })
-                                  }
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <span className="text-xs text-gray-400 font-medium">-</span>
-                            )}
                           </TableCell>
                         </TableRow>
                       );

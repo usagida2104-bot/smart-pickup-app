@@ -36,8 +36,8 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
   const availableTrips = (board?.columns || []).flatMap((col: any) => 
     (col.trips || []).map((t: any) => ({
       id: t?.id,
-      label: `${col?.vehicleName || '車両'} ${t?.tripIndex || 1}便`,
-      isFull: (t?.children || []).length >= (col?.capacity || 99)
+      label: `${col?.staffName || col?.driverName || 'スタッフ'} ${t?.tripIndex || 1}便 (${t?.vehicleName || '車未定'})`,
+      isFull: (t?.children || []).length >= (t?.capacity || col?.capacity || 99)
     }))
   ).filter((t: any) => t.id);
 
@@ -274,25 +274,44 @@ function BoardPageContent() {
         return;
       }
 
-      const inputShifts = displayColumns.map((col: any) => ({
-        id: col.shiftId || col.id,
-        target_date: formatDate(selectedDate),
-        vehicle_id: col.vehicleId,
-        driver_id: col.driverId,
-        vehicle: { id: col.vehicleId, capacity: col.capacity, name: col.vehicleName },
-        driver: { id: col.driverId, name: col.driverName },
-        driverStatus: col.driverStatus,
-        driverStatusTime: col.driverStatusTime
-      })) as any[];
+      const inputShifts = displayColumns.map((col: any, colIdx: number) => {
+        const trip1 = (col.trips || [])[0];
+        const v = availableVehiclesForSelect.find((v: any) => v.id === trip1?.vehicleId)
+          || availableVehiclesForSelect[colIdx % availableVehiclesForSelect.length]
+          || masterVehicles[0];
+        return {
+          id: col.id,
+          target_date: formatDate(selectedDate),
+          vehicle_id: v?.id || col.id,
+          driver_id: col.staffId || col.driverId,
+          vehicle: { id: v?.id, capacity: trip1?.capacity || v?.capacity || 6, name: trip1?.vehicleName || v?.name },
+          driver: { id: col.staffId || col.driverId, name: col.staffName || col.driverName },
+          driverStatus: col.driverStatus,
+          driverStatusTime: col.driverStatusTime
+        };
+      }) as any[];
 
-      // APIを通さず、直接ローカルでアルゴリズムを実行（最大4便・下校時間順）
+      // APIを通さず、直接ローカルでアルゴリズムを実行
       const result = autoAssignVehicles({ attendances: currentAttendances as any[], shifts: inputShifts });
 
-      const newColumns = result.columns.map((col: any) => {
-        const originalCol = displayColumns.find((c: any) => c.vehicleId === col.vehicleId) || col;
+      const newColumns = displayColumns.map((originalCol: any, cIdx: number) => {
+        const assignedCol = result.columns.find((c: any) => c.id === originalCol.id) || result.columns[cIdx];
+        const newTrips = (assignedCol?.trips || []).map((t: any) => {
+          const existingTrip = (originalCol.trips || []).find((ot: any) => ot.tripIndex === t.tripIndex);
+          const v = availableVehiclesForSelect.find((av: any) => av.id === existingTrip?.vehicleId)
+            || availableVehiclesForSelect[cIdx % availableVehiclesForSelect.length]
+            || masterVehicles[0];
+          return {
+            ...t,
+            id: t.id || `${originalCol.id}-trip-${t.tripIndex}`,
+            vehicleId: existingTrip?.vehicleId || v?.id,
+            vehicleName: existingTrip?.vehicleName || v?.name,
+            capacity: existingTrip?.capacity || v?.capacity || 6,
+          };
+        });
         return {
           ...originalCol,
-          trips: col.trips,
+          trips: newTrips.length > 0 ? newTrips : originalCol.trips,
         };
       });
 
@@ -488,7 +507,15 @@ function BoardPageContent() {
   };
 
   // ボード表示用カラム: 常に Zustand の board.columns を直接使用（参照の乖離を完全排除）
+  // ボード表示用カラム: 常に Zustand の board.columns を直接使用
   const displayColumns = board?.columns || [];
+
+  // 使用可能車両一覧（各便ヘッダーの選択肢用）
+  const activeDailyVehiclesList = (dailyVehicles || [])
+    .filter((dv: any) => dv?.is_active !== false)
+    .map((dv: any) => dv?.vehicle || masterVehicles.find((mv: any) => mv.id === dv.vehicle_id))
+    .filter(Boolean);
+  const availableVehiclesForSelect = activeDailyVehiclesList.length > 0 ? activeDailyVehiclesList : masterVehicles;
 
   // Initialize board on mount and date change
   useEffect(() => {
@@ -601,46 +628,87 @@ function BoardPageContent() {
         console.log(`[Board] Daily attendances count for ${targetDateStr}:`, mergedAtts.length);
         useMasterStore.getState().setAttendances(mergedAtts);
 
-        // 稼働車両（is_active !== false）を元に、日別設定（mergedStaff）のドライバー情報をマージした最新コラム枠を作成
-        const activeVehicles = masterVehicles.filter(v => v.is_active !== false);
-        const vehiclesToUse = activeVehicles.length > 0 ? activeVehicles : masterVehicles;
+        // 本日使用可能な車両（dailyVehicles で is_active === true）
+        const activeDailyVehicles = (mergedVehicles || []).filter((dv: any) => dv?.is_active !== false);
+        const activeVehicles = activeDailyVehicles.map((dv: any) => dv?.vehicle || masterVehicles.find((mv: any) => mv.id === dv.vehicle_id)).filter(Boolean);
+        const availableVehiclesList = activeVehicles.length > 0 ? activeVehicles : masterVehicles;
+
+        // 本日の出勤スタッフ（休み以外、かつ is_driver を優先、なければ出勤者全員）
+        const activeDrivers = (mergedStaff || []).filter(
+          (ds: any) => ds?.staff?.is_driver && ds?.status !== "absent"
+        );
+        const staffToUse = activeDrivers.length > 0
+          ? activeDrivers
+          : (mergedStaff || []).filter((ds: any) => ds?.status !== "absent");
+
+        // 出勤スタッフが0名の場合は、全スタッフをフォールバック
+        const finalStaffList = staffToUse.length > 0
+          ? staffToUse
+          : masterStaff.map(s => ({ staff_id: s.id, status: "present", role: s.role, staff: s }));
 
         const buildColumnsForBoard = (savedBoard: any) => {
-          return vehiclesToUse.map((v) => {
-            // この車両に日別設定で割り当てられているドライバー
-            const assignedStaff = mergedStaff.find((ds: any) => ds.assigned_vehicle_id === v.id && ds.status !== "absent");
-            const driverName = assignedStaff ? (assignedStaff.staff?.name || "担当スタッフ") : "(未定)";
-            const driverId = assignedStaff?.staff_id || null;
-            const driverStatus = assignedStaff?.status;
-            const driverStatusTime = assignedStaff?.status_time;
-            const shiftId = `shift-${v.id}`;
+          return finalStaffList.map((ds: any, staffIdx: number) => {
+            const s = ds.staff;
+            const staffId = ds.staff_id || s?.id;
+            const staffName = s?.name || "担当スタッフ";
+            const driverStatus = ds.status;
+            const driverStatusTime = ds.status_time;
+            const staffRole = ds.role;
+            const colId = `staff-${staffId}`;
 
-            // 保存データがあればその便・乗客を引き継ぐ
+            // 保存データがあればそのスタッフのカラムを引き継ぐ
             const savedCol = (savedBoard?.columns || []).find((c: any) => 
-              String(c.vehicleId) === String(v.id) || String(c.id) === String(v.id) || c.vehicleName === v.name
+              String(c.staffId) === String(staffId) ||
+              String(c.driverId) === String(staffId) ||
+              String(c.id) === String(colId) ||
+              c.staffName === staffName ||
+              c.driverName === staffName
             );
+
+            // デフォルトで使用する車両（スタッフごとに分散）
+            const defaultVehicle = availableVehiclesList[staffIdx % availableVehiclesList.length] || availableVehiclesList[0];
 
             let trips = savedCol?.trips || [];
             if (trips.length === 0) {
-              trips = [{ id: `${shiftId}-trip-1`, tripIndex: 1, children: [] }];
+              trips = [
+                {
+                  id: `${colId}-trip-1`,
+                  tripIndex: 1,
+                  vehicleId: defaultVehicle?.id || null,
+                  vehicleName: defaultVehicle?.name || "車両未選択",
+                  capacity: defaultVehicle?.capacity || 6,
+                  children: [],
+                }
+              ];
+            } else {
+              trips = trips.map((t: any, idx: number) => {
+                const matchedV = availableVehiclesList.find((v: any) => v.id === t.vehicleId)
+                  || masterVehicles.find((v: any) => v.id === t.vehicleId)
+                  || defaultVehicle;
+                return {
+                  ...t,
+                  id: t.id || `${colId}-trip-${idx + 1}`,
+                  tripIndex: t.tripIndex || (idx + 1),
+                  vehicleId: t.vehicleId || matchedV?.id || null,
+                  vehicleName: t.vehicleName || matchedV?.name || "車両未選択",
+                  capacity: t.capacity || matchedV?.capacity || 6,
+                  children: (t.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts))
+                };
+              });
             }
 
             return {
-              id: shiftId,
-              shiftId,
-              vehicleId: v.id,
-              vehicleName: v.name,
-              driverId,
-              driverName,
+              id: colId,
+              shiftId: colId,
+              staffId,
+              staffName,
+              driverId: staffId,
+              driverName: staffName,
               driverStatus,
               driverStatusTime,
-              capacity: v.capacity || 6,
-              trips: trips.map((t: any, idx: number) => ({
-                ...t,
-                id: t.id || `${shiftId}-trip-${idx + 1}`,
-                tripIndex: t.tripIndex || (idx + 1),
-                children: (t.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts))
-              }))
+              staffRole,
+              capacity: trips[0]?.capacity || 6,
+              trips,
             };
           });
         };
@@ -1129,12 +1197,14 @@ function BoardPageContent() {
               <VehicleColumn
                 column={col}
                 mode={activeTab}
+                availableVehicles={availableVehiclesForSelect}
                 readOnly={!isEditing}
                 className="w-full h-full max-h-full"
                 onChildClick={handleChildClick}
                 onReorderChild={handleDirectReorder}
                 onChangeLocation={async () => { await performAutoSave(); }}
                 onDeleteTrip={async () => { await performAutoSave(); }}
+                onUpdateTripVehicle={async () => { await performAutoSave(); }}
               />
             </div>
           ))}
@@ -1177,12 +1247,14 @@ function BoardPageContent() {
                 key={col?.id || col?.vehicleId || col?.vehicleName}
                 column={col}
                 mode={activeTab}
+                availableVehicles={availableVehiclesForSelect}
                 readOnly={!isEditing}
                 className="w-full"
                 onChildClick={handleChildClick}
                 onReorderChild={handleDirectReorder}
                 onChangeLocation={async () => { await performAutoSave(); }}
                 onDeleteTrip={async () => { await performAutoSave(); }}
+                onUpdateTripVehicle={async () => { await performAutoSave(); }}
               />
             ))}
 
@@ -1250,66 +1322,62 @@ function BoardPageContent() {
           </div>
         </div>
 
-        {/* 車両別運行表 */}
+        {/* 便別運行表（スタッフ × 便ごとにブロック出力） */}
         <div className="grid grid-cols-4 gap-2">
           {displayColumns
-            .filter((col: any) => (col.trips || []).some((t: any) => (t.children || []).length > 0))
-            .map((col: any) => (
-              <div key={col.id} className="break-inside-avoid mb-1 border border-gray-300 rounded p-1 bg-white">
-                {/* 車両ヘッダー */}
-                <div className="flex items-center justify-between gap-1 mb-1 border-b-2 border-gray-400 pb-0.5 bg-gray-50 px-1 text-xs font-bold text-gray-900">
-                  <div className="flex items-center gap-1 min-w-0 truncate">
-                    <span className="shrink-0">🚗</span>
-                    <span className="truncate">
-                      {col.driverName || "(未定)"}（{col.vehicleName}）
-                    </span>
+            .flatMap((col: any) => {
+              const staffName = col.staffName || col.driverName || "(未定)";
+              return (col.trips || [])
+                .filter((trip: any) => (trip.children || []).length > 0)
+                .map((trip: any) => ({
+                  blockId: `${col.id}-${trip.id}`,
+                  staffName,
+                  tripIndex: trip.tripIndex,
+                  vehicleName: trip.vehicleName || col.vehicleName || "車未定",
+                  children: trip.children || [],
+                }));
+            })
+            .map((block: any) => {
+              const sortedChildren = [...block.children].sort((a: any, b: any) => {
+                const timeA = a.pickup_time || "99:99";
+                const timeB = b.pickup_time || "99:99";
+                return timeA.localeCompare(timeB);
+              });
+              return (
+                <div key={block.blockId} className="break-inside-avoid mb-1 border border-gray-300 rounded p-1 bg-white">
+                  {/* 便ヘッダー: 【1便】 スタッフ名（車種名） */}
+                  <div className="flex items-center justify-between gap-1 mb-1 border-b-2 border-gray-400 pb-0.5 bg-gray-50 px-1 text-xs font-bold text-gray-900">
+                    <div className="flex items-center gap-1 min-w-0 truncate">
+                      <span className="shrink-0">🚗</span>
+                      <span className="truncate">
+                        【{block.tripIndex}便】 {block.staffName}（{block.vehicleName}）
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                {/* 便別テーブル */}
-                {(col.trips || [])
-                  .filter((t: any) => (t.children || []).length > 0)
-                  .map((trip: any) => {
-                    const sortedChildren = [...(trip.children || [])].sort((a, b) => {
-                      const timeA = a.pickup_time || "99:99";
-                      const timeB = b.pickup_time || "99:99";
-                      return timeA.localeCompare(timeB);
-                    });
-                    const hasMultipleTrips = (col.trips || []).filter((t: any) => (t.children || []).length > 0).length > 1;
-                    return (
-                      <div key={trip.id} className="mb-1 break-inside-avoid">
-                        {hasMultipleTrips && (
-                          <div className="mb-0.5 text-[10.5px] font-bold">
-                            <span className="px-1 py-0.2 bg-gray-200 border border-gray-400 rounded">
-                              【{trip.tripIndex}便】
-                            </span>
-                          </div>
-                        )}
-                        <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-[1.2]">
-                          <colgroup>
-                            <col style={{ width: "12%" }} />
-                            <col style={{ width: "60%" }} />
-                            <col style={{ width: "28%" }} />
-                          </colgroup>
-                          <tbody>
-                            {sortedChildren.map((child: any, idx: number) => (
-                              <tr key={child.id} className="border-b border-gray-300">
-                                <td className="border border-gray-400 px-1 py-0.5 text-center font-semibold text-[11px]">{idx + 1}</td>
-                                <td className="border border-gray-400 px-1.5 py-0.5 font-bold text-[12.5px] truncate">
-                                  {child.name}
-                                  {child.status === "late" && <span className="text-amber-700 text-[10px] ml-1 font-bold">遅刻</span>}
-                                  {child.status === "early_leave" && <span className="text-purple-700 text-[10px] ml-1 font-bold">早退</span>}
-                                </td>
-                                <td className="border border-gray-400 px-1 py-0.5 font-mono text-center font-bold text-[12px]">{child.pickup_time || "—"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })}
-              </div>
-            ))}
+                  <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-[1.2]">
+                    <colgroup>
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "60%" }} />
+                      <col style={{ width: "28%" }} />
+                    </colgroup>
+                    <tbody>
+                      {sortedChildren.map((child: any, idx: number) => (
+                        <tr key={child.id} className="border-b border-gray-300">
+                          <td className="border border-gray-400 px-1 py-0.5 text-center font-semibold text-[11px]">{idx + 1}</td>
+                          <td className="border border-gray-400 px-1.5 py-0.5 font-bold text-[12.5px] truncate">
+                            {child.name}
+                            {child.status === "late" && <span className="text-amber-700 text-[10px] ml-1 font-bold">遅刻</span>}
+                            {child.status === "early_leave" && <span className="text-purple-700 text-[10px] ml-1 font-bold">早退</span>}
+                          </td>
+                          <td className="border border-gray-400 px-1 py-0.5 font-mono text-center font-bold text-[12px]">{child.pickup_time || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
         </div>
 
         {/* ===== 家族迎え枠（送りのみ） ===== */}

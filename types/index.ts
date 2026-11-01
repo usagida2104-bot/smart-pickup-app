@@ -134,6 +134,9 @@ export type LocationOption = "office" | "home";
 export interface Trip {
   id: string; // shiftId + "-trip-" + tripIndex
   tripIndex: number;
+  vehicleId?: string | null;     // この便で使用する車両ID
+  vehicleName?: string | null;   // この便の車両名
+  capacity?: number;             // この便の車両定員
   startLocation?: LocationOption;
   endLocation?: LocationOption;
   routeInfo?: string;
@@ -142,17 +145,20 @@ export interface Trip {
   children: ChildMagnet[];
 }
 
-/** ドラッグ先の「車両カラム」 */
+/** ドラッグ先の「スタッフ（運行担当）カラム」 */
 export interface VehicleColumn {
-  id: string; // daily_shift.id
+  id: string; // shiftId または staffId
   shiftId: string;
-  vehicleId: string;
-  vehicleName: string;
-  driverId: string;
-  driverName: string;
+  staffId?: string;
+  staffName?: string;
+  driverId?: string | null;
+  driverName?: string;
   driverStatus?: "present" | "absent" | "late" | "early_leave" | "middle_leave" | "training";
   driverStatusTime?: string | null;
-  capacity: number;
+  staffRole?: string;
+  vehicleId?: string | null;
+  vehicleName?: string | null;
+  capacity?: number;
   trips: Trip[];
 }
 
