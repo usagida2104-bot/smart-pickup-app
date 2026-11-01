@@ -6,6 +6,9 @@ import {
   isTimeRangeOverlapping,
   getConflictingVehicleIds,
   assignVehiclesWithoutOverlap,
+  isPickupRequired,
+  isDropoffRequired,
+  isTransportRequired,
 } from "../lib/vehicleUtils";
 
 describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
@@ -346,6 +349,119 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
       expect(outboundFamilyList[0].pickup_time).toBe("15:15");
       expect(outboundFamilyList[1].name).toBe("田中太郎");
       expect(outboundFamilyList[1].pickup_time).toBe("17:00");
+    });
+  });
+
+  describe("Transport Requirement Utilities (isPickupRequired, isDropoffRequired, isTransportRequired)", () => {
+    it("correctly identifies when pickup is required", () => {
+      expect(isPickupRequired("both")).toBe(true);
+      expect(isPickupRequired("pickup_only")).toBe(true);
+      expect(isPickupRequired("dropoff_only")).toBe(false);
+      expect(isPickupRequired("no_transport")).toBe(false);
+      expect(isPickupRequired("absent")).toBe(false);
+      expect(isPickupRequired(null)).toBe(true); // default
+    });
+
+    it("correctly identifies when dropoff is required", () => {
+      expect(isDropoffRequired("both")).toBe(true);
+      expect(isDropoffRequired("dropoff_only")).toBe(true);
+      expect(isDropoffRequired("pickup_only")).toBe(false);
+      expect(isDropoffRequired("no_transport")).toBe(false);
+      expect(isDropoffRequired("absent")).toBe(false);
+      expect(isDropoffRequired(null)).toBe(true); // default
+    });
+
+    it("correctly delegates via isTransportRequired based on mode", () => {
+      expect(isTransportRequired("inbound", "pickup_only")).toBe(true);
+      expect(isTransportRequired("inbound", "dropoff_only")).toBe(false);
+      expect(isTransportRequired("outbound", "pickup_only")).toBe(false);
+      expect(isTransportRequired("outbound", "dropoff_only")).toBe(true);
+      expect(isTransportRequired("outbound", "no_transport")).toBe(false);
+    });
+  });
+
+  describe("Automatic Family Pickup Allocation and Staff Vehicle Exclusion", () => {
+    it("automatically places unselected-dropoff children into family pickup and purges them from staff trips", () => {
+      // 日別設定で「送り」がOFFの児童: child-2(pickup_only), child-3(no_transport)
+      // 「送り」がONの児童: child-1(both), child-4(dropoff_only)
+      const attendances = [
+        { child_id: "c-1", attendance_status: "present", status: "both" },
+        { child_id: "c-2", attendance_status: "present", status: "pickup_only" }, // 送りOFF
+        { child_id: "c-3", attendance_status: "present", status: "no_transport" }, // 送りOFF
+        { child_id: "c-4", attendance_status: "present", status: "dropoff_only" }, // 送りON
+      ];
+
+      // すでにDBに保存されていたスタッフ便（以前のデータで c-2 が乗ってしまっていたケース）
+      const savedStaffColumns = [
+        {
+          id: "staff-1",
+          staffName: "増子",
+          trips: [
+            {
+              tripIndex: 1,
+              children: [
+                { id: "c-1", name: "児童1" },
+                { id: "c-2", name: "児童2（送りOFFなのに便に入っている）" },
+              ],
+            },
+          ],
+        },
+      ];
+
+      // 1. 送りOFFの児童IDセット
+      const outboundNoTransportIds = new Set(
+        attendances.filter(a => !isDropoffRequired(a.status)).map(a => a.child_id)
+      );
+      expect(outboundNoTransportIds.has("c-2")).toBe(true);
+      expect(outboundNoTransportIds.has("c-3")).toBe(true);
+      expect(outboundNoTransportIds.has("c-1")).toBe(false);
+
+      // 2. スタッフ便から送迎OFF児童を強制除外
+      const cleanedColumns = savedStaffColumns.map(col => ({
+        ...col,
+        trips: col.trips.map(t => ({
+          ...t,
+          children: t.children.filter(c => !outboundNoTransportIds.has(c.id)),
+        })),
+      }));
+
+      // c-2 がスタッフ便から完全に除外されたことを検証
+      expect(cleanedColumns[0].trips[0].children.map(c => c.id)).toEqual(["c-1"]);
+
+      // 3. 家族迎え枠への自動配置
+      const familyPickupList = attendances
+        .filter(a => !isDropoffRequired(a.status))
+        .map(a => ({ id: a.child_id, name: `児童-${a.child_id}` }));
+
+      expect(familyPickupList.map(c => c.id)).toEqual(["c-2", "c-3"]);
+
+      // 4. 未割り当て候補（送迎が必要かつスタッフ便に乗っていない児童）
+      const assignedIds = new Set(
+        cleanedColumns.flatMap(col => col.trips.flatMap(t => t.children.map(c => c.id)))
+      );
+      const unassignedList = attendances
+        .filter(a => isDropoffRequired(a.status) && !assignedIds.has(a.child_id))
+        .map(a => ({ id: a.child_id, name: `児童-${a.child_id}` }));
+
+      // c-4 のみが未割り当てに入る（c-2, c-3 は入らない）
+      expect(unassignedList.map(c => c.id)).toEqual(["c-4"]);
+    });
+
+    it("excludes family pickup and no-transport children from auto-assignment candidate pool", () => {
+      const allBoardChildren = [
+        { id: "c-1", name: "児童1", transportMode: "both" },
+        { id: "c-2", name: "児童2", transportMode: "pickup_only" }, // 送りOFF
+        { id: "c-3", name: "児童3", transportMode: "no_transport" }, // 送りOFF
+        { id: "c-4", name: "児童4", transportMode: "dropoff_only" }, // 送りON
+      ];
+
+      // 送りモードでの自動配車対象フィルタリング
+      const filteredForAutoAssign = allBoardChildren.filter(c =>
+        isTransportRequired("outbound", c.transportMode)
+      );
+
+      // c-2, c-3 は完全に除外されること
+      expect(filteredForAutoAssign.map(c => c.id)).toEqual(["c-1", "c-4"]);
     });
   });
 });

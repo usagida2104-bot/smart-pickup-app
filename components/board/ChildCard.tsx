@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 interface ChildCardProps {
   magnet: ChildMagnet;
   mode: "inbound" | "outbound";
+  isLocked?: boolean;
   onClick?: (magnet: ChildMagnet) => void;
   onMoveUp?: (e: React.MouseEvent) => void;
   onMoveDown?: (e: React.MouseEvent) => void;
@@ -16,7 +17,7 @@ interface ChildCardProps {
   className?: string;
 }
 
-export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMoveUp, showMoveDown, actionSlot, className }: ChildCardProps) {
+export function ChildCard({ magnet, mode, isLocked = false, onClick, onMoveUp, onMoveDown, showMoveUp, showMoveDown, actionSlot, className }: ChildCardProps) {
   return (
     <div
       data-testid={`child-card-${magnet.childId}`}
@@ -25,12 +26,13 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
         "w-full text-left group flex items-center justify-between gap-1 py-1.5 px-2 rounded-md sm:rounded-lg border shadow-sm shrink-0 overflow-hidden",
         "hover:shadow-md hover:border-blue-300 transition-all duration-150 relative",
         magnet.has_caution ? "bg-green-50 border-green-200 hover:border-green-400" : "bg-white",
-        onClick ? "cursor-pointer" : "",
+        onClick ? (isLocked ? "cursor-default" : "cursor-pointer") : "",
+        isLocked && "bg-slate-50 border-slate-200 hover:shadow-none hover:border-slate-200 select-none",
         className
       )}
     >
-      {/* 領域全体をクリック可能にする（actionSlot を避けるため position を調整） */}
-      {onClick && (
+      {/* 領域全体をクリック可能にする（actionSlot を避けるため position を調整、isLocked の場合は無効化） */}
+      {onClick && !isLocked && (
         <div 
           className="absolute inset-0 z-0" 
           onClick={() => onClick(magnet)} 
@@ -50,7 +52,13 @@ export function ChildCard({ magnet, mode, onClick, onMoveUp, onMoveDown, showMov
           <span className="text-xs sm:text-[13px] font-bold text-gray-900 whitespace-nowrap shrink-0 leading-snug">
             {magnet.name}
           </span>
-          {magnet.transportMode === "no_transport" && (
+          {isLocked && (
+            <span className="text-[8.5px] font-bold bg-amber-50 text-amber-800 px-1 py-0.2 rounded border border-amber-200 whitespace-nowrap shrink-0 flex items-center gap-0.5 shadow-none">
+              <span>🔒</span>
+              <span>送迎なし</span>
+            </span>
+          )}
+          {!isLocked && magnet.transportMode === "no_transport" && (
             <span className="text-[9px] font-bold bg-gray-100 text-gray-600 px-1 py-0.2 rounded border border-gray-300 whitespace-nowrap shrink-0">
               送迎なし
             </span>

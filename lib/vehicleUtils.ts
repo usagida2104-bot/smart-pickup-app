@@ -2,6 +2,39 @@
  * 車両および運行便に関するユーティリティ
  */
 
+/**
+ * 日別設定の送迎区分から、迎え（来所）の送迎が必要かを判定
+ * - both (両方) -> true
+ * - pickup_only (迎えのみ) -> true
+ * - dropoff_only (送りのみ) -> false
+ * - no_transport (送迎不要) -> false
+ * - absent (欠席) -> false
+ */
+export function isPickupRequired(status?: string | null): boolean {
+  if (!status) return true;
+  return status === "both" || status === "pickup_only";
+}
+
+/**
+ * 日別設定の送迎区分から、送り（帰宅）の送迎が必要かを判定
+ * - both (両方) -> true
+ * - dropoff_only (送りのみ) -> true
+ * - pickup_only (迎えのみ) -> false
+ * - no_transport (送迎不要) -> false
+ * - absent (欠席) -> false
+ */
+export function isDropoffRequired(status?: string | null): boolean {
+  if (!status) return true;
+  return status === "both" || status === "dropoff_only";
+}
+
+/**
+ * モード（inbound / outbound）に応じた送迎要否判定
+ */
+export function isTransportRequired(mode: "inbound" | "outbound", status?: string | null): boolean {
+  return mode === "inbound" ? isPickupRequired(status) : isDropoffRequired(status);
+}
+
 export interface VehicleColorTheme {
   badgeBg: string;        // 画面用バッジ背景
   badgeText: string;      // 画面用バッジ文字色

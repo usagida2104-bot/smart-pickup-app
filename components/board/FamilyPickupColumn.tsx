@@ -7,32 +7,38 @@ import { cn } from "@/lib/utils";
 
 interface FamilyPickupColumnProps {
   children: ChildMagnet[];
-  onChildClick: (magnet: ChildMagnet, columnId: string) => void;
+  mode?: "inbound" | "outbound";
+  onChildClick?: (magnet: ChildMagnet, columnId: string) => void;
   className?: string;
 }
 
 /**
- * 「家族迎え」専用列コンポーネント（送りタブのみ表示）
- * status === "dropoff_only" の児童がデフォルトで配置される。
- * ここへの移動・ここからの移動は「移動先モーダル」経由で行う。
+ * 「家族迎え／家族送迎」専用列コンポーネント
+ * 送迎不要・家族送迎の児童が自動的に配置され、誤移動を防ぐためロックされる。
  */
-export function FamilyPickupColumn({ children, onChildClick, className }: FamilyPickupColumnProps) {
+export function FamilyPickupColumn({ children, mode = "outbound", onChildClick, className }: FamilyPickupColumnProps) {
+  const isOutbound = mode === "outbound";
+  const title = isOutbound ? "🏠 家族迎え" : "🏠 家族送迎（迎えなし）";
+  const subtitle = isOutbound 
+    ? `${children.length}名 — 保護者・自家用車` 
+    : `${children.length}名 — 保護者来所・自力`;
+
   return (
     <div
       data-testid="family-pickup-column"
       className={cn(
-        "flex flex-col rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 overflow-hidden min-w-0",
+        "flex flex-col rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/70 overflow-hidden min-w-0 shadow-none",
         className || "w-56 shrink-0"
       )}
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-emerald-200 bg-emerald-100">
-        <div className="flex items-center gap-2">
-          <Home className="w-4 h-4 text-emerald-700" />
-          <p className="font-bold text-emerald-800 text-sm">🏠 家族迎え</p>
+      <div className="px-3 py-2 border-b border-emerald-200 bg-emerald-100/80">
+        <div className="flex items-center gap-1.5">
+          <Home className="w-4 h-4 text-emerald-700 shrink-0" />
+          <p className="font-bold text-emerald-900 text-sm truncate">{title}</p>
         </div>
-        <p className="text-xs text-emerald-600 mt-0.5">
-          {children.length}名 — 保護者・自家用車
+        <p className="text-xs text-emerald-700 mt-0.5 truncate">
+          {subtitle}
         </p>
       </div>
 
@@ -45,17 +51,16 @@ export function FamilyPickupColumn({ children, onChildClick, className }: Family
           <ChildCard
             key={magnet.id}
             magnet={magnet}
-            mode="outbound"
-            onClick={(m) => onChildClick(m, "family-pickup")}
+            mode={mode}
+            isLocked={true}
           />
         ))}
         {children.length === 0 && (
-          <div className="flex items-center justify-center h-16 text-emerald-400 text-xs text-center leading-relaxed">
-            保護者迎えの児童を<br />ここへ移動できます
+          <div className="flex items-center justify-center h-16 text-emerald-600/70 text-xs text-center leading-relaxed">
+            {isOutbound ? "送迎不要（家族迎え）の児童が\nここに自動配置されます" : "送迎不要（保護者来所等）の児童が\nここに自動配置されます"}
           </div>
         )}
       </div>
     </div>
   );
 }
-
