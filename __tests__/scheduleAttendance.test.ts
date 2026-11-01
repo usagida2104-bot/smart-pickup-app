@@ -40,12 +40,31 @@ describe("schedule attendance & time parsing tests", () => {
     expect(parsed.attendance).toBe("中抜け");
     expect(parsed.time).toBe("11:00");
     expect(parsed.endTime).toBe("12:30");
+
+    // 研修: 時間指定
+    const packedTraining = packCellData("フリー", "研修", "13:00", "15:00");
+    expect(packedTraining).toBe("フリー|研修:13:00-15:00");
+
+    const parsedTraining = getCellData(packedTraining);
+    expect(parsedTraining.role).toBe("フリー");
+    expect(parsedTraining.attendance).toBe("研修");
+    expect(parsedTraining.time).toBe("13:00");
+    expect(parsedTraining.endTime).toBe("15:00");
+
+    // 研修: 終日
+    const packedFullTraining = packCellData("フリー", "研修");
+    expect(packedFullTraining).toBe("フリー|研修");
+    const parsedFullTraining = getCellData(packedFullTraining);
+    expect(parsedFullTraining.attendance).toBe("研修");
+    expect(parsedFullTraining.time).toBe("");
   });
 
   it("formatAttendanceBadge formats status badges accurately", () => {
     expect(formatAttendanceBadge("早退", "13:30")).toBe("早退 (〜13:30)");
     expect(formatAttendanceBadge("遅刻", "10:15")).toBe("遅刻 (10:15〜)");
     expect(formatAttendanceBadge("中抜け", "11:00", "12:00")).toBe("中抜け (11:00〜12:00)");
+    expect(formatAttendanceBadge("研修", "13:00", "15:00")).toBe("研修 (13:00〜15:00)");
+    expect(formatAttendanceBadge("研修")).toBe("研修");
     expect(formatAttendanceBadge("通常")).toBe("通常");
     expect(formatAttendanceBadge("休み")).toBe("休み");
   });
@@ -55,6 +74,8 @@ describe("schedule attendance & time parsing tests", () => {
     expect(getAttendanceDisplayParts("遅刻", "10:30")).toEqual({ main: "遅刻", sub: "10:30〜" });
     expect(getAttendanceDisplayParts("中抜け", "11:00", "12:00")).toEqual({ main: "中抜け", sub: "11:00〜12:00" });
     expect(getAttendanceDisplayParts("中抜け", "11:00")).toEqual({ main: "中抜け", sub: "11:00〜" });
+    expect(getAttendanceDisplayParts("研修", "13:00", "15:00")).toEqual({ main: "研修", sub: "13:00〜15:00" });
+    expect(getAttendanceDisplayParts("研修")).toEqual({ main: "研修", sub: "" });
     expect(getAttendanceDisplayParts("通常")).toEqual({ main: "通常", sub: "" });
     expect(getAttendanceDisplayParts("休み")).toEqual({ main: "休み", sub: "" });
   });

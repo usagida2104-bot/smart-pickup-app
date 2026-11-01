@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { fetchMonthlySchedule, saveMonthlySchedule, upsertDailyStaff } from "@/lib/supabase/service";
 import { useMasterStore } from "@/lib/store/masterStore";
 import { Loader2 } from "lucide-react";
+import { isHoliday, getHolidayName } from "@/lib/holidays";
+import { generateOptimizedSchedule } from "@/lib/scheduleGenerator";
 
 const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
 
@@ -24,7 +26,7 @@ const ROLES = [
 const ATTENDANCES = [
   { id: "通常", label: "通常", colorClass: "bg-gray-100 text-gray-700" },
   { id: "休み", label: "休み", colorClass: "bg-red-100 text-red-700 font-bold" },
-  { id: "研修", label: "研修", colorClass: "bg-amber-100 text-amber-800 font-bold" },
+  { id: "研修", label: "研修", colorClass: "bg-slate-100 text-slate-700 font-bold border-slate-300" },
   { id: "遅刻", label: "遅刻", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
   { id: "早退", label: "早退", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
   { id: "中抜け", label: "中抜け", colorClass: "bg-red-50 text-red-700 font-bold border-red-200" },
@@ -72,7 +74,7 @@ export const packCellData = (role: string, attendance: string, time?: string, en
   let attStr = attendance;
   if (attendance === "遅刻" || attendance === "早退") {
     if (time) attStr = `${attendance}:${time}`;
-  } else if (attendance === "中抜け") {
+  } else if (attendance === "中抜け" || attendance === "研修") {
     if (time && endTime) {
       attStr = `${attendance}:${time}-${endTime}`;
     } else if (time) {
@@ -93,6 +95,8 @@ export const formatAttendanceBadge = (status: string, time?: string, endTime?: s
   if (status === "遅刻" && time) return `遅刻 (${cleanTimeStr(time)}〜)`;
   if (status === "中抜け" && time && endTime) return `中抜け (${cleanTimeStr(time)}〜${cleanTimeStr(endTime)})`;
   if (status === "中抜け" && time) return `中抜け (${cleanTimeStr(time)})`;
+  if (status === "研修" && time && endTime) return `研修 (${cleanTimeStr(time)}〜${cleanTimeStr(endTime)})`;
+  if (status === "研修" && time) return `研修 (${cleanTimeStr(time)})`;
   return status;
 };
 
@@ -106,6 +110,12 @@ export const getAttendanceDisplayParts = (status: string, time?: string, endTime
   if (status === "中抜け" && time) {
     return {
       main: "中抜け",
+      sub: endTime ? `${cleanTimeStr(time)}〜${cleanTimeStr(endTime)}` : `${cleanTimeStr(time)}〜`,
+    };
+  }
+  if (status === "研修" && time) {
+    return {
+      main: "研修",
       sub: endTime ? `${cleanTimeStr(time)}〜${cleanTimeStr(endTime)}` : `${cleanTimeStr(time)}〜`,
     };
   }
@@ -140,6 +150,7 @@ export default function SchedulePage() {
   const [tempStartMinute, setTempStartMinute] = useState("00");
   const [tempEndHour, setTempEndHour] = useState("12");
   const [tempEndMinute, setTempEndMinute] = useState("00");
+  const [tempTrainingHasTime, setTempTrainingHasTime] = useState(false);
 
   useEffect(() => {
     if (selectedCell) {
@@ -148,7 +159,8 @@ export default function SchedulePage() {
       setTempRole(role);
       setTempAttendance(attendance);
 
-      if (attendance === "中抜け") {
+      if (attendance === "中抜け" || attendance === "研修") {
+        setTempTrainingHasTime(attendance === "研修" ? !!time : true);
         if (time) {
           const [h, m] = time.split(":");
           setTempStartHour(h?.padStart(2, "0") || "11");
@@ -195,6 +207,11 @@ export default function SchedulePage() {
       } else if (tempAttendance === "中抜け") {
         timeStr = `${tempStartHour}:${tempStartMinute}`;
         endTimeStr = `${tempEndHour}:${tempEndMinute}`;
+      } else if (tempAttendance === "研修") {
+        if (tempTrainingHasTime) {
+          timeStr = `${tempStartHour}:${tempStartMinute}`;
+          endTimeStr = `${tempEndHour}:${tempEndMinute}`;
+        }
       }
 
       const packed = packCellData(tempRole, tempAttendance, timeStr, endTimeStr);
@@ -206,7 +223,7 @@ export default function SchedulePage() {
         const matched = masterStaff.find(s => s.name.includes(selectedCell.staff));
         if (matched) {
           const statusVal = attendanceToStatus(tempAttendance);
-          const fullTimeStr = tempAttendance === "中抜け" 
+          const fullTimeStr = (tempAttendance === "中抜け" || tempAttendance === "研修") 
             ? `${timeStr}-${endTimeStr}` 
             : (timeStr || null);
 
@@ -289,92 +306,16 @@ export default function SchedulePage() {
   };
 
   const generateSchedule = () => {
-    if (!confirm("現在の「休み」「研修」「遅刻」「早退」設定を残して、それ以外のシフトを自動生成します。よろしいですか？")) return;
+    if (!confirm("現在の「休み」「研修」「遅刻」「早退」「中抜け」設定を残して、3リーダー（ぽっけ・ぽっけⅡ・日中）を週1回均等＆曜日ローテーションで自動生成します。よろしいですか？")) return;
 
-    const newData = { ...scheduleData };
-    
-    // 各役職ごとの担当回数をカウント
-    const roleCounts: Record<string, Record<string, number>> = {
-      "ぽっけリーダー": { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 },
-      "日中リーダー": { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 },
-      "集団担当": { "増子": 0, "内山": 0, "熊田": 0, "逵": 0, "大平": 0 },
-    };
-
-    // 役割をシャッフルする関数
-    const shuffleArray = (array: any[]) => {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
-      return array;
-    };
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateObj = new Date(year, month - 1, d);
-      if (dateObj.getDay() === 0 || dateObj.getDay() === 6) continue;
-
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const dayData = newData[dateStr] || {};
-      
-      const availableStaff = STAFF_LIST.filter(s => {
-        const { attendance } = getCellData(dayData[s]);
-        return attendance === "通常";
-      });
-      
-      // 役職の割り当て順も毎日シャッフルして偏りを防ぐ
-      const rolesToAssign = shuffleArray(["ぽっけリーダー", "日中リーダー", "集団担当"]);
-      const assignedRoles: Record<string, string> = {};
-
-      for (const role of rolesToAssign) {
-        let candidates = availableStaff.filter(s => {
-          if (assignedRoles[s]) return false;
-          
-          // 前日と同じ役職は禁止
-          const prevDate = new Date(year, month - 1, d - 1);
-          const pStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2, '0')}-${String(prevDate.getDate()).padStart(2, '0')}`;
-          if (newData[pStr]) {
-             const prevCell = getCellData(newData[pStr][s]);
-             if (prevCell.role === role) return false;
-          }
-          return true;
-        });
-
-        if (candidates.length === 0) {
-           // 前日制限を解除して再検索
-           candidates = availableStaff.filter(s => !assignedRoles[s]);
-        }
-
-        if (candidates.length > 0) {
-          // シャッフルしてからソートすることで、同回数の場合にランダムになる
-          shuffleArray(candidates);
-          // その役職の担当回数が少ない人を優先
-          candidates.sort((a, b) => roleCounts[role][a] - roleCounts[role][b]);
-          
-          const selected = candidates[0];
-          assignedRoles[selected] = role;
-          roleCounts[role][selected]++;
-        }
-      }
-
-      for (const s of availableStaff) {
-        if (!assignedRoles[s]) {
-          assignedRoles[s] = "フリー";
-        }
-      }
-
-      // 出欠情報は維持しつつ役職をパックして保存
-      const packedDayData: Record<string, string> = { ...dayData };
-      for (const s of STAFF_LIST) {
-        const existingData = getCellData(dayData[s]);
-        if (existingData.attendance !== "通常") {
-           packedDayData[s] = packCellData("フリー", existingData.attendance, existingData.time);
-        } else {
-           packedDayData[s] = packCellData(assignedRoles[s] || "フリー", existingData.attendance, existingData.time);
-        }
-      }
-
-      newData[dateStr] = packedDayData;
-    }
+    const newData = generateOptimizedSchedule(
+      year,
+      month,
+      STAFF_LIST,
+      scheduleData,
+      getCellData,
+      packCellData
+    );
 
     setScheduleData(newData);
     saveToSupabase(newData);
@@ -391,7 +332,23 @@ export default function SchedulePage() {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const dateObj = new Date(year, month - 1, d);
     const dayOfWeek = ["日", "月", "火", "水", "木", "金", "土"][dateObj.getDay()];
-    return { day: d, dateStr, dayOfWeek, isWeekend: dateObj.getDay() === 0 || dateObj.getDay() === 6, isSaturday: dateObj.getDay() === 6, isSunday: dateObj.getDay() === 0 };
+    const holidayName = getHolidayName(dateStr);
+    const isHolidayDay = !!holidayName;
+    const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+    const isSaturday = dateObj.getDay() === 6;
+    const isSunday = dateObj.getDay() === 0;
+    const isOffDay = isWeekend || isHolidayDay;
+    return {
+      day: d,
+      dateStr,
+      dayOfWeek,
+      holidayName,
+      isHoliday: isHolidayDay,
+      isWeekend,
+      isSaturday,
+      isSunday,
+      isOffDay,
+    };
   });
 
   return (
@@ -459,16 +416,17 @@ export default function SchedulePage() {
                 </tr>
               </thead>
               <tbody>
-                {days.map(({ day, dateStr, dayOfWeek, isWeekend, isSaturday, isSunday }) => {
+                {days.map(({ day, dateStr, dayOfWeek, holidayName, isHoliday, isWeekend, isSaturday, isSunday, isOffDay }) => {
                   const dayData = scheduleData[dateStr] || {};
                   return (
-                    <tr key={dateStr} className={cn("border-b transition-colors print:border-gray-300", isWeekend ? "bg-gray-100/50 print:bg-gray-100/50" : "border-gray-100 hover:bg-gray-50")}>
+                    <tr key={dateStr} className={cn("border-b transition-colors print:border-gray-300", isOffDay ? "bg-gray-100/50 print:bg-gray-100/50" : "border-gray-100 hover:bg-gray-50")}>
                       <td className={cn(
                         "border-r border-gray-200 text-center font-medium",
-                        isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
+                        isSunday || isHoliday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-900",
                         "py-2 px-2 md:px-4"
                       )}>
                         {month}/{day}({dayOfWeek})
+                        {holidayName && <span className="block text-[9px] text-red-500 font-normal leading-none print:hidden">{holidayName}</span>}
                       </td>
                       {STAFF_LIST.map(staff => {
                         const rawData = dayData[staff] || "";
@@ -484,13 +442,13 @@ export default function SchedulePage() {
                           if (attendance === "休み") {
                             colorClass = "bg-red-100 text-red-700 font-bold border-red-200";
                           } else if (attendance === "研修") {
-                            colorClass = "bg-amber-100 text-amber-800 font-bold border-amber-200";
+                            colorClass = "bg-slate-100 text-slate-700 font-bold border-slate-300";
                           } else if (attendance === "遅刻" || attendance === "早退" || attendance === "中抜け") {
                             colorClass = "bg-red-50 text-red-700 font-bold border-red-200";
                           }
                         }
 
-                        if (isWeekend) {
+                        if (isOffDay) {
                           return (
                             <td key={staff} className="border-r border-gray-200 p-0.5 relative">
                               <div className="w-full h-full min-h-[16px] md:h-12 bg-transparent"></div>
@@ -523,7 +481,7 @@ export default function SchedulePage() {
                                 role === "フリー" && attendance === "通常" ? "bg-white border-dashed border-gray-300 text-gray-400" : "border-transparent",
                                 colorClass
                               )}
-                              onClick={() => !isWeekend && setSelectedCell({ dateStr, staff })}
+                              onClick={() => !isOffDay && setSelectedCell({ dateStr, staff })}
                             >
                               {attendanceParts.sub ? (
                                 <div className="flex flex-col items-center justify-center py-1 px-1.5 rounded text-xs font-semibold leading-tight w-full max-w-[120px] mx-auto print:flex-row print:gap-1 print:items-center print:justify-center print:max-w-none print:w-full print:py-0.5">
@@ -713,27 +671,68 @@ export default function SchedulePage() {
               )}
 
               {/* 中抜けの開始・終了時刻入力 */}
-              {tempAttendance === "中抜け" && (
-                <div className="mt-3 flex flex-col gap-2 bg-red-50 p-3 rounded-lg border border-red-100">
-                  <label className="text-xs font-bold text-red-800">中抜け時間帯</label>
+              {(tempAttendance === "中抜け" || tempAttendance === "研修") && (
+                <div className={cn(
+                  "mt-3 flex flex-col gap-2 p-3 rounded-lg border",
+                  tempAttendance === "研修" ? "bg-slate-50 border-slate-200" : "bg-red-50 border-red-100"
+                )}>
+                  <div className="flex items-center justify-between">
+                    <label className={cn(
+                      "text-xs font-bold",
+                      tempAttendance === "研修" ? "text-slate-800" : "text-red-800"
+                    )}>
+                      {tempAttendance === "研修" ? "研修時間帯" : "中抜け時間帯"}
+                    </label>
+                    {tempAttendance === "研修" && (
+                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setTempTrainingHasTime(false)}
+                          className={cn(
+                            "px-2 py-0.5 rounded text-[11px] font-bold transition-colors",
+                            !tempTrainingHasTime ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          終日
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTempTrainingHasTime(true)}
+                          className={cn(
+                            "px-2 py-0.5 rounded text-[11px] font-bold transition-colors",
+                            tempTrainingHasTime ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          時間指定
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {(tempAttendance === "中抜け" || tempTrainingHasTime) ? (
                   <div className="flex items-center gap-2">
                     {/* 開始時刻 */}
                     <div className="flex items-center gap-1 flex-1">
                       <select
                         value={tempStartHour}
                         onChange={(e) => setTempStartHour(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
+                        className={cn(
+                          "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
+                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                        )}
                       >
                         {HOURS.map(h => {
                            const hs = String(h).padStart(2, "0");
                            return <option key={hs} value={hs}>{hs}</option>;
                         })}
                       </select>
-                      <span className="font-bold text-red-700">:</span>
+                      <span className={cn("font-bold", tempAttendance === "研修" ? "text-slate-600" : "text-red-700")}>:</span>
                       <select
                         value={tempStartMinute}
                         onChange={(e) => setTempStartMinute(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
+                        className={cn(
+                          "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
+                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                        )}
                       >
                         {MINUTES.map(m => (
                            <option key={m} value={m}>{m}</option>
@@ -741,25 +740,31 @@ export default function SchedulePage() {
                       </select>
                     </div>
 
-                    <span className="text-sm font-bold text-red-700">〜</span>
+                    <span className={cn("text-sm font-bold", tempAttendance === "研修" ? "text-slate-600" : "text-red-700")}>〜</span>
 
                     {/* 終了時刻 */}
                     <div className="flex items-center gap-1 flex-1">
                       <select
                         value={tempEndHour}
                         onChange={(e) => setTempEndHour(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
+                        className={cn(
+                          "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
+                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                        )}
                       >
                         {HOURS.map(h => {
                            const hs = String(h).padStart(2, "0");
                            return <option key={hs} value={hs}>{hs}</option>;
                         })}
                       </select>
-                      <span className="font-bold text-red-700">:</span>
+                      <span className={cn("font-bold", tempAttendance === "研修" ? "text-slate-600" : "text-red-700")}>:</span>
                       <select
                         value={tempEndMinute}
                         onChange={(e) => setTempEndMinute(e.target.value)}
-                        className="px-1.5 py-1.5 rounded border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium w-full text-center bg-white"
+                        className={cn(
+                          "px-1.5 py-1.5 rounded text-xs font-medium w-full text-center bg-white focus:outline-none focus:ring-2 border",
+                          tempAttendance === "研修" ? "border-slate-300 focus:ring-slate-400" : "border-red-200 focus:ring-red-400"
+                        )}
                       >
                         {MINUTES.map(m => (
                            <option key={m} value={m}>{m}</option>
@@ -767,6 +772,11 @@ export default function SchedulePage() {
                       </select>
                     </div>
                   </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 py-1">
+                      終日研修として記録されます（業務は割り当てられません）。
+                    </p>
+                  )}
                 </div>
               )}
             </div>
