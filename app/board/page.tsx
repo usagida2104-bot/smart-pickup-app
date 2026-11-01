@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { getCellData } from "@/app/schedule/page";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString, changeDateByDays } from "@/lib/store/dateStore";
-import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getTripTimeSummary, isPickupRequired, isDropoffRequired, isTransportRequired } from "@/lib/vehicleUtils";
+import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getVehicleBadgeColor, getTripTimeSummary, isPickupRequired, isDropoffRequired, isTransportRequired, reconcileBoardWithAttendances } from "@/lib/vehicleUtils";
 
 function formatDate(date: Date) {
   return formatLocalDate(date);
@@ -814,104 +814,37 @@ function BoardPageContent() {
           });
         };
 
-        // 迎えタブ：日別設定で「迎え送迎なし」の児童をスタッフ便・未割り当てから除外し、家族枠へ自動配置
-        const rawInboundCols = buildColumnsForBoard(boardState?.inbound_board);
-        const inboundNoTransportAtts = mergedAtts.filter(a => {
-          const ts = (a as any).status || "both";
-          const as2 = (a as any).attendance_status || "present";
-          const isAbsent = as2 === "absent" || ts === "absent";
-          return !isAbsent && !isPickupRequired(ts);
-        });
-        const inboundNoTransportIds = new Set(inboundNoTransportAtts.map(a => String(a.child_id)));
-
-        // スタッフ便から送迎不要児童を強制除外
-        const inboundCols = rawInboundCols.map(col => ({
-          ...col,
-          trips: (col.trips || []).map((t: any) => ({
-            ...t,
-            children: (t.children || []).filter((c: any) => !inboundNoTransportIds.has(String(c.id)))
-          }))
-        }));
-
-        const assignedInboundIds = new Set(
-          inboundCols.flatMap(c => c.trips.flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id))))
-        );
-
-        // 未割り当て：出席かつ「迎え送迎が必要」で、まだスタッフ便に乗っていない児童
-        const inboundUnassigned = mergedAtts
-          .filter(a => {
-            const ts = (a as any).status || "both";
-            const as2 = (a as any).attendance_status || "present";
-            const isAbsent = as2 === "absent" || ts === "absent";
-            return !isAbsent && isPickupRequired(ts) && !assignedInboundIds.has(String(a.child_id));
-          })
-          .map(a => toMagnet(a.child_id, children, mergedAtts));
-
-        // 家族枠：迎え不要の児童を自動格納
-        const inboundFamilyPickup = inboundNoTransportAtts.map(a => toMagnet(a.child_id, children, mergedAtts));
-
-        // 送りタブ：日別設定で「送り送迎なし」の児童をスタッフ便・未割り当てから除外し、家族枠へ自動配置
-        const rawOutboundCols = buildColumnsForBoard(boardState?.outbound_board);
-        const outboundNoTransportAtts = mergedAtts.filter(a => {
-          const ts = (a as any).status || "both";
-          const as2 = (a as any).attendance_status || "present";
-          const isAbsent = as2 === "absent" || ts === "absent";
-          return !isAbsent && !isDropoffRequired(ts);
-        });
-        const outboundNoTransportIds = new Set(outboundNoTransportAtts.map(a => String(a.child_id)));
-
-        // スタッフ便から送迎不要児童を強制除外
-        const outboundCols = rawOutboundCols.map(col => ({
-          ...col,
-          trips: (col.trips || []).map((t: any) => ({
-            ...t,
-            children: (t.children || []).filter((c: any) => !outboundNoTransportIds.has(String(c.id)))
-          }))
-        }));
-
-        const savedFamilyPickup = (boardState?.outbound_board?.familyPickup?.children || []).map((c: any) => 
-          toMagnet(c.id, children, mergedAtts)
-        );
-
-        const outboundFamilyPickupMap = new Map<string, any>();
-        savedFamilyPickup.forEach((c: any) => {
-          if (c?.id) outboundFamilyPickupMap.set(String(c.id), c);
-        });
-        outboundNoTransportAtts.forEach(a => {
-          const cId = String(a.child_id);
-          if (!outboundFamilyPickupMap.has(cId)) {
-            const m = toMagnet(a.child_id, children, mergedAtts);
-            if (m) outboundFamilyPickupMap.set(cId, m);
+        // 迎えタブ：初期カラム・保存済み枠を構築後、最新の日別出欠フラグ（Single Source of Truth）で厳格にリコンシリエーション
+        const initialInboundBoard = {
+          columns: buildColumnsForBoard(boardState?.inbound_board),
+          unassigned: {
+            id: "unassigned",
+            children: (boardState?.inbound_board?.unassigned?.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts)).filter(Boolean)
+          },
+          familyPickup: {
+            id: "family-pickup",
+            children: (boardState?.inbound_board?.familyPickup?.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts)).filter(Boolean)
           }
-        });
-        const outboundFamilyPickup = Array.from(outboundFamilyPickupMap.values());
+        };
+        const reconciledInbound = reconcileBoardWithAttendances(initialInboundBoard, mergedAtts, children, "inbound");
 
-        const assignedOutboundIds = new Set([
-          ...outboundCols.flatMap(c => c.trips.flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))),
-          ...Array.from(outboundFamilyPickupMap.keys())
-        ]);
-
-        // 未割り当て：出席かつ「送り送迎が必要」で、まだスタッフ便・家族枠にいない児童
-        const outboundUnassigned = mergedAtts
-          .filter(a => {
-            const ts = (a as any).status || "both";
-            const as2 = (a as any).attendance_status || "present";
-            const isAbsent = as2 === "absent" || ts === "absent";
-            return !isAbsent && isDropoffRequired(ts) && !assignedOutboundIds.has(String(a.child_id));
-          })
-          .map(a => toMagnet(a.child_id, children, mergedAtts));
+        // 送りタブ：初期カラム・保存済み枠を構築後、最新の日別出欠フラグ（Single Source of Truth）で厳格にリコンシリエーション
+        const initialOutboundBoard = {
+          columns: buildColumnsForBoard(boardState?.outbound_board),
+          unassigned: {
+            id: "unassigned",
+            children: (boardState?.outbound_board?.unassigned?.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts)).filter(Boolean)
+          },
+          familyPickup: {
+            id: "family-pickup",
+            children: (boardState?.outbound_board?.familyPickup?.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts)).filter(Boolean)
+          }
+        };
+        const reconciledOutbound = reconcileBoardWithAttendances(initialOutboundBoard, mergedAtts, children, "outbound");
 
         // Zustand ストアにセット
-        useBoardStore.getState().setBoard("inbound", {
-          columns: inboundCols,
-          unassigned: { id: "unassigned", children: inboundUnassigned },
-          familyPickup: { id: "family-pickup", children: inboundFamilyPickup },
-        });
-        useBoardStore.getState().setBoard("outbound", {
-          columns: outboundCols,
-          unassigned: { id: "unassigned", children: outboundUnassigned },
-          familyPickup: { id: "family-pickup", children: outboundFamilyPickup },
-        });
+        useBoardStore.getState().setBoard("inbound", reconciledInbound);
+        useBoardStore.getState().setBoard("outbound", reconciledOutbound);
 
       } catch (err) {
         console.error("Board load error", err);
@@ -964,150 +897,37 @@ function BoardPageContent() {
     }
 
     const syncBoard = (boardState: any, mode: "inbound" | "outbound") => {
-      // 送迎不要の児童IDセット（日別設定でフラグがOFFの児童）
-      const noTransportIds = new Set(
-        attendances
-          .filter(a => {
-            const isAbsent = a.attendance_status === "absent" || a.status === "absent";
-            return !isAbsent && !isTransportRequired(mode, a.status);
-          })
-          .map(a => String(a.child_id))
-      );
+      if (!boardState) return;
 
-      // コラムは既存のものをそのまま保持（dynamicShiftsでフィルタしない）
-      // かつ、日別設定で送迎不要の児童はスタッフ便から強制除外
-      const newCols = (boardState.columns || [])
-        .map((col: any) => {
-          const driver = dailyStaff.find((ds: any) => ds.staff_id === col.driverId);
-          // trips が未設定の古いデータは変換
-          const tripsToUse = (col.trips && col.trips.length > 0) ? col.trips : [
-            {
-              id: `${col.shiftId || col.id}-trip-1`,
-              tripIndex: 1,
-              children: col.children || []
-            }
-          ];
-          return {
-            ...col,
-            driverStatus: driver?.status ?? col.driverStatus,
-            driverStatusTime: driver?.status_time ?? col.driverStatusTime,
-            driverRole: driver?.role || driver?.staff?.role || col.driverRole,
-            trips: tripsToUse.map((trip: any) => ({
-              ...trip,
-              children: (trip.children || [])
-                .filter((m: any) => {
-                  const child = children.find((c: any) => c.id === m.id);
-                  const att = attendances.find(a => a.child_id === m.id);
-                  const transportStatus = att?.status || "both";
-                  const attendanceStatus = att?.attendance_status || "present";
-                  const isAbsent = attendanceStatus === "absent" || transportStatus === "absent";
-                  return child && !isAbsent && !noTransportIds.has(String(m.id));
-                })
-                .map((m: any) => {
-                  const child = children.find((c: any) => c.id === m.id);
-                  const att = attendances.find(a => a.child_id === m.id);
-                  return { 
-                    ...m, 
-                    status: child?.status, 
-                    status_time: child?.status_time, 
-                    has_caution: child?.has_caution ?? false,
-                    pickup_time: att ? att.pickup_time : null
-                  };
-                })
-            }))
-          };
-        });
-      
-      // 2. 未割り当てプールから、送迎不要児童を強制除外
-      const newUnassignedChildren = (boardState.unassigned?.children || [])
-        .filter((m: any) => {
-          const child = children.find((c: any) => c.id === m.id);
-          const att = attendances.find(a => a.child_id === m.id);
-          const transportStatus = att?.status || "both";
-          const attendanceStatus = att?.attendance_status || "present";
-          const isAbsent = attendanceStatus === "absent" || transportStatus === "absent";
-          return child && !isAbsent && !noTransportIds.has(String(m.id));
-        })
-        .map((m: any) => {
-          const child = children.find((c: any) => c.id === m.id);
-          const att = attendances.find(a => a.child_id === m.id);
-          return { 
-            ...m, 
-            status: child?.status, 
-            status_time: child?.status_time, 
-            has_caution: child?.has_caution ?? false,
-            pickup_time: att ? att.pickup_time : null
-          };
-        });
-
-      // 3. 家族枠プール（familyPickup）：送迎不要児童を確実に自動配置
-      const familyPickupMap = new Map<string, any>();
-      (boardState.familyPickup?.children || [])
-        .filter((m: any) => {
-          const child = children.find((c: any) => c.id === m.id);
-          const att = attendances.find(a => a.child_id === m.id);
-          const transportStatus = att?.status || "both";
-          const attendanceStatus = att?.attendance_status || "present";
-          const isAbsent = attendanceStatus === "absent" || transportStatus === "absent";
-          return child && !isAbsent;
-        })
-        .forEach((m: any) => {
-          const child = children.find((c: any) => c.id === m.id);
-          const att = attendances.find(a => a.child_id === m.id);
-          familyPickupMap.set(String(m.id), {
-            ...m,
-            status: child?.status,
-            status_time: child?.status_time,
-            has_caution: child?.has_caution ?? false,
-            pickup_time: att ? att.pickup_time : null
-          });
-        });
-
-      // 日別設定で送迎不要の児童を家族枠に追加
-      attendances.forEach(a => {
-        const transportStatus = a.status || "both";
-        const attendanceStatus = a.attendance_status || "present";
-        const isAbsent = attendanceStatus === "absent" || transportStatus === "absent";
-        if (!isAbsent && !isTransportRequired(mode, transportStatus)) {
-          const cId = String(a.child_id);
-          if (!familyPickupMap.has(cId) && children.some((c: any) => c.id === a.child_id)) {
-            const magnet = toMagnet(a.child_id, children, attendances);
-            if (magnet) familyPickupMap.set(cId, magnet);
+      // 1. コラムのドライバー最新情報を更新
+      const updatedCols = (boardState.columns || []).map((col: any) => {
+        const driver = dailyStaff.find((ds: any) => ds.staff_id === col.driverId);
+        const tripsToUse = (col.trips && col.trips.length > 0) ? col.trips : [
+          {
+            id: `${col.shiftId || col.id}-trip-1`,
+            tripIndex: 1,
+            children: col.children || []
           }
-        }
+        ];
+        return {
+          ...col,
+          driverStatus: driver?.status ?? col.driverStatus,
+          driverStatusTime: driver?.status_time ?? col.driverStatusTime,
+          driverRole: driver?.role || driver?.staff?.role || col.driverRole,
+          trips: tripsToUse,
+        };
       });
 
-      // 4. 新規出席児童の補完（送迎が必要な児童でまだボード上にいないもの）
-      const currentIds = new Set([
-        ...newCols.flatMap((col: any) => (col.trips || []).flatMap((t: any) => (t.children || []).map((c: any) => String(c.id)))),
-        ...newUnassignedChildren.map((c: any) => String(c.id)),
-        ...Array.from(familyPickupMap.keys()),
-      ]);
-
-      const missingChildren = attendances
-        .filter(a => {
-          const transportStatus = a.status || "both";
-          const attendanceStatus = a.attendance_status || "present";
-          const isAbsent = attendanceStatus === "absent" || transportStatus === "absent";
-          if (isAbsent) return false;
-          if (!isTransportRequired(mode, transportStatus)) return false;
-          return true;
-        })
-        .filter(a => children.some((c: any) => c.id === a.child_id))
-        .filter(a => !currentIds.has(String(a.child_id)))
-        .map(a => toMagnet(a.child_id, children, attendances));
-
-      const newUnassigned = {
-        ...boardState.unassigned,
-        children: [...newUnassignedChildren, ...missingChildren]
+      // 2. 最新出欠データ（Single Source of Truth）でボード全体をリコンシリエーション
+      // 送迎フラグがONになった児童は家族枠から解放され未割り当てへ、OFFになった児童は家族枠へ即時再配置される
+      const boardToReconcile = {
+        columns: updatedCols,
+        unassigned: boardState.unassigned || { id: "unassigned", children: [] },
+        familyPickup: boardState.familyPickup || { id: "family-pickup", children: [] },
       };
 
-      const newFamilyPickup = {
-        id: "family-pickup" as const,
-        children: Array.from(familyPickupMap.values())
-      };
-
-      useBoardStore.getState().setBoard(mode, { columns: newCols, unassigned: newUnassigned, familyPickup: newFamilyPickup });
+      const reconciled = reconcileBoardWithAttendances(boardToReconcile, attendances, children, mode);
+      useBoardStore.getState().setBoard(mode, reconciled);
     };
 
     syncBoard(useBoardStore.getState().inboundBoard, "inbound");
@@ -1115,6 +935,30 @@ function BoardPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // ★ attendances が変わっても保存中（isSavingRef.current）はスキップ
   }, [children, dailyStaff, attendances]);
+
+  // ウィンドウフォーカス復帰・タブ復帰時に最新データを自動再検証（revalidateOnFocus）
+  useEffect(() => {
+    const handleFocus = () => {
+      // 編集中や保存中でない場合、DBから最新データを再検証・再取得
+      if (!isSavingRef.current && !isEditingRef.current) {
+        console.log("[Board] Window focused / tab activated, revalidating latest daily data...");
+        setReloadKey(k => k + 1);
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        handleFocus();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
 
 
@@ -1647,12 +1491,21 @@ function BoardPageContent() {
                         <div className="p-1 flex flex-col overflow-hidden">
                           <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
                             <span className="font-bold text-[10px] text-gray-900 shrink-0">【1便】</span>
-                            <span className={cn(
-                              "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
-                              theme1.printBg,
-                              theme1.printText,
-                              theme1.printBorder
-                            )}>
+                            <span
+                              className={cn(
+                                "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
+                                theme1.badgeBg,
+                                theme1.badgeText,
+                                theme1.badgeBorder,
+                                theme1.printBg,
+                                theme1.printText,
+                                theme1.printBorder
+                              )}
+                              style={{
+                                WebkitPrintColorAdjust: "exact",
+                                printColorAdjust: "exact",
+                              }}
+                            >
                               🚗 {trip1?.vehicleName || "車未定"}
                             </span>
                           </div>
@@ -1666,12 +1519,21 @@ function BoardPageContent() {
                         <div className="p-1 flex flex-col bg-slate-50/50 overflow-hidden">
                           <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
                             <span className="font-bold text-[10px] text-gray-900 shrink-0">【2便】</span>
-                            <span className={cn(
-                              "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
-                              theme2.printBg,
-                              theme2.printText,
-                              theme2.printBorder
-                            )}>
+                            <span
+                              className={cn(
+                                "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
+                                theme2.badgeBg,
+                                theme2.badgeText,
+                                theme2.badgeBorder,
+                                theme2.printBg,
+                                theme2.printText,
+                                theme2.printBorder
+                              )}
+                              style={{
+                                WebkitPrintColorAdjust: "exact",
+                                printColorAdjust: "exact",
+                              }}
+                            >
                               🚗 {trip2?.vehicleName || "車未定"}
                             </span>
                           </div>
@@ -1696,12 +1558,21 @@ function BoardPageContent() {
                             <div key={addTrip.id} className="p-1 flex flex-col bg-slate-50/70 overflow-hidden">
                               <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
                                 <span className="font-bold text-[10px] text-gray-900 shrink-0">【{addTrip.tripIndex}便】</span>
-                                <span className={cn(
-                                  "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
-                                  addTheme.printBg,
-                                  addTheme.printText,
-                                  addTheme.printBorder
-                                )}>
+                                <span
+                                  className={cn(
+                                    "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
+                                    addTheme.badgeBg,
+                                    addTheme.badgeText,
+                                    addTheme.badgeBorder,
+                                    addTheme.printBg,
+                                    addTheme.printText,
+                                    addTheme.printBorder
+                                  )}
+                                  style={{
+                                    WebkitPrintColorAdjust: "exact",
+                                    printColorAdjust: "exact",
+                                  }}
+                                >
                                   🚗 {addTrip?.vehicleName || "車未定"}
                                 </span>
                               </div>

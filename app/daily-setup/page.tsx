@@ -16,6 +16,8 @@ import {
 import { TransportMode, DailyAttendance, DailyStaff, DailyVehicle } from "@/types";
 import { cn } from "@/lib/utils";
 import { useMasterStore } from "@/lib/store/masterStore";
+import { useBoardStore } from "@/lib/store/boardStore";
+import { reconcileBoardWithAttendances } from "@/lib/vehicleUtils";
 import { fetchDailyData, upsertDailyAttendance, upsertDailyStaff, upsertDailyVehicle, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { supabase } from "@/lib/supabase/client";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString } from "@/lib/store/dateStore";
@@ -254,6 +256,32 @@ function DailySetupPageContent() {
     };
   }, [children, selectedDate, setGlobalAttendances]);
 
+  const syncBoardStoreWithAttendances = (latestAtts: DailyAttendance[]) => {
+    try {
+      const boardStore = useBoardStore.getState();
+      if (boardStore.inboundBoard) {
+        const reconciledInbound = reconcileBoardWithAttendances(
+          boardStore.inboundBoard,
+          latestAtts,
+          children,
+          "inbound"
+        );
+        boardStore.setBoard("inbound", reconciledInbound);
+      }
+      if (boardStore.outboundBoard) {
+        const reconciledOutbound = reconcileBoardWithAttendances(
+          boardStore.outboundBoard,
+          latestAtts,
+          children,
+          "outbound"
+        );
+        boardStore.setBoard("outbound", reconciledOutbound);
+      }
+    } catch (e) {
+      console.error("[DailySetup] Failed to reconcile board store:", e);
+    }
+  };
+
   const performSave = async (updatedAtt: DailyAttendance) => {
     setIsSaving(true);
     try {
@@ -266,8 +294,8 @@ function DailySetupPageContent() {
         attendance_status: updatedAtt.attendance_status,
         attendance_time: updatedAtt.attendance_time
       });
-      // グローバルStoreへの書き込みは state から反映するか、fetch し直すかで担保
-      // 今回は local state の attendances をそのまま global にセットしてOK
+      // ルーターキャッシュを最新化
+      router.refresh();
     } catch (err) {
       console.error("Failed to save attendance", err);
     } finally {
@@ -290,10 +318,12 @@ function DailySetupPageContent() {
     const newAtts = attendances.filter(a => a.child_id !== childId);
     setAttendances(newAtts);
     setGlobalAttendances(newAtts);
+    syncBoardStoreWithAttendances(newAtts);
     
     setIsSaving(true);
     try {
       await upsertDailyAttendance(excludedAtt);
+      router.refresh();
     } catch (err) {
       console.error("Failed to exclude child", err);
     } finally {
@@ -321,6 +351,7 @@ function DailySetupPageContent() {
     const newAtts = [...attendances, newAtt];
     setAttendances(newAtts);
     setGlobalAttendances(newAtts);
+    syncBoardStoreWithAttendances(newAtts);
     performSave(newAtt);
     setSelectedSpotChildId("");
   };
@@ -333,6 +364,7 @@ function DailySetupPageContent() {
     const newAtts = attendances.map((a) => (a.child_id === childId ? updated : a));
     setAttendances(newAtts);
     setGlobalAttendances(newAtts);
+    syncBoardStoreWithAttendances(newAtts);
     performSave(updated);
   };
 
@@ -344,6 +376,7 @@ function DailySetupPageContent() {
     const newAtts = attendances.map((a) => (a.child_id === childId ? updated : a));
     setAttendances(newAtts);
     setGlobalAttendances(newAtts);
+    syncBoardStoreWithAttendances(newAtts);
     performSave(updated);
   };
 
@@ -373,6 +406,7 @@ function DailySetupPageContent() {
     const newAtts = attendances.map((a) => (a.child_id === childId ? updated : a));
     setAttendances(newAtts);
     setGlobalAttendances(newAtts);
+    syncBoardStoreWithAttendances(newAtts);
     performSave(updated);
   };
 

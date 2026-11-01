@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getVehicleColorTheme,
+  getVehicleBadgeColor,
   getTripTimeSummary,
   getTripTimeRange,
   isTimeRangeOverlapping,
@@ -9,18 +10,60 @@ import {
   isPickupRequired,
   isDropoffRequired,
   isTransportRequired,
+  reconcileBoardWithAttendances,
 } from "../lib/vehicleUtils";
 
 describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
-  describe("getVehicleColorTheme", () => {
-    it("assigns distinct color themes to known vehicle models", () => {
-      expect(getVehicleColorTheme("ボクシー").badgeBg).toContain("blue");
-      expect(getVehicleColorTheme("ステップワゴン").badgeBg).toContain("emerald");
-      expect(getVehicleColorTheme("シエンタ").badgeBg).toContain("orange");
-      expect(getVehicleColorTheme("アイシス").badgeBg).toContain("cyan");
-      expect(getVehicleColorTheme("ブーン").badgeBg).toContain("purple");
-      expect(getVehicleColorTheme("ムーブ（軽）").badgeBg).toContain("purple");
-      expect(getVehicleColorTheme("その他ワゴン").badgeBg).toContain("slate");
+  describe("getVehicleColorTheme & getVehicleBadgeColor", () => {
+    it("assigns distinct color themes according to user specification", () => {
+      // アイシス: スカイブルー系
+      expect(getVehicleColorTheme("アイシス").badgeBg).toBe("bg-sky-100");
+      expect(getVehicleColorTheme("アイシス").badgeText).toBe("text-sky-800");
+      expect(getVehicleColorTheme("アイシス").badgeBorder).toBe("border-sky-300");
+      expect(getVehicleColorTheme("アイシス").printBg).toBe("print:bg-sky-100");
+
+      // シエンタ: アンバー/オレンジ系
+      expect(getVehicleColorTheme("シエンタ").badgeBg).toBe("bg-amber-100");
+      expect(getVehicleColorTheme("シエンタ").badgeText).toBe("text-amber-800");
+      expect(getVehicleColorTheme("シエンタ").badgeBorder).toBe("border-amber-300");
+
+      // ノート: パープル系
+      expect(getVehicleColorTheme("ノート").badgeBg).toBe("bg-purple-100");
+      expect(getVehicleColorTheme("ノート").badgeText).toBe("text-purple-800");
+
+      // ムーブ: ピンク/ローズ系
+      expect(getVehicleColorTheme("ムーブ").badgeBg).toBe("bg-pink-100");
+      expect(getVehicleColorTheme("ムーヴ").badgeText).toBe("text-pink-800");
+
+      // ボクシー: インディゴ/ブルー系
+      expect(getVehicleColorTheme("ボクシー").badgeBg).toBe("bg-indigo-100");
+      expect(getVehicleColorTheme("ヴォクシー").badgeText).toBe("text-indigo-800");
+
+      // ステップワゴン: エメラルド/グリーン系
+      expect(getVehicleColorTheme("ステップワゴン").badgeBg).toBe("bg-emerald-100");
+      expect(getVehicleColorTheme("ステップワゴン").badgeText).toBe("text-emerald-800");
+
+      // エブリィ: イエロー系
+      expect(getVehicleColorTheme("エブリィ").badgeBg).toBe("bg-yellow-100");
+      expect(getVehicleColorTheme("エブリー").badgeText).toBe("text-yellow-800");
+
+      // スペーシア: ティール系
+      expect(getVehicleColorTheme("スペーシア").badgeBg).toBe("bg-teal-100");
+      expect(getVehicleColorTheme("スペーシア").badgeText).toBe("text-teal-800");
+
+      // 車未定
+      expect(getVehicleColorTheme("車未定").badgeBg).toBe("bg-slate-100");
+
+      // 登録外車両（ハッシュフォールバック）
+      const fallback = getVehicleColorTheme("新車ハイエース");
+      expect(fallback.badgeBg).toBeTruthy();
+      expect(fallback.badgeText).toBeTruthy();
+      expect(fallback.badgeBorder).toBeTruthy();
+    });
+
+    it("getVehicleBadgeColor alias works identically", () => {
+      expect(getVehicleBadgeColor("アイシス")).toEqual(getVehicleColorTheme("アイシス"));
+      expect(getVehicleBadgeColor("ステップワゴン")).toEqual(getVehicleColorTheme("ステップワゴン"));
     });
   });
 
@@ -506,6 +549,111 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
       expect(isTripTimeSummaryVisible("inbound", "14:10〜14:40")).toBe(true);
       expect(isTripTimeSummaryVisible("outbound", "17:00〜17:30")).toBe(false);
       expect(isTripTimeSummaryVisible("inbound", "")).toBe(false);
+    });
+  });
+
+  describe("reconcileBoardWithAttendances (Single Source of Truth Reconciliation)", () => {
+    const mockChildren = [
+      { id: "c-1", name: "児童1" },
+      { id: "c-2", name: "児童2" },
+      { id: "c-3", name: "児童3" },
+      { id: "c-4", name: "児童4" },
+    ];
+
+    it("moves child from familyPickup to unassigned when transport flag is turned ON", () => {
+      // 以前のボードステート：c-2 は送りOFFだったため家族枠にいた
+      const prevBoard = {
+        columns: [
+          {
+            id: "col-1",
+            trips: [
+              { tripIndex: 1, children: [{ id: "c-1", name: "児童1" }] },
+            ],
+          },
+        ],
+        unassigned: { id: "unassigned", children: [] },
+        familyPickup: { id: "family-pickup", children: [{ id: "c-2", name: "児童2" }] },
+      };
+
+      // 最新の日別設定：c-2 の送りを「ON（both または dropoff_only）」に変更した
+      const updatedAttendances = [
+        { child_id: "c-1", status: "both", attendance_status: "present" },
+        { child_id: "c-2", status: "both", attendance_status: "present" }, // ONに変更！
+      ];
+
+      const reconciled = reconcileBoardWithAttendances(prevBoard, updatedAttendances, mockChildren, "outbound");
+
+      // 1. 家族枠から c-2 が確実に除外されていること
+      expect(reconciled.familyPickup.children.some((c: any) => c.id === "c-2")).toBe(false);
+
+      // 2. 未割り当て枠に c-2 が自動追加され、配車可能になっていること
+      expect(reconciled.unassigned.children.some((c: any) => c.id === "c-2")).toBe(true);
+
+      // 3. 既存のスタッフ便（c-1）は維持されていること
+      expect(reconciled.columns[0].trips[0].children.map((c: any) => c.id)).toEqual(["c-1"]);
+    });
+
+    it("moves child from staff trip or unassigned to familyPickup when transport flag is turned OFF", () => {
+      // 以前のボードステート：c-1 はスタッフ便、c-2 は未割り当て枠にいた
+      const prevBoard = {
+        columns: [
+          {
+            id: "col-1",
+            trips: [
+              { tripIndex: 1, children: [{ id: "c-1", name: "児童1" }] },
+            ],
+          },
+        ],
+        unassigned: { id: "unassigned", children: [{ id: "c-2", name: "児童2" }] },
+        familyPickup: { id: "family-pickup", children: [] },
+      };
+
+      // 最新の日別設定：c-1 も c-2 も送りを「OFF（pickup_only または no_transport）」に変更した
+      const updatedAttendances = [
+        { child_id: "c-1", status: "pickup_only", attendance_status: "present" }, // 送りOFF
+        { child_id: "c-2", status: "no_transport", attendance_status: "present" }, // 送りOFF
+      ];
+
+      const reconciled = reconcileBoardWithAttendances(prevBoard, updatedAttendances, mockChildren, "outbound");
+
+      // 1. スタッフ便から c-1 が確実に除外されていること
+      expect(reconciled.columns[0].trips[0].children).toHaveLength(0);
+
+      // 2. 未割り当て枠から c-2 が除外されていること
+      expect(reconciled.unassigned.children).toHaveLength(0);
+
+      // 3. 家族枠に c-1, c-2 の両方が自動配置されていること
+      const familyIds = reconciled.familyPickup.children.map((c: any) => c.id);
+      expect(familyIds).toContain("c-1");
+      expect(familyIds).toContain("c-2");
+    });
+
+    it("removes absent children from all board areas", () => {
+      const prevBoard = {
+        columns: [
+          {
+            id: "col-1",
+            trips: [
+              { tripIndex: 1, children: [{ id: "c-1", name: "児童1" }] },
+            ],
+          },
+        ],
+        unassigned: { id: "unassigned", children: [{ id: "c-2", name: "児童2" }] },
+        familyPickup: { id: "family-pickup", children: [{ id: "c-3", name: "児童3" }] },
+      };
+
+      // 全員欠席（absent）に変更
+      const updatedAttendances = [
+        { child_id: "c-1", status: "both", attendance_status: "absent" },
+        { child_id: "c-2", status: "both", attendance_status: "absent" },
+        { child_id: "c-3", status: "no_transport", attendance_status: "absent" },
+      ];
+
+      const reconciled = reconcileBoardWithAttendances(prevBoard, updatedAttendances, mockChildren, "outbound");
+
+      expect(reconciled.columns[0].trips[0].children).toHaveLength(0);
+      expect(reconciled.unassigned.children).toHaveLength(0);
+      expect(reconciled.familyPickup.children).toHaveLength(0);
     });
   });
 });

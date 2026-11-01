@@ -1,3 +1,5 @@
+import { toMagnet } from "./mockData";
+
 /**
  * 車両および運行便に関するユーティリティ
  */
@@ -45,29 +47,171 @@ export interface VehicleColorTheme {
   label: string;          // 表示名
 }
 
+// フォールバック用のカラーパレット一覧（登録外車両でも重複しにくい配色）
+const FALLBACK_COLOR_PALETTES: Omit<VehicleColorTheme, "label">[] = [
+  {
+    badgeBg: "bg-sky-100",
+    badgeText: "text-sky-800",
+    badgeBorder: "border-sky-300",
+    printBg: "print:bg-sky-100",
+    printText: "print:text-sky-900",
+    printBorder: "print:border-sky-400",
+  },
+  {
+    badgeBg: "bg-amber-100",
+    badgeText: "text-amber-800",
+    badgeBorder: "border-amber-300",
+    printBg: "print:bg-amber-100",
+    printText: "print:text-amber-900",
+    printBorder: "print:border-amber-400",
+  },
+  {
+    badgeBg: "bg-purple-100",
+    badgeText: "text-purple-800",
+    badgeBorder: "border-purple-300",
+    printBg: "print:bg-purple-100",
+    printText: "print:text-purple-900",
+    printBorder: "print:border-purple-400",
+  },
+  {
+    badgeBg: "bg-pink-100",
+    badgeText: "text-pink-800",
+    badgeBorder: "border-pink-300",
+    printBg: "print:bg-pink-100",
+    printText: "print:text-pink-900",
+    printBorder: "print:border-pink-400",
+  },
+  {
+    badgeBg: "bg-indigo-100",
+    badgeText: "text-indigo-800",
+    badgeBorder: "border-indigo-300",
+    printBg: "print:bg-indigo-100",
+    printText: "print:text-indigo-900",
+    printBorder: "print:border-indigo-400",
+  },
+  {
+    badgeBg: "bg-emerald-100",
+    badgeText: "text-emerald-800",
+    badgeBorder: "border-emerald-300",
+    printBg: "print:bg-emerald-100",
+    printText: "print:text-emerald-900",
+    printBorder: "print:border-emerald-400",
+  },
+  {
+    badgeBg: "bg-yellow-100",
+    badgeText: "text-yellow-800",
+    badgeBorder: "border-yellow-300",
+    printBg: "print:bg-yellow-100",
+    printText: "print:text-yellow-900",
+    printBorder: "print:border-yellow-400",
+  },
+  {
+    badgeBg: "bg-teal-100",
+    badgeText: "text-teal-800",
+    badgeBorder: "border-teal-300",
+    printBg: "print:bg-teal-100",
+    printText: "print:text-teal-900",
+    printBorder: "print:border-teal-400",
+  },
+  {
+    badgeBg: "bg-rose-100",
+    badgeText: "text-rose-800",
+    badgeBorder: "border-rose-300",
+    printBg: "print:bg-rose-100",
+    printText: "print:text-rose-900",
+    printBorder: "print:border-rose-400",
+  },
+  {
+    badgeBg: "bg-cyan-100",
+    badgeText: "text-cyan-800",
+    badgeBorder: "border-cyan-300",
+    printBg: "print:bg-cyan-100",
+    printText: "print:text-cyan-900",
+    printBorder: "print:border-cyan-400",
+  },
+];
+
 /**
- * 車種名から固有の識別カラーテーマを取得
- * - ボクシー / ヴォクシー: 青系 (blue)
- * - ステップワゴン: 緑系 (emerald / green)
- * - シエンタ: オレンジ系 (orange / amber)
- * - アイシス: シアン / スカイブルー系 (cyan / sky)
- * - ブーン / ムーブ / 軽 / タント: 紫 / ピンク系 (purple / fuchsia)
+ * 車両・車種名から固有の識別カラーパレットを取得
+ * - アイシス: スカイブルー系 (bg-sky-100 text-sky-800 border-sky-300)
+ * - シエンタ: アンバー/オレンジ系 (bg-amber-100 text-amber-800 border-amber-300)
+ * - ノート: パープル系 (bg-purple-100 text-purple-800 border-purple-300)
+ * - ムーブ: ピンク/ローズ系 (bg-pink-100 text-pink-800 border-pink-300)
+ * - ボクシー / ヴォクシー: インディゴ/ブルー系 (bg-indigo-100 text-indigo-800 border-indigo-300)
+ * - ステップワゴン: エメラルド/グリーン系 (bg-emerald-100 text-emerald-800 border-emerald-300)
+ * - エブリィ: イエロー系 (bg-yellow-100 text-yellow-800 border-yellow-300)
+ * - スペーシア: ティール系 (bg-teal-100 text-teal-800 border-teal-300)
+ * - その他登録外車両: 文字列ハッシュにより一貫してパレットから自動選択
  */
 export function getVehicleColorTheme(vehicleName?: string | null): VehicleColorTheme {
-  const name = (vehicleName || "").toLowerCase();
+  const name = (vehicleName || "").trim().toLowerCase();
 
+  // 1. アイシス (スカイブルー系)
+  if (name.includes("アイシス") || name.includes("isis")) {
+    return {
+      badgeBg: "bg-sky-100",
+      badgeText: "text-sky-800",
+      badgeBorder: "border-sky-300",
+      printBg: "print:bg-sky-100",
+      printText: "print:text-sky-900",
+      printBorder: "print:border-sky-400",
+      label: "アイシス",
+    };
+  }
+
+  // 2. シエンタ (アンバー/オレンジ系)
+  if (name.includes("シエンタ") || name.includes("sienta")) {
+    return {
+      badgeBg: "bg-amber-100",
+      badgeText: "text-amber-800",
+      badgeBorder: "border-amber-300",
+      printBg: "print:bg-amber-100",
+      printText: "print:text-amber-900",
+      printBorder: "print:border-amber-400",
+      label: "シエンタ",
+    };
+  }
+
+  // 3. ノート (パープル系)
+  if (name.includes("ノート") || name.includes("note")) {
+    return {
+      badgeBg: "bg-purple-100",
+      badgeText: "text-purple-800",
+      badgeBorder: "border-purple-300",
+      printBg: "print:bg-purple-100",
+      printText: "print:text-purple-900",
+      printBorder: "print:border-purple-400",
+      label: "ノート",
+    };
+  }
+
+  // 4. ムーブ / ムーヴ (ピンク/ローズ系)
+  if (name.includes("ムーブ") || name.includes("ムーヴ") || name.includes("move")) {
+    return {
+      badgeBg: "bg-pink-100",
+      badgeText: "text-pink-800",
+      badgeBorder: "border-pink-300",
+      printBg: "print:bg-pink-100",
+      printText: "print:text-pink-900",
+      printBorder: "print:border-pink-400",
+      label: "ムーブ",
+    };
+  }
+
+  // 5. ボクシー / ヴォクシー (インディゴ/ブルー系)
   if (name.includes("ボクシー") || name.includes("ヴォクシー") || name.includes("voxy")) {
     return {
-      badgeBg: "bg-blue-100",
-      badgeText: "text-blue-800",
-      badgeBorder: "border-blue-300",
-      printBg: "print:bg-blue-100",
-      printText: "print:text-blue-900",
-      printBorder: "print:border-blue-400",
+      badgeBg: "bg-indigo-100",
+      badgeText: "text-indigo-800",
+      badgeBorder: "border-indigo-300",
+      printBg: "print:bg-indigo-100",
+      printText: "print:text-indigo-900",
+      printBorder: "print:border-indigo-400",
       label: "ボクシー",
     };
   }
 
+  // 6. ステップワゴン (エメラルド/グリーン系)
   if (name.includes("ステップワゴン") || name.includes("stepwgn") || name.includes("step")) {
     return {
       badgeBg: "bg-emerald-100",
@@ -80,60 +224,220 @@ export function getVehicleColorTheme(vehicleName?: string | null): VehicleColorT
     };
   }
 
-  if (name.includes("シエンタ") || name.includes("sienta")) {
+  // 7. エブリィ / エブリー (イエロー系)
+  if (name.includes("エブリィ") || name.includes("エブリー") || name.includes("every")) {
     return {
-      badgeBg: "bg-orange-100",
-      badgeText: "text-orange-800",
-      badgeBorder: "border-orange-300",
-      printBg: "print:bg-orange-100",
-      printText: "print:text-orange-900",
-      printBorder: "print:border-orange-400",
-      label: "シエンタ",
+      badgeBg: "bg-yellow-100",
+      badgeText: "text-yellow-800",
+      badgeBorder: "border-yellow-300",
+      printBg: "print:bg-yellow-100",
+      printText: "print:text-yellow-900",
+      printBorder: "print:border-yellow-400",
+      label: "エブリィ",
     };
   }
 
-  if (name.includes("アイシス") || name.includes("isis")) {
+  // 8. スペーシア (ティール系)
+  if (name.includes("スペーシア") || name.includes("spacia")) {
     return {
-      badgeBg: "bg-cyan-100",
-      badgeText: "text-cyan-800",
-      badgeBorder: "border-cyan-300",
-      printBg: "print:bg-cyan-100",
-      printText: "print:text-cyan-900",
-      printBorder: "print:border-cyan-400",
-      label: "アイシス",
+      badgeBg: "bg-teal-100",
+      badgeText: "text-teal-800",
+      badgeBorder: "border-teal-300",
+      printBg: "print:bg-teal-100",
+      printText: "print:text-teal-900",
+      printBorder: "print:border-teal-400",
+      label: "スペーシア",
     };
   }
 
-  if (
-    name.includes("ブーン") ||
-    name.includes("boon") ||
-    name.includes("ムーブ") ||
-    name.includes("ムーヴ") ||
-    name.includes("move") ||
-    name.includes("軽") ||
-    name.includes("タント") ||
-    name.includes("tanto")
-  ) {
+  // ブーン / タント / 軽自動車フォールバック
+  if (name.includes("ブーン") || name.includes("boon") || name.includes("タント") || name.includes("tanto") || name.includes("軽")) {
     return {
-      badgeBg: "bg-purple-100",
-      badgeText: "text-purple-800",
-      badgeBorder: "border-purple-300",
-      printBg: "print:bg-purple-100",
-      printText: "print:text-purple-900",
-      printBorder: "print:border-purple-400",
-      label: "軽・小型",
+      badgeBg: "bg-pink-100",
+      badgeText: "text-pink-800",
+      badgeBorder: "border-pink-300",
+      printBg: "print:bg-pink-100",
+      printText: "print:text-pink-900",
+      printBorder: "print:border-pink-400",
+      label: "軽自動車",
     };
   }
 
-  // デフォルト（グレー・スレート系）
+  // 車両未定または未指定
+  if (!name || name === "車未定" || name === "車両未定" || name === "車両未選択") {
+    return {
+      badgeBg: "bg-slate-100",
+      badgeText: "text-slate-700",
+      badgeBorder: "border-slate-300",
+      printBg: "print:bg-slate-100",
+      printText: "print:text-slate-800",
+      printBorder: "print:border-slate-400",
+      label: "車未定",
+    };
+  }
+
+  // その他登録外車両：文字列ハッシュでパレットから一貫して自動選択
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % FALLBACK_COLOR_PALETTES.length;
+  const palette = FALLBACK_COLOR_PALETTES[index];
+
   return {
-    badgeBg: "bg-slate-100",
-    badgeText: "text-slate-800",
-    badgeBorder: "border-slate-300",
-    printBg: "print:bg-slate-100",
-    printText: "print:text-slate-900",
-    printBorder: "print:border-slate-400",
-    label: "車両",
+    ...palette,
+    label: vehicleName || "車両",
+  };
+}
+
+/**
+ * 車両バッジカラーヘルパー（エイリアス）
+ */
+export const getVehicleBadgeColor = getVehicleColorTheme;
+
+export interface BoardStateData {
+  columns: any[];
+  unassigned: { id: string; children: any[] };
+  familyPickup: { id: string; children: any[] };
+}
+
+/**
+ * 日別設定の最新出欠・送迎フラグ（Single Source of Truth）に基づき、
+ * 送迎ボードの配車ステート（スタッフ便、未割り当て枠、家族枠）の整合性を修復（リコンシリエーション）する純粋関数。
+ *
+ * 【動作仕様】
+ * - 送迎フラグがONに変更された児童:
+ *   「家族枠」に存在していた場合、即座に「家族枠」から除外して「未割り当て（unassigned）」枠へ移動（ドラッグロック解除）
+ * - 送迎フラグがOFFに変更された児童:
+ *   スタッフ便や未割り当て枠に存在していた場合、即座に除外して「家族枠」へ移動（ドラッグロック）
+ * - 欠席児童:
+ *   全枠から除外
+ */
+export function reconcileBoardWithAttendances(
+  currentBoard: BoardStateData,
+  attendances: any[],
+  children: any[],
+  mode: "inbound" | "outbound"
+): BoardStateData {
+  const requiredChildIds = new Set<string>();
+  const noTransportChildIds = new Set<string>();
+  const absentChildIds = new Set<string>();
+
+  (attendances || []).forEach((a: any) => {
+    const childId = String(a.child_id);
+    const transportStatus = a.status || "both";
+    const attendanceStatus = a.attendance_status || "present";
+    const isAbsent = attendanceStatus === "absent" || transportStatus === "absent";
+
+    if (isAbsent) {
+      absentChildIds.add(childId);
+    } else if (isTransportRequired(mode, transportStatus)) {
+      requiredChildIds.add(childId);
+    } else {
+      noTransportChildIds.add(childId);
+    }
+  });
+
+  // 1. スタッフ便（columns）の修復
+  const newColumns = (currentBoard.columns || []).map((col: any) => ({
+    ...col,
+    trips: (col.trips || []).map((trip: any) => ({
+      ...trip,
+      children: (trip.children || [])
+        .filter((child: any) => {
+          const id = String(child.id);
+          return !absentChildIds.has(id) && !noTransportChildIds.has(id) && requiredChildIds.has(id);
+        })
+        .map((child: any) => {
+          const att = attendances.find((a: any) => String(a.child_id) === String(child.id));
+          return {
+            ...child,
+            pickup_time: att ? att.pickup_time : child.pickup_time,
+            transportMode: att ? att.status : child.transportMode,
+          };
+        }),
+    })),
+  }));
+
+  const assignedStaffChildIds = new Set<string>(
+    newColumns.flatMap((col: any) =>
+      (col.trips || []).flatMap((trip: any) =>
+        (trip.children || []).map((child: any) => String(child.id))
+      )
+    )
+  );
+
+  // 2. 家族枠（familyPickup）の修復
+  // 送迎フラグがONの児童は家族枠から絶対に除外！
+  const familyChildrenMap = new Map<string, any>();
+
+  (currentBoard.familyPickup?.children || []).forEach((child: any) => {
+    const id = String(child.id);
+    if (!absentChildIds.has(id) && noTransportChildIds.has(id)) {
+      const att = attendances.find((a: any) => String(a.child_id) === id);
+      familyChildrenMap.set(id, {
+        ...child,
+        pickup_time: att ? att.pickup_time : child.pickup_time,
+        transportMode: att ? att.status : child.transportMode,
+      });
+    }
+  });
+
+  // 送迎不要の全児童を家族枠に補完
+  noTransportChildIds.forEach((childId) => {
+    if (!familyChildrenMap.has(childId)) {
+      const magnet = toMagnet(childId, children, attendances);
+      if (magnet) {
+        familyChildrenMap.set(childId, magnet);
+      }
+    }
+  });
+
+  const newFamilyChildren = Array.from(familyChildrenMap.values());
+
+  // 3. 未割り当て枠（unassigned）の修復
+  const unassignedMap = new Map<string, any>();
+
+  (currentBoard.unassigned?.children || []).forEach((child: any) => {
+    const id = String(child.id);
+    if (
+      !absentChildIds.has(id) &&
+      !noTransportChildIds.has(id) &&
+      requiredChildIds.has(id) &&
+      !assignedStaffChildIds.has(id)
+    ) {
+      const att = attendances.find((a: any) => String(a.child_id) === id);
+      unassignedMap.set(id, {
+        ...child,
+        pickup_time: att ? att.pickup_time : child.pickup_time,
+        transportMode: att ? att.status : child.transportMode,
+      });
+    }
+  });
+
+  // 送迎が必要だがスタッフ便に乗っていない児童（＝家族枠から解放された児童を含む）を未割り当てに追加
+  requiredChildIds.forEach((childId) => {
+    if (!assignedStaffChildIds.has(childId) && !unassignedMap.has(childId)) {
+      const magnet = toMagnet(childId, children, attendances);
+      if (magnet) {
+        unassignedMap.set(childId, magnet);
+      }
+    }
+  });
+
+  const newUnassignedChildren = Array.from(unassignedMap.values());
+
+  return {
+    columns: newColumns,
+    unassigned: {
+      id: currentBoard.unassigned?.id || "unassigned",
+      children: newUnassignedChildren,
+    },
+    familyPickup: {
+      id: currentBoard.familyPickup?.id || "family-pickup",
+      children: newFamilyChildren,
+    },
   };
 }
 
