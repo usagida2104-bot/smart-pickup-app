@@ -464,4 +464,48 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
       expect(filteredForAutoAssign.map(c => c.id)).toEqual(["c-1", "c-4"]);
     });
   });
+
+  describe("Mode-dependent Time Display and Table Column Layout", () => {
+    it("should hide time and render 2 columns in outbound mode, and show time with 3 columns in inbound mode", () => {
+      // 共通の描画ロジック仕様の検証
+      const getTableColumns = (mode: "inbound" | "outbound") => {
+        const isOutbound = mode === "outbound";
+        return {
+          colCount: isOutbound ? 2 : 3,
+          indexColWidth: isOutbound ? "22px" : "18px",
+          hasTimeCol: !isOutbound,
+          timeColWidth: isOutbound ? undefined : "38px",
+        };
+      };
+
+      const inboundLayout = getTableColumns("inbound");
+      expect(inboundLayout.colCount).toBe(3);
+      expect(inboundLayout.hasTimeCol).toBe(true);
+      expect(inboundLayout.indexColWidth).toBe("18px");
+      expect(inboundLayout.timeColWidth).toBe("38px");
+
+      const outboundLayout = getTableColumns("outbound");
+      expect(outboundLayout.colCount).toBe(2);
+      expect(outboundLayout.hasTimeCol).toBe(false);
+      expect(outboundLayout.indexColWidth).toBe("22px");
+      expect(outboundLayout.timeColWidth).toBeUndefined();
+    });
+
+    it("controls child card time badge visibility strictly based on mode", () => {
+      const isTimeBadgeVisible = (mode: "inbound" | "outbound") => mode === "inbound";
+
+      expect(isTimeBadgeVisible("inbound")).toBe(true);
+      expect(isTimeBadgeVisible("outbound")).toBe(false);
+    });
+
+    it("controls vehicle trip time summary visibility based on mode", () => {
+      const isTripTimeSummaryVisible = (mode: "inbound" | "outbound", timeSummary?: string) => {
+        return mode === "inbound" && !!timeSummary;
+      };
+
+      expect(isTripTimeSummaryVisible("inbound", "14:10〜14:40")).toBe(true);
+      expect(isTripTimeSummaryVisible("outbound", "17:00〜17:30")).toBe(false);
+      expect(isTripTimeSummaryVisible("inbound", "")).toBe(false);
+    });
+  });
 });

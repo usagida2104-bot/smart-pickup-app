@@ -83,14 +83,16 @@ export function ChildCard({ magnet, mode, isLocked = false, onClick, onMoveUp, o
         </div>
       </div>
 
-      {/* 右側: 時間バッジ ＋ 並び順ボタン ＋ actionSlot (幅を固定して折り返し・見切れ防止) */}
+      {/* 右側: 時間バッジ（迎えモード時のみ表示） ＋ 並び順ボタン ＋ actionSlot (幅を固定して折り返し・見切れ防止) */}
       <div className="flex items-center gap-1 shrink-0">
-        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-gray-100 text-[11px] font-mono font-medium text-gray-700 whitespace-nowrap shrink-0 border border-gray-200">
-          <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
-          {magnet.pickup_time && typeof magnet.pickup_time === "string" && magnet.pickup_time.trim() !== ""
-            ? magnet.pickup_time.slice(0, 5)
-            : "-"}
-        </span>
+        {mode === "inbound" && (
+          <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-gray-100 text-[11px] font-mono font-medium text-gray-700 whitespace-nowrap shrink-0 border border-gray-200">
+            <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+            {magnet.pickup_time && typeof magnet.pickup_time === "string" && magnet.pickup_time.trim() !== ""
+              ? magnet.pickup_time.slice(0, 5)
+              : "-"}
+          </span>
+        )}
 
         {/* Action buttons (Move up/down - compact) */}
         {(showMoveUp || showMoveDown) && (

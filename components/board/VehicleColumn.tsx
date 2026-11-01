@@ -222,8 +222,8 @@ export function VehicleColumn({
                   </div>
                 </div>
 
-                {/* 運行時間サマリー表示（乗車児童の最早〜最遅時間） */}
-                {timeSummary && (
+                {/* 運行時間サマリー表示（迎え運行のみ表示、送り運行では非表示） */}
+                {mode === "inbound" && timeSummary && (
                   <div className="flex items-center gap-1 px-1 text-[10px] text-gray-600">
                     <Clock className="w-3 h-3 text-gray-400 shrink-0" />
                     <span className="font-mono font-semibold">運行時間: {timeSummary}</span>

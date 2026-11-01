@@ -1532,7 +1532,46 @@ function BoardPageContent() {
           return timeA.localeCompare(timeB);
         });
 
-        const renderPrintStaffGrid = (columns: any[]) => {
+        // 共通の便テーブル描画関数（送りは時刻列なしの2列構成、迎えは時刻列ありの3列構成）
+        const renderTripTable = (childrenList: any[], tripMode: "inbound" | "outbound") => {
+          const isOutbound = tripMode === "outbound";
+          return (
+            <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
+              <colgroup>
+                <col style={{ width: isOutbound ? "22px" : "18px" }} />
+                <col />
+                {!isOutbound && <col style={{ width: "38px" }} />}
+              </colgroup>
+              <tbody>
+                {childrenList.map((child: any, idx: number) => (
+                  <tr key={child.id} className="border-b border-gray-300">
+                    <td className={cn(
+                      "border border-gray-400 px-0.5 py-0.5 text-center font-medium shrink-0",
+                      isOutbound ? "w-[22px] max-w-[22px] text-[9.5px]" : "w-[18px] max-w-[18px] text-[9px]"
+                    )}>
+                      {idx + 1}
+                    </td>
+                    <td className={cn(
+                      "border border-gray-400 px-1 py-0.5 font-medium truncate overflow-hidden",
+                      isOutbound ? "text-[11px]" : "text-[10.5px]"
+                    )}>
+                      {child.name}
+                      {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
+                      {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
+                    </td>
+                    {!isOutbound && (
+                      <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
+                        {child.pickup_time || "—"}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          );
+        };
+
+        const renderPrintStaffGrid = (columns: any[], gridMode: "inbound" | "outbound") => {
           const activeDrivingStaffColumns = columns.filter((col: any) =>
             (col.trips || []).some((trip: any) => (trip.children || []).length > 0)
           );
@@ -1618,30 +1657,7 @@ function BoardPageContent() {
                             </span>
                           </div>
 
-                          <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
-                            <colgroup>
-                              <col style={{ width: "18px" }} />
-                              <col />
-                              <col style={{ width: "38px" }} />
-                            </colgroup>
-                            <tbody>
-                              {sortedTrip1.map((child: any, idx: number) => (
-                                <tr key={child.id} className="border-b border-gray-300">
-                                  <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
-                                    {idx + 1}
-                                  </td>
-                                  <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
-                                    {child.name}
-                                    {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
-                                    {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
-                                  </td>
-                                  <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
-                                    {child.pickup_time || "—"}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                          {renderTripTable(sortedTrip1, gridMode)}
                         </div>
                       )}
 
@@ -1660,30 +1676,7 @@ function BoardPageContent() {
                             </span>
                           </div>
 
-                          <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
-                            <colgroup>
-                              <col style={{ width: "18px" }} />
-                              <col />
-                              <col style={{ width: "38px" }} />
-                            </colgroup>
-                            <tbody>
-                              {sortedTrip2.map((child: any, idx: number) => (
-                                <tr key={child.id} className="border-b border-gray-300">
-                                  <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
-                                    {idx + 1}
-                                  </td>
-                                  <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
-                                    {child.name}
-                                    {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
-                                    {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
-                                  </td>
-                                  <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
-                                    {child.pickup_time || "—"}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                          {renderTripTable(sortedTrip2, gridMode)}
                         </div>
                       )}
 
@@ -1713,30 +1706,7 @@ function BoardPageContent() {
                                 </span>
                               </div>
 
-                              <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
-                                <colgroup>
-                                  <col style={{ width: "18px" }} />
-                                  <col />
-                                  <col style={{ width: "38px" }} />
-                                </colgroup>
-                                <tbody>
-                                  {sortedAdd.map((child: any, idx: number) => (
-                                    <tr key={child.id} className="border-b border-gray-300">
-                                      <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
-                                        {idx + 1}
-                                      </td>
-                                      <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
-                                        {child.name}
-                                        {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
-                                        {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
-                                      </td>
-                                      <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
-                                        {child.pickup_time || "—"}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                              {renderTripTable(sortedAdd, gridMode)}
                             </div>
                           );
                         })}
@@ -1749,7 +1719,7 @@ function BoardPageContent() {
         };
 
         // 家族枠（送迎なし）専用カード描画関数
-        const renderFamilyBox = (title: string, list: any[]) => {
+        const renderFamilyBox = (title: string, list: any[], boxMode: "inbound" | "outbound") => {
           return (
             <div className="w-[145px] shrink-0 border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none break-inside-avoid box-border">
               <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
@@ -1764,30 +1734,7 @@ function BoardPageContent() {
                     なし
                   </div>
                 ) : (
-                  <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
-                    <colgroup>
-                      <col style={{ width: "18px" }} />
-                      <col />
-                      <col style={{ width: "38px" }} />
-                    </colgroup>
-                    <tbody>
-                      {list.map((child: any, idx: number) => (
-                        <tr key={child.id} className="border-b border-gray-300">
-                          <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
-                            {idx + 1}
-                          </td>
-                          <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
-                            {child.name}
-                            {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
-                            {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
-                          </td>
-                          <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
-                            {child.pickup_time || "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  renderTripTable(list, boxMode)
                 )}
               </div>
             </div>
@@ -1840,9 +1787,9 @@ function BoardPageContent() {
                 </div>
                 {/* 手書きレイアウト再現: [左: 家族迎え枠] + [右: スタッフ送迎車グリッド] */}
                 <div className="flex gap-1.5 items-start w-full">
-                  {renderFamilyBox("🏠 家族迎え", inboundFamilyChildren)}
+                  {renderFamilyBox("🏠 家族迎え", inboundFamilyChildren, "inbound")}
                   <div className="flex-1 min-w-0">
-                    {renderPrintStaffGrid(inboundCols)}
+                    {renderPrintStaffGrid(inboundCols, "inbound")}
                   </div>
                 </div>
               </div>
@@ -1862,9 +1809,9 @@ function BoardPageContent() {
                 </div>
                 {/* 手書きレイアウト再現: [左: 家族送り枠] + [右: スタッフ送迎車グリッド] */}
                 <div className="flex gap-1.5 items-start w-full">
-                  {renderFamilyBox("🏠 家族送り", outboundFamilyChildren)}
+                  {renderFamilyBox("🏠 家族送り", outboundFamilyChildren, "outbound")}
                   <div className="flex-1 min-w-0">
-                    {renderPrintStaffGrid(outboundCols)}
+                    {renderPrintStaffGrid(outboundCols, "outbound")}
                   </div>
                 </div>
               </div>
