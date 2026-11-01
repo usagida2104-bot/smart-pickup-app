@@ -279,5 +279,73 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
       expect(mockFamilyPickup.children.length).toBe(1);
       expect(mockFamilyPickup.children[0].name).toBe("児童C");
     });
+
+    it("correctly extracts and sorts no-transport/family-pickup children for left dedicated box", () => {
+      const mockAttendances = [
+        { child_id: "c-1", attendance_status: "present", status: "both", pickup_time: "14:10" },
+        { child_id: "c-2", attendance_status: "present", status: "no_transport", pickup_time: "15:15" }, // 國分里穂等 (送迎不要)
+        { child_id: "c-3", attendance_status: "present", status: "dropoff_only", pickup_time: "14:30" }, // 迎えは家族送迎
+        { child_id: "c-4", attendance_status: "present", status: "pickup_only", pickup_time: "17:00" }, // 送りは家族送迎
+        { child_id: "c-5", attendance_status: "absent", status: "no_transport", pickup_time: "15:00" }, // 欠席は除外
+      ];
+
+      const mockChildren = [
+        { id: "c-1", name: "鈴木一郎" },
+        { id: "c-2", name: "國分里穂" },
+        { id: "c-3", name: "佐藤花子" },
+        { id: "c-4", name: "田中太郎" },
+        { id: "c-5", name: "欠席児童" },
+      ];
+
+      // 迎えで送迎車に乗っている児童
+      const inboundAssignedIds = new Set(["c-1"]);
+
+      // 迎えの家族枠児童抽出
+      const inboundFamilyMap = new Map<string, any>();
+      mockAttendances.forEach(a => {
+        if (a.attendance_status === "absent" || a.status === "absent") return;
+        if (a.status === "dropoff_only" || a.status === "no_transport") {
+          const child = mockChildren.find(c => c.id === a.child_id);
+          if (child && !inboundAssignedIds.has(a.child_id)) {
+            inboundFamilyMap.set(a.child_id, { id: a.child_id, name: child.name, pickup_time: a.pickup_time });
+          }
+        }
+      });
+
+      const inboundFamilyList = Array.from(inboundFamilyMap.values()).sort((a, b) =>
+        (a.pickup_time || "99:99").localeCompare(b.pickup_time || "99:99")
+      );
+
+      // 迎えの家族枠: 佐藤花子(14:30, dropoff_only) と 國分里穂(15:15, no_transport) が抽出される
+      expect(inboundFamilyList.length).toBe(2);
+      expect(inboundFamilyList[0].name).toBe("佐藤花子");
+      expect(inboundFamilyList[0].pickup_time).toBe("14:30");
+      expect(inboundFamilyList[1].name).toBe("國分里穂");
+      expect(inboundFamilyList[1].pickup_time).toBe("15:15");
+
+      // 送りの家族枠児童抽出
+      const outboundAssignedIds = new Set(["c-1"]);
+      const outboundFamilyMap = new Map<string, any>();
+      mockAttendances.forEach(a => {
+        if (a.attendance_status === "absent" || a.status === "absent") return;
+        if (a.status === "pickup_only" || a.status === "no_transport") {
+          const child = mockChildren.find(c => c.id === a.child_id);
+          if (child && !outboundAssignedIds.has(a.child_id)) {
+            outboundFamilyMap.set(a.child_id, { id: a.child_id, name: child.name, pickup_time: a.pickup_time });
+          }
+        }
+      });
+
+      const outboundFamilyList = Array.from(outboundFamilyMap.values()).sort((a, b) =>
+        (a.pickup_time || "99:99").localeCompare(b.pickup_time || "99:99")
+      );
+
+      // 送りの家族枠: 國分里穂(15:15, no_transport) と 田中太郎(17:00, pickup_only) が抽出される
+      expect(outboundFamilyList.length).toBe(2);
+      expect(outboundFamilyList[0].name).toBe("國分里穂");
+      expect(outboundFamilyList[0].pickup_time).toBe("15:15");
+      expect(outboundFamilyList[1].name).toBe("田中太郎");
+      expect(outboundFamilyList[1].pickup_time).toBe("17:00");
+    });
   });
 });

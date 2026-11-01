@@ -1371,7 +1371,66 @@ function BoardPageContent() {
         const outboundActiveStaff = outboundCols.filter((col: any) =>
           (col.trips || []).some((trip: any) => (trip.children || []).length > 0)
         );
-        const outboundFamilyPickupChildren = outboundBoard?.familyPickup?.children || [];
+
+        // 迎えの全スタッフ送迎車に乗っている児童ID
+        const inboundAssignedChildIds = new Set(
+          inboundCols.flatMap((c: any) =>
+            (c.trips || []).flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))
+          )
+        );
+
+        // 迎えの家族枠（送迎なし／家族送迎）
+        const inboundFamilyChildrenMap = new Map<string, any>();
+        (inboundBoard?.familyPickup?.children || []).forEach((c: any) => {
+          if (c && c.id) inboundFamilyChildrenMap.set(String(c.id), c);
+        });
+        (attendances || []).forEach((a: any) => {
+          const isAbsent = a.attendance_status === "absent" || a.status === "absent";
+          if (isAbsent) return;
+          const isNoTransportInbound = a.status === "dropoff_only" || a.status === "no_transport";
+          if (isNoTransportInbound) {
+            const childIdStr = String(a.child_id);
+            if (!inboundAssignedChildIds.has(childIdStr) && !inboundFamilyChildrenMap.has(childIdStr)) {
+              const magnet = toMagnet(a.child_id, children, attendances);
+              if (magnet) inboundFamilyChildrenMap.set(childIdStr, magnet);
+            }
+          }
+        });
+        const inboundFamilyChildren = Array.from(inboundFamilyChildrenMap.values()).sort((a: any, b: any) => {
+          const timeA = a.pickup_time || "99:99";
+          const timeB = b.pickup_time || "99:99";
+          return timeA.localeCompare(timeB);
+        });
+
+        // 送りの全スタッフ送迎車に乗っている児童ID
+        const outboundAssignedChildIds = new Set(
+          outboundCols.flatMap((c: any) =>
+            (c.trips || []).flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))
+          )
+        );
+
+        // 送りの家族枠（送迎なし／家族送り・家族お迎え）
+        const outboundFamilyChildrenMap = new Map<string, any>();
+        (outboundBoard?.familyPickup?.children || []).forEach((c: any) => {
+          if (c && c.id) outboundFamilyChildrenMap.set(String(c.id), c);
+        });
+        (attendances || []).forEach((a: any) => {
+          const isAbsent = a.attendance_status === "absent" || a.status === "absent";
+          if (isAbsent) return;
+          const isNoTransportOutbound = a.status === "pickup_only" || a.status === "no_transport";
+          if (isNoTransportOutbound) {
+            const childIdStr = String(a.child_id);
+            if (!outboundAssignedChildIds.has(childIdStr) && !outboundFamilyChildrenMap.has(childIdStr)) {
+              const magnet = toMagnet(a.child_id, children, attendances);
+              if (magnet) outboundFamilyChildrenMap.set(childIdStr, magnet);
+            }
+          }
+        });
+        const outboundFamilyChildren = Array.from(outboundFamilyChildrenMap.values()).sort((a: any, b: any) => {
+          const timeA = a.pickup_time || "99:99";
+          const timeB = b.pickup_time || "99:99";
+          return timeA.localeCompare(timeB);
+        });
 
         const renderPrintStaffGrid = (columns: any[]) => {
           const activeDrivingStaffColumns = columns.filter((col: any) =>
@@ -1380,23 +1439,22 @@ function BoardPageContent() {
 
           if (activeDrivingStaffColumns.length === 0) {
             return (
-              <div className="p-3 text-center text-xs font-medium text-gray-500 border border-dashed border-gray-300 rounded my-1 bg-gray-50">
-                配車されている運行便がありません（全員未割り当て）
+              <div className="p-3 text-center text-xs font-medium text-gray-500 border border-dashed border-gray-300 rounded my-1 bg-gray-50 flex-1">
+                配車されている運行便がありません（送迎便なし）
               </div>
             );
           }
 
+          // 左側に幅145pxの家族枠があるため、右側エリアのスタッフ数に応じたグリッド列数（2〜4列）
           const gridColsClass =
-            activeDrivingStaffColumns.length <= 3
+            activeDrivingStaffColumns.length <= 2
+              ? "grid-cols-2"
+              : activeDrivingStaffColumns.length === 3
               ? "grid-cols-3"
-              : activeDrivingStaffColumns.length <= 4
-              ? "grid-cols-4"
-              : activeDrivingStaffColumns.length <= 6
-              ? "grid-cols-4"
-              : "grid-cols-5";
+              : "grid-cols-4";
 
           return (
-            <div className={cn("grid gap-1.5 items-start", gridColsClass)}>
+            <div className={cn("grid gap-1.5 items-start w-full", gridColsClass)}>
               {activeDrivingStaffColumns.map((col: any) => {
                 const staffName = col.staffName || col.driverName || "担当スタッフ";
                 const trip1 = (col.trips || []).find((t: any) => t.tripIndex === 1);
@@ -1425,10 +1483,10 @@ function BoardPageContent() {
                 });
 
                 return (
-                  <div key={col.id} className="break-inside-avoid border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none">
+                  <div key={col.id} className="break-inside-avoid border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none w-full box-border">
                     {/* スタッフヘッダー: 👤 スタッフ名 */}
-                    <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between">
-                      <div className="flex items-center gap-1 min-w-0">
+                    <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
+                      <div className="flex items-center gap-1 min-w-0 overflow-hidden">
                         <span className="text-[11px] font-bold text-gray-900 truncate">👤 {staffName}</span>
                         {col.staffRole && col.staffRole !== "一般スタッフ" && (
                           <span className="text-[8.5px] font-medium text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
@@ -1444,33 +1502,42 @@ function BoardPageContent() {
                     </div>
 
                     {/* 運行便コンテナ（児童がいる便のみ出力、空の便は非表示） */}
-                    <div className="flex flex-col divide-y divide-gray-200 flex-1">
+                    <div className="flex flex-col divide-y divide-gray-200 flex-1 overflow-hidden">
                       {/* 【上段: 1便目】 */}
                       {hasTrip1Children && (
-                        <div className="p-1 flex flex-col">
-                          <div className="flex items-center gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm">
+                        <div className="p-1 flex flex-col overflow-hidden">
+                          <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
                             <span className="font-bold text-[10px] text-gray-900 shrink-0">【1便】</span>
-                            <span className={cn("text-[9px] font-medium px-1.5 py-0.2 rounded border shrink-0 max-w-[110px] truncate", theme1.printBg, theme1.printText, theme1.printBorder)}>
+                            <span className={cn(
+                              "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
+                              theme1.printBg,
+                              theme1.printText,
+                              theme1.printBorder
+                            )}>
                               🚗 {trip1?.vehicleName || "車未定"}
                             </span>
                           </div>
 
-                          <table className="w-full table-fixed text-left border-collapse border border-gray-400 text-[10.5px] leading-tight">
+                          <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
                             <colgroup>
-                              <col style={{ width: "12%" }} />
-                              <col style={{ width: "60%" }} />
-                              <col style={{ width: "28%" }} />
+                              <col style={{ width: "18px" }} />
+                              <col />
+                              <col style={{ width: "38px" }} />
                             </colgroup>
                             <tbody>
                               {sortedTrip1.map((child: any, idx: number) => (
                                 <tr key={child.id} className="border-b border-gray-300">
-                                  <td className="border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9.5px]">{idx + 1}</td>
-                                  <td className="border border-gray-400 px-1 py-0.5 font-medium text-[11px] truncate">
+                                  <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
                                     {child.name}
                                     {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
                                     {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
                                   </td>
-                                  <td className="border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[11px] text-gray-800">{child.pickup_time || "—"}</td>
+                                  <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
+                                    {child.pickup_time || "—"}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1480,30 +1547,39 @@ function BoardPageContent() {
 
                       {/* 【下段: 2便目】 */}
                       {hasTrip2Children && (
-                        <div className="p-1 flex flex-col bg-slate-50/50">
-                          <div className="flex items-center gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm">
+                        <div className="p-1 flex flex-col bg-slate-50/50 overflow-hidden">
+                          <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
                             <span className="font-bold text-[10px] text-gray-900 shrink-0">【2便】</span>
-                            <span className={cn("text-[9px] font-medium px-1.5 py-0.2 rounded border shrink-0 max-w-[110px] truncate", theme2.printBg, theme2.printText, theme2.printBorder)}>
+                            <span className={cn(
+                              "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
+                              theme2.printBg,
+                              theme2.printText,
+                              theme2.printBorder
+                            )}>
                               🚗 {trip2?.vehicleName || "車未定"}
                             </span>
                           </div>
 
-                          <table className="w-full table-fixed text-left border-collapse border border-gray-400 text-[10.5px] leading-tight">
+                          <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
                             <colgroup>
-                              <col style={{ width: "12%" }} />
-                              <col style={{ width: "60%" }} />
-                              <col style={{ width: "28%" }} />
+                              <col style={{ width: "18px" }} />
+                              <col />
+                              <col style={{ width: "38px" }} />
                             </colgroup>
                             <tbody>
                               {sortedTrip2.map((child: any, idx: number) => (
                                 <tr key={child.id} className="border-b border-gray-300">
-                                  <td className="border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9.5px]">{idx + 1}</td>
-                                  <td className="border border-gray-400 px-1 py-0.5 font-medium text-[11px] truncate">
+                                  <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
                                     {child.name}
                                     {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
                                     {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
                                   </td>
-                                  <td className="border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[11px] text-gray-800">{child.pickup_time || "—"}</td>
+                                  <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
+                                    {child.pickup_time || "—"}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1524,30 +1600,39 @@ function BoardPageContent() {
                           });
 
                           return (
-                            <div key={addTrip.id} className="p-1 flex flex-col bg-slate-50/70">
-                              <div className="flex items-center gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm">
+                            <div key={addTrip.id} className="p-1 flex flex-col bg-slate-50/70 overflow-hidden">
+                              <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
                                 <span className="font-bold text-[10px] text-gray-900 shrink-0">【{addTrip.tripIndex}便】</span>
-                                <span className={cn("text-[9px] font-medium px-1.5 py-0.2 rounded border shrink-0 max-w-[110px] truncate", addTheme.printBg, addTheme.printText, addTheme.printBorder)}>
+                                <span className={cn(
+                                  "text-[9.5px] font-medium px-1 py-0.2 rounded border shrink min-w-0 max-w-[95px] truncate",
+                                  addTheme.printBg,
+                                  addTheme.printText,
+                                  addTheme.printBorder
+                                )}>
                                   🚗 {addTrip?.vehicleName || "車未定"}
                                 </span>
                               </div>
 
-                              <table className="w-full table-fixed text-left border-collapse border border-gray-400 text-[10.5px] leading-tight">
+                              <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
                                 <colgroup>
-                                  <col style={{ width: "12%" }} />
-                                  <col style={{ width: "60%" }} />
-                                  <col style={{ width: "28%" }} />
+                                  <col style={{ width: "18px" }} />
+                                  <col />
+                                  <col style={{ width: "38px" }} />
                                 </colgroup>
                                 <tbody>
                                   {sortedAdd.map((child: any, idx: number) => (
                                     <tr key={child.id} className="border-b border-gray-300">
-                                      <td className="border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9.5px]">{idx + 1}</td>
-                                      <td className="border border-gray-400 px-1 py-0.5 font-medium text-[11px] truncate">
+                                      <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
+                                        {idx + 1}
+                                      </td>
+                                      <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
                                         {child.name}
                                         {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
                                         {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
                                       </td>
-                                      <td className="border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[11px] text-gray-800">{child.pickup_time || "—"}</td>
+                                      <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
+                                        {child.pickup_time || "—"}
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -1559,6 +1644,52 @@ function BoardPageContent() {
                   </div>
                 );
               })}
+            </div>
+          );
+        };
+
+        // 家族枠（送迎なし）専用カード描画関数
+        const renderFamilyBox = (title: string, list: any[]) => {
+          return (
+            <div className="w-[145px] shrink-0 border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none break-inside-avoid box-border">
+              <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
+                <span className="text-[11px] font-bold text-gray-900 truncate">{title}</span>
+                <span className="text-[9px] font-semibold text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
+                  {list.length}名
+                </span>
+              </div>
+              <div className="p-1 flex flex-col flex-1 overflow-hidden">
+                {list.length === 0 ? (
+                  <div className="py-4 text-center text-[10px] text-gray-400 font-medium">
+                    なし
+                  </div>
+                ) : (
+                  <table className="w-full table-fixed border-collapse border border-gray-400 text-[10.5px] leading-tight box-border">
+                    <colgroup>
+                      <col style={{ width: "18px" }} />
+                      <col />
+                      <col style={{ width: "38px" }} />
+                    </colgroup>
+                    <tbody>
+                      {list.map((child: any, idx: number) => (
+                        <tr key={child.id} className="border-b border-gray-300">
+                          <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-0.5 text-center font-medium text-[9px] shrink-0">
+                            {idx + 1}
+                          </td>
+                          <td className="border border-gray-400 px-1 py-0.5 font-medium text-[10.5px] truncate overflow-hidden">
+                            {child.name}
+                            {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
+                            {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
+                          </td>
+                          <td className="w-[38px] max-w-[38px] border border-gray-400 px-0.5 py-0.5 font-mono text-center font-normal text-[10.5px] text-gray-800 shrink-0">
+                            {child.pickup_time || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           );
         };
@@ -1602,53 +1733,40 @@ function BoardPageContent() {
                 <div className="flex items-center justify-between mb-1 bg-blue-50/90 px-2 py-0.5 rounded border border-blue-200">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[11px] text-blue-900">▼ 【迎え（来所）】送迎運行表</span>
-                    <span className="text-[9.5px] text-blue-700 font-medium">（運行スタッフ: {inboundActiveStaff.length}名）</span>
+                    <span className="text-[9.5px] text-blue-700 font-medium">
+                      （送迎運行スタッフ: {inboundActiveStaff.length}名 / 家族迎え: {inboundFamilyChildren.length}名）
+                    </span>
                   </div>
                 </div>
-                {renderPrintStaffGrid(inboundCols)}
+                {/* 手書きレイアウト再現: [左: 家族迎え枠] + [右: スタッフ送迎車グリッド] */}
+                <div className="flex gap-1.5 items-start w-full">
+                  {renderFamilyBox("🏠 家族迎え", inboundFamilyChildren)}
+                  <div className="flex-1 min-w-0">
+                    {renderPrintStaffGrid(inboundCols)}
+                  </div>
+                </div>
               </div>
 
-              {/* 【中央区切り線】 */}
-              <div className="border-t-2 border-dashed border-gray-400 my-1.5" />
+              {/* 【中央区切り線（細い破線）】 */}
+              <div className="border-t border-dashed border-gray-300 my-1" />
 
               {/* 【下段: 送り（帰宅）】 */}
               <div className="flex flex-col mb-1">
                 <div className="flex items-center justify-between mb-1 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[11px] text-amber-900">▼ 【送り（帰宅）】送迎運行表</span>
-                    <span className="text-[9.5px] text-amber-700 font-medium">（運行スタッフ: {outboundActiveStaff.length}名）</span>
+                    <span className="text-[9.5px] text-amber-700 font-medium">
+                      （送迎運行スタッフ: {outboundActiveStaff.length}名 / 家族送り: {outboundFamilyChildren.length}名）
+                    </span>
                   </div>
                 </div>
-                {renderPrintStaffGrid(outboundCols)}
-
-                {/* 家族迎え枠（送りのみ） */}
-                {outboundFamilyPickupChildren.length > 0 && (
-                  <div className="break-inside-avoid mt-1 border border-gray-300 rounded p-1 bg-white">
-                    <div className="flex items-center gap-2 mb-0.5 border-b border-gray-300 pb-0.5 px-1 bg-gray-50">
-                      <span className="text-[10.5px] font-bold text-gray-800 flex-1">🏠 家族迎え／来所受取</span>
-                      <span className="text-[9.5px] font-medium text-gray-600">
-                        {outboundFamilyPickupChildren.length}名
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
-                      {[...outboundFamilyPickupChildren].sort((a: any, b: any) => {
-                        const timeA = a.pickup_time || "99:99";
-                        const timeB = b.pickup_time || "99:99";
-                        return timeA.localeCompare(timeB);
-                      }).map((child: any, idx: number) => (
-                        <div key={child.id} className="flex items-center justify-between border border-gray-200 rounded px-1.5 py-0.5 text-[10px] bg-slate-50/50">
-                          <span className="font-medium text-gray-900 truncate mr-1">
-                            <span className="text-gray-500 mr-1 text-[9px]">{idx + 1}.</span>
-                            {child.name}
-                            {child.status === "late" && <span className="text-amber-700 text-[8.5px] ml-0.5 font-medium">遅</span>}
-                            {child.status === "early_leave" && <span className="text-purple-700 text-[8.5px] ml-0.5 font-medium">早</span>}
-                          </span>
-                          <span className="font-mono text-gray-800 text-[10px] shrink-0 font-normal">{child.pickup_time || "—"}</span>
-                        </div>
-                      ))}
-                    </div>
+                {/* 手書きレイアウト再現: [左: 家族送り枠] + [右: スタッフ送迎車グリッド] */}
+                <div className="flex gap-1.5 items-start w-full">
+                  {renderFamilyBox("🏠 家族送り", outboundFamilyChildren)}
+                  <div className="flex-1 min-w-0">
+                    {renderPrintStaffGrid(outboundCols)}
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
@@ -1790,13 +1908,15 @@ function BoardPageContent() {
             width: 100% !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
+            box-sizing: border-box !important;
           }
 
           .board-print-container th,
           .board-print-container td,
           .print-container th,
           .print-container td {
-            padding: 1.5px 3px !important;
+            box-sizing: border-box !important;
+            padding: 1px 2px !important;
             line-height: 1.15 !important;
             vertical-align: middle !important;
           }
