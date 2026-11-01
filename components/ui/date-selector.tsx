@@ -5,9 +5,11 @@ import { formatLocalDate, parseDateString, changeDateByDays, getTodayDateString 
 interface DateSelectorProps {
   selectedDate: Date;
   onChange: (date: Date) => void;
+  onNavigateDays?: (days: number) => void;
+  onSelectToday?: () => void;
 }
 
-export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
+export function DateSelector({ selectedDate, onChange, onNavigateDays, onSelectToday }: DateSelectorProps) {
   const displayDate = selectedDate.toLocaleDateString("ja-JP", {
     year: "numeric",
     month: "long",
@@ -26,8 +28,12 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
         size="icon"
         className="h-7 w-7 sm:h-8 sm:w-8 shrink-0"
         onClick={() => {
-          const prevDateStr = changeDateByDays(currentDateStr, -1);
-          onChange(parseDateString(prevDateStr));
+          if (onNavigateDays) {
+            onNavigateDays(-1);
+          } else {
+            const prevDateStr = changeDateByDays(currentDateStr, -1);
+            onChange(parseDateString(prevDateStr));
+          }
         }}
       >
         <ChevronLeft className="w-4 h-4 md:w-4.5 md:h-4.5" />
@@ -67,8 +73,12 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
           size="icon"
           className="h-7 w-7 sm:h-8 sm:w-8"
           onClick={() => {
-            const nextDateStr = changeDateByDays(currentDateStr, 1);
-            onChange(parseDateString(nextDateStr));
+            if (onNavigateDays) {
+              onNavigateDays(1);
+            } else {
+              const nextDateStr = changeDateByDays(currentDateStr, 1);
+              onChange(parseDateString(nextDateStr));
+            }
           }}
         >
           <ChevronRight className="w-4 h-4 md:w-4.5 md:h-4.5" />
@@ -76,7 +86,13 @@ export function DateSelector({ selectedDate, onChange }: DateSelectorProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onChange(parseDateString(todayStr))}
+          onClick={() => {
+            if (onSelectToday) {
+              onSelectToday();
+            } else {
+              onChange(parseDateString(todayStr));
+            }
+          }}
           className="h-7 md:h-7 px-2 md:px-2.5 text-xs ml-0.5 sm:ml-1 whitespace-nowrap"
         >
           今日

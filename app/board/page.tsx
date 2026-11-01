@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, CalendarIcon, Sparkles, RotateCcw, Save, Printer, Loader2 } from "lucide-react";
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { getCellData } from "@/app/schedule/page";
-import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString } from "@/lib/store/dateStore";
+import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString, changeDateByDays } from "@/lib/store/dateStore";
 
 function formatDate(date: Date) {
   return formatLocalDate(date);
@@ -104,29 +104,45 @@ function BoardPageContent() {
   const { selectedDateStr, setSelectedDateStr, setIsEditing: setGlobalIsEditing } = useDateStore();
 
   const queryDate = searchParams.get("date");
-  const effectiveDateStr = (queryDate && isValidDateString(queryDate))
+  const initialDateStr = (queryDate && isValidDateString(queryDate))
     ? queryDate
     : (selectedDateStr && isValidDateString(selectedDateStr) ? selectedDateStr : getTodayDateString());
 
-  // URL・ストアから単一の真実源として selectedDate を導出（State不整合・巻き戻りを完全遮断）
-  const selectedDate = parseDateString(effectiveDateStr);
+  // 画面内部の日付State（UIの即時先行反映でチラつき・ループを完全防止）
+  const [currentDateStr, setCurrentDateStr] = useState<string>(initialDateStr);
+  const selectedDate = useMemo(() => parseDateString(currentDateStr), [currentDateStr]);
+
+  // 最新の日付を保持するRef（高速連打時の最新日付の追跡＆Race Condition防止）
+  const latestDateStrRef = useRef<string>(initialDateStr);
+  latestDateStrRef.current = currentDateStr;
+
+  // 直前にデータ取得した日付を記録するRef（重複ロード防止）
+  const prevLoadedDateRef = useRef<string>("");
 
   const { children, attendances } = useMasterStore();
   const { staff: masterStaff, vehicles: masterVehicles } = useMasterStore();
   const { inboundBoard, outboundBoard, setBoard, moveChild, reorderChild } = useBoardStore();
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound">("inbound");
 
-  // 初回マウント時および日付変更時のURLクエリとdateStoreの確実な同期
+  // 初回マウント時: URLにdateパラメータがない場合のみ一度だけ補完
   useEffect(() => {
-    setSelectedDateStr(effectiveDateStr);
-    if (!queryDate || !isValidDateString(queryDate)) {
-      const currentUrlParams = new URLSearchParams(window.location.search);
-      if (!currentUrlParams.get("date")) {
-        currentUrlParams.set("date", effectiveDateStr);
-        router.replace(`${pathname}?${currentUrlParams.toString()}`);
+    setSelectedDateStr(initialDateStr);
+    const currentUrlParams = new URLSearchParams(window.location.search);
+    if (!currentUrlParams.get("date")) {
+      router.replace(`${pathname}?date=${initialDateStr}`, { scroll: false });
+    }
+  }, []);
+
+  // ブラウザの戻る/進む等でURLクエリが変わった場合のみ内部Stateへ同期（相互ループ完全排除）
+  useEffect(() => {
+    if (queryDate && isValidDateString(queryDate)) {
+      if (queryDate !== latestDateStrRef.current) {
+        latestDateStrRef.current = queryDate;
+        setCurrentDateStr(queryDate);
+        setSelectedDateStr(queryDate);
       }
     }
-  }, [queryDate, effectiveDateStr, pathname, router, setSelectedDateStr]);
+  }, [queryDate, setSelectedDateStr]);
 
   // アンマウント時に編集フラグをクリア
   useEffect(() => {
@@ -394,7 +410,50 @@ function BoardPageContent() {
     setReloadKey((k) => k + 1);
   };
 
-  // 日付変更（編集中は未保存警告）。変更後は必ず閲覧モードに戻す
+  // 矢印ナビゲーション（< / >）: 最新Refを元に即座に計算し、State先行反映＋URL更新
+  const handleNavigateDate = (days: number) => {
+    if (isEditingRef.current) {
+      if (!window.confirm("未保存の変更があります。変更を破棄して移動しますか？")) return;
+      setEditingMode(false);
+      setIsAutoAssigned(false);
+      setSelectedChild(null);
+    }
+
+    // 最新Ref（またはState・URL）から確実に現在の日付を取得し、JST/ローカル安全加減算
+    const baseDateStr = latestDateStrRef.current || searchParams.get("date") || currentDateStr;
+    const newDateStr = changeDateByDays(baseDateStr, days);
+
+    // 最新Refを即座に更新（高速連打時も確実に連続移動）
+    latestDateStrRef.current = newDateStr;
+
+    // 画面内部Stateを即座に先行反映（UIチラつき・ピンポン往復ループを完全防止）
+    setCurrentDateStr(newDateStr);
+    setSelectedDateStr(newDateStr);
+
+    // URLクエリを更新（scroll: false で位置を保持）
+    router.replace(`${pathname}?date=${newDateStr}`, { scroll: false });
+  };
+
+  // 「今日」ボタン: 今日の一意な日付文字列へ安全に一度だけ遷移
+  const handleSelectToday = () => {
+    if (isEditingRef.current) {
+      if (!window.confirm("未保存の変更があります。変更を破棄して移動しますか？")) return;
+      setEditingMode(false);
+      setIsAutoAssigned(false);
+      setSelectedChild(null);
+    }
+
+    const todayStr = getTodayDateString();
+    if (latestDateStrRef.current === todayStr) return;
+
+    latestDateStrRef.current = todayStr;
+    setCurrentDateStr(todayStr);
+    setSelectedDateStr(todayStr);
+
+    router.replace(`${pathname}?date=${todayStr}`, { scroll: false });
+  };
+
+  // カレンダー直接選択（<input type="date"> 等）
   const handleDateChange = (date: Date) => {
     if (isEditingRef.current) {
       if (!window.confirm("未保存の変更があります。変更を破棄して移動しますか？")) return;
@@ -403,11 +462,13 @@ function BoardPageContent() {
       setSelectedChild(null);
     }
     const newDateStr = formatDate(date);
+    if (latestDateStrRef.current === newDateStr) return;
+
+    latestDateStrRef.current = newDateStr;
+    setCurrentDateStr(newDateStr);
     setSelectedDateStr(newDateStr);
 
-    const currentUrlParams = new URLSearchParams(window.location.search);
-    currentUrlParams.set("date", newDateStr);
-    router.replace(`${pathname}?${currentUrlParams.toString()}`);
+    router.replace(`${pathname}?date=${newDateStr}`, { scroll: false });
   };
 
   // 編集中のタブ閉じ・リロード警告
@@ -512,7 +573,14 @@ function BoardPageContent() {
   useEffect(() => {
     if (children.length === 0) return;
 
-    const targetDateStr = formatDate(selectedDate);
+    const targetDateStr = currentDateStr;
+
+    // 直前に読み込んだ日付と同じでリロード要求もない場合はスキップ（過剰な二重取得を防止）
+    if (prevLoadedDateRef.current === targetDateStr && reloadKey === 0) {
+      return;
+    }
+    prevLoadedDateRef.current = targetDateStr;
+
     let isMounted = true;
 
     const loadData = async () => {
@@ -786,7 +854,7 @@ function BoardPageContent() {
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, effectiveDateStr, masterStaff, masterVehicles, reloadKey]);
+  }, [children, currentDateStr, masterStaff, masterVehicles, reloadKey]);
 
   // 同期用useEffect (児童・出欠情報が更新されたらボード上の情報を最新化)
   // ★ 保存中（isSavingRef.current）は発火しない → 配車直後の状態を保護
@@ -1130,7 +1198,12 @@ function BoardPageContent() {
         </div>
 
         {/* Bottom Row: Date Selector */}
-        <DateSelector selectedDate={selectedDate} onChange={handleDateChange} />
+        <DateSelector 
+          selectedDate={selectedDate} 
+          onChange={handleDateChange}
+          onNavigateDays={handleNavigateDate}
+          onSelectToday={handleSelectToday}
+        />
       </div>
 
       {/* Toast Notification */}
