@@ -1474,20 +1474,12 @@ function BoardPageContent() {
                       {/* 【上段: 1便目】（児童がいる場合のみ出力） */}
                       {hasTrip1Children && (
                         <div className="p-1.5 flex flex-col">
-                          <div className="flex items-center justify-between gap-1 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-sm">
-                            <div className="flex items-center gap-1 min-w-0 truncate">
-                              <span className="font-bold text-[11px] text-gray-900 shrink-0">【1便】</span>
-                              {/* 車種カラータグ（薄いカラーバッジ） */}
-                              <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0", theme1.printBg, theme1.printText, theme1.printBorder)}>
-                                🚗 {trip1?.vehicleName || "車未定"}
-                              </span>
-                            </div>
-                            {/* 運行時間サマリー */}
-                            {timeSummary1 && (
-                              <span className="text-[9.5px] font-mono font-bold text-gray-700 shrink-0">
-                                ({timeSummary1})
-                              </span>
-                            )}
+                          <div className="flex items-center gap-1.5 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-sm">
+                            <span className="font-bold text-[11px] text-gray-900 shrink-0">【1便】</span>
+                            {/* 車種カラータグ（薄いカラーバッジ） */}
+                            <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0", theme1.printBg, theme1.printText, theme1.printBorder)}>
+                              🚗 {trip1?.vehicleName || "車未定"}
+                            </span>
                           </div>
 
                           <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-tight">
@@ -1516,20 +1508,12 @@ function BoardPageContent() {
                       {/* 【下段: 2便目】（児童がいる場合のみ出力） */}
                       {hasTrip2Children && (
                         <div className="p-1.5 flex flex-col bg-slate-50/50">
-                          <div className="flex items-center justify-between gap-1 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-sm">
-                            <div className="flex items-center gap-1 min-w-0 truncate">
-                              <span className="font-bold text-[11px] text-gray-900 shrink-0">【2便】</span>
-                              {/* 車種カラータグ（薄いカラーバッジ） */}
-                              <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0", theme2.printBg, theme2.printText, theme2.printBorder)}>
-                                🚗 {trip2?.vehicleName || "車未定"}
-                              </span>
-                            </div>
-                            {/* 運行時間サマリー */}
-                            {timeSummary2 && (
-                              <span className="text-[9.5px] font-mono font-bold text-gray-700 shrink-0">
-                                ({timeSummary2})
-                              </span>
-                            )}
+                          <div className="flex items-center gap-1.5 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-sm">
+                            <span className="font-bold text-[11px] text-gray-900 shrink-0">【2便】</span>
+                            {/* 車種カラータグ（薄いカラーバッジ） */}
+                            <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0", theme2.printBg, theme2.printText, theme2.printBorder)}>
+                              🚗 {trip2?.vehicleName || "車未定"}
+                            </span>
                           </div>
 
                           <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-tight">
@@ -1570,18 +1554,11 @@ function BoardPageContent() {
 
                           return (
                             <div key={addTrip.id} className="p-1.5 flex flex-col bg-slate-50/70">
-                              <div className="flex items-center justify-between gap-1 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-sm">
-                                <div className="flex items-center gap-1 min-w-0 truncate">
-                                  <span className="font-bold text-[11px] text-gray-900 shrink-0">【{addTrip.tripIndex}便】</span>
-                                  <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0", addTheme.printBg, addTheme.printText, addTheme.printBorder)}>
-                                    🚗 {addTrip?.vehicleName || "車未定"}
-                                  </span>
-                                </div>
-                                {addTimeSummary && (
-                                  <span className="text-[9.5px] font-mono font-bold text-gray-700 shrink-0">
-                                    ({addTimeSummary})
-                                  </span>
-                                )}
+                              <div className="flex items-center gap-1.5 mb-1 pb-0.5 border-b border-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-sm">
+                                <span className="font-bold text-[11px] text-gray-900 shrink-0">【{addTrip.tripIndex}便】</span>
+                                <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0", addTheme.printBg, addTheme.printText, addTheme.printBorder)}>
+                                  🚗 {addTrip?.vehicleName || "車未定"}
+                                </span>
                               </div>
 
                               <table className="w-full text-left border-collapse border border-gray-400 text-[11px] leading-tight">
