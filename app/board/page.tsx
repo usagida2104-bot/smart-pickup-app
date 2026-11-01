@@ -819,6 +819,50 @@ function BoardPageContent() {
     0
   ) + (board.unassigned?.children || []).length;
 
+  // 当日の出席児童データから、所属（ぽっけ、ぽっけⅡ、日中一時）ごとの利用人数を集計
+  const presentChildIds = new Set<string>();
+  displayColumns.forEach((col: any) => {
+    (col.trips || []).forEach((t: any) => {
+      (t.children || []).forEach((c: any) => {
+        if (c?.id) presentChildIds.add(c.id);
+      });
+    });
+  });
+  (board?.unassigned?.children || []).forEach((c: any) => {
+    if (c?.id) presentChildIds.add(c.id);
+  });
+  (board?.familyPickup?.children || []).forEach((c: any) => {
+    if (c?.id) presentChildIds.add(c.id);
+  });
+
+  // 万が一ボード上に児童がいなければ attendances からも補完
+  if (presentChildIds.size === 0 && Array.isArray(attendances)) {
+    attendances.forEach((a: any) => {
+      const isAbsent = a.attendance_status === "absent" || a.status === "absent";
+      if (!isAbsent && a.child_id) {
+        presentChildIds.add(a.child_id);
+      }
+    });
+  }
+
+  let countPokke = 0;
+  let countPokke2 = 0;
+  let countNichu = 0;
+
+  presentChildIds.forEach((id) => {
+    const child = children.find((c: any) => c.id === id);
+    const u = (child?.unit_name || child?.school?.name || "").trim();
+    if (/ぽっけ[2２ⅡII]/.test(u)) {
+      countPokke2++;
+    } else if (/日中/.test(u)) {
+      countNichu++;
+    } else {
+      countPokke++;
+    }
+  });
+
+  const totalPresentCount = countPokke + countPokke2 + countNichu;
+
   const overCapacityCols = displayColumns.filter(
     (col) => (col.trips || []).some((t: any) => (t.children || []).length > col.capacity)
   );
@@ -1079,17 +1123,28 @@ function BoardPageContent() {
     </div>
       
     {/* ===== 印刷用レイアウト（通常は非表示） ===== */}
-    <div className="hidden print:flex font-sans text-black board-print-container">
+    <div className="hidden print:flex flex-col font-sans text-black board-print-container print-container w-full">
       <div>
         {/* 印刷ヘッダー */}
-        <div className="mb-1.5 border-b-2 border-gray-400 pb-1 flex justify-between items-end">
+        <div className="mb-2 border-b-2 border-gray-400 pb-1.5 flex justify-between items-end">
           <div>
-            <h1 className="text-[15px] font-bold leading-tight">
-              放デイ 送迎運行表（{activeTab === "inbound" ? "迎え" : "送り"}）
-            </h1>
-            <p className="text-[13px] font-bold text-gray-800">{displayDate}</p>
+            <div className="flex items-baseline gap-3">
+              <h1 className="text-[16px] font-bold leading-tight">
+                放デイ 送迎運行表（{activeTab === "inbound" ? "迎え" : "送り"}）
+              </h1>
+              <span className="text-[13px] font-bold text-gray-800">{displayDate}</span>
+            </div>
+            <p className="text-xs font-semibold text-gray-700 mt-1">
+              利用者数: ぽっけ {countPokke}名 / ぽっけⅡ {countPokke2}名 / 日中一時 {countNichu}名 （合計 {totalPresentCount}名）
+            </p>
           </div>
-          <p className="text-[9px] text-gray-500">出力日時: {new Date().toLocaleString("ja-JP")}</p>
+          <div className="text-right flex flex-col items-end gap-1 shrink-0">
+            <p className="text-[9px] text-gray-500">出力日時: {new Date().toLocaleString("ja-JP")}</p>
+            <div className="text-xs font-semibold text-gray-800 flex items-center">
+              <span>作成者: </span>
+              <span className="inline-block border-b border-gray-600 w-24 ml-1"></span>
+            </div>
+          </div>
         </div>
 
         {/* 車両別運行表 */}
@@ -1099,14 +1154,14 @@ function BoardPageContent() {
             .map((col: any) => (
               <div key={col.id} className="break-inside-avoid mb-1 border border-gray-300 rounded p-1 bg-white">
                 {/* 車両ヘッダー */}
-                <div className="flex items-center gap-1.5 mb-1 border-b-2 border-gray-400 pb-0.5 bg-gray-50 px-1">
-                  <h2 className="text-[13px] font-bold flex-1 truncate">
-                    🚗 {col.vehicleName}
-                  </h2>
-                  <div className="text-[11.5px] flex gap-2 font-semibold text-gray-700 shrink-0">
-                    <span>運転: {col.driverName}</span>
-                    <span>定員: {col.capacity}</span>
+                <div className="flex items-center justify-between gap-1 mb-1 border-b-2 border-gray-400 pb-0.5 bg-gray-50 px-1 text-xs font-bold text-gray-900">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="shrink-0">🚗</span>
+                    <span className="truncate">{col.vehicleName}</span>
                   </div>
+                  <span className="shrink-0 text-xs font-bold text-gray-800">
+                    運転: {col.driverName || "未定"}
+                  </span>
                 </div>
 
                 {/* 便別テーブル */}
@@ -1122,9 +1177,9 @@ function BoardPageContent() {
                     return (
                       <div key={trip.id} className="mb-1 break-inside-avoid">
                         {hasMultipleTrips && (
-                          <div className="mb-0.5 text-[11px] font-bold">
-                            <span className="px-1.5 py-0.5 bg-gray-200 border border-gray-400 rounded">
-                              【{trip.tripIndex}便】 {activeTab === "inbound" ? "各所➔施設" : "施設➔各所"}
+                          <div className="mb-0.5 text-[10.5px] font-bold">
+                            <span className="px-1 py-0.2 bg-gray-200 border border-gray-400 rounded">
+                              【{trip.tripIndex}便】
                             </span>
                           </div>
                         )}
@@ -1304,40 +1359,44 @@ function BoardPageContent() {
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            height: 100% !important;
-            overflow: hidden !important;
             background: #fff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
 
-          /* 2. 印刷ルートコンテナ: A4横の高さ(210mm)から上下マージン(12mm)を引いたジャスト枠 */
+          /* 2. 印刷画面のコンテナをA4横いっぱいに広げる */
+          .print-container,
           .board-print-container {
             width: 100% !important;
-            height: calc(210mm - 12mm) !important;
-            max-height: calc(210mm - 12mm) !important;
+            max-width: 100% !important;
+            height: auto !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            overflow: hidden !important;
             box-sizing: border-box !important;
           }
 
-          .board-print-container table {
+          .board-print-container table,
+          .print-container table {
             width: 100% !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
           }
 
           .board-print-container th,
-          .board-print-container td {
-            padding: 2.5px 4px !important;
+          .board-print-container td,
+          .print-container th,
+          .print-container td {
+            padding: 2px 4px !important;
             line-height: 1.2 !important;
             vertical-align: middle !important;
           }
 
-          .board-print-container tr {
+          .board-print-container tr,
+          .print-container tr {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
