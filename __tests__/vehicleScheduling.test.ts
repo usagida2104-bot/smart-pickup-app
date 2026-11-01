@@ -510,27 +510,27 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
 
   describe("Mode-dependent Time Display and Table Column Layout", () => {
     it("should hide time and render 2 columns in outbound mode, and show time with 3 columns in inbound mode", () => {
-      // 共通の描画ロジック仕様の検証
+      // 共通の描画ロジック仕様の検証（順番号 20px、時刻 42px）
       const getTableColumns = (mode: "inbound" | "outbound") => {
         const isOutbound = mode === "outbound";
         return {
           colCount: isOutbound ? 2 : 3,
-          indexColWidth: isOutbound ? "22px" : "18px",
+          indexColWidth: "20px",
           hasTimeCol: !isOutbound,
-          timeColWidth: isOutbound ? undefined : "38px",
+          timeColWidth: isOutbound ? undefined : "42px",
         };
       };
 
       const inboundLayout = getTableColumns("inbound");
       expect(inboundLayout.colCount).toBe(3);
       expect(inboundLayout.hasTimeCol).toBe(true);
-      expect(inboundLayout.indexColWidth).toBe("18px");
-      expect(inboundLayout.timeColWidth).toBe("38px");
+      expect(inboundLayout.indexColWidth).toBe("20px");
+      expect(inboundLayout.timeColWidth).toBe("42px");
 
       const outboundLayout = getTableColumns("outbound");
       expect(outboundLayout.colCount).toBe(2);
       expect(outboundLayout.hasTimeCol).toBe(false);
-      expect(outboundLayout.indexColWidth).toBe("22px");
+      expect(outboundLayout.indexColWidth).toBe("20px");
       expect(outboundLayout.timeColWidth).toBeUndefined();
     });
 
