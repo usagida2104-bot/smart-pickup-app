@@ -75,7 +75,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 6mm 8mm;
+    margin: 4mm 6mm; /* 上下4mm、左右6mmに引き締めて2ページ目押し出しを防止 */
   }
 
   * {
@@ -107,10 +107,13 @@
   }
 
   /* 改ページ完全防止・各セクションが改ページで千切れないようにする */
-  .break-inside-avoid,
-  .print-block,
+  .print-container,
+  .board-print-container,
+  .print-page,
   .print-section-pickup,
   .print-section-dropoff,
+  .break-inside-avoid,
+  .print-block,
   .staff-card,
   .family-card {
     page-break-inside: avoid !important;
@@ -119,7 +122,7 @@
     break-after: avoid !important;
   }
   
-  /* 印刷用コンテナ: Safariの強制カットを防止 */
+  /* 印刷用コンテナ: Safariの強制カットを防止し、A4縦1枚に確実に納める安全スケール */
   .print-page,
   .print-container,
   .board-print-container {
@@ -129,12 +132,10 @@
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    page-break-after: avoid !important;
-    break-after: avoid !important;
     box-sizing: border-box !important;
     padding: 0 !important;
+    transform: scale(0.96) !important;
+    transform-origin: top center !important;
   }
 
   .board-print-container table,
@@ -151,7 +152,7 @@
   .print-container td {
     box-sizing: border-box !important;
     padding: 1px 2px !important;
-    line-height: 1.15 !important;
+    line-height: 1.1 !important;
     vertical-align: middle !important;
   }
 

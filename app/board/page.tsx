@@ -1047,23 +1047,10 @@ function BoardPageContent() {
     (col) => (col.trips || []).some((t: any) => (t.children || []).length > (col.capacity || 0))
   );
 
-  // iOS Safari での「自動印刷禁止」警告を完全に防止するための同期印刷ハンドラ
-  // ユーザーのタップ操作から直接・同期的に window.print() を呼び出し、多重発火によるブロックを防止
-  const isPrintingRef = useRef(false);
-  const handlePrint = (e?: React.MouseEvent<HTMLButtonElement>) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (isPrintingRef.current) return;
-    isPrintingRef.current = true;
-    try {
-      window.print();
-    } finally {
-      setTimeout(() => {
-        isPrintingRef.current = false;
-      }, 1000);
-    }
+  // iOS Safari での「自動印刷禁止」警告を完全防止するための直接同期的印刷
+  // ユーザーのタップ操作イベントスタック内で直接 window.print() を同期実行
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleDirectReorder = async (columnId: string, childId: string, direction: -1 | 1) => {
@@ -1148,7 +1135,7 @@ function BoardPageContent() {
           <div className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={() => window.print()}
               className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs shrink-0 inline-flex items-center justify-center font-bold border border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 rounded transition-colors select-none touch-manipulation cursor-pointer"
               title="A4運行表を印刷"
             >
@@ -1446,16 +1433,16 @@ function BoardPageContent() {
                   if (!child) return null;
                   return (
                     <tr key={child.id || idx} className="border-b border-gray-300">
-                      <td className="w-[20px] max-w-[20px] border border-gray-400 px-0.5 py-[1.5px] text-center font-bold text-[11px] shrink-0">
+                      <td className="w-[20px] max-w-[20px] border border-gray-400 px-0.5 py-[1px] text-center font-bold text-[11px] shrink-0">
                         {idx + 1}
                       </td>
-                      <td className="border border-gray-400 px-1.5 py-[1.5px] text-[12px] font-semibold tracking-tight truncate overflow-hidden">
+                      <td className="border border-gray-400 px-1.5 py-[1px] text-[12px] font-semibold tracking-tight truncate overflow-hidden">
                         {child.name || "名前未設定"}
                         {child.status === "late" && <span className="text-amber-700 text-[9px] ml-0.5 font-bold">遅</span>}
                         {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-0.5 font-bold">早</span>}
                       </td>
                       {!isOutbound && (
-                        <td className="w-[42px] max-w-[42px] border border-gray-400 px-0.5 py-[1.5px] font-mono text-center font-medium text-[11.5px] text-gray-800 shrink-0">
+                        <td className="w-[42px] max-w-[42px] border border-gray-400 px-0.5 py-[1px] font-mono text-center font-medium text-[11.5px] text-gray-800 shrink-0">
                           {child.pickup_time || "—"}
                         </td>
                       )}
@@ -1520,7 +1507,7 @@ function BoardPageContent() {
                     <div
                       key={trip?.id || tIdx}
                       className={cn(
-                        "p-1 flex flex-col overflow-hidden",
+                        "px-1 py-0.5 flex flex-col overflow-hidden",
                         isSecondOrLater && "bg-slate-50/50"
                       )}
                     >
@@ -1580,9 +1567,9 @@ function BoardPageContent() {
                   {safeList.length}名
                 </span>
               </div>
-              <div className="p-1 flex flex-col overflow-hidden">
+              <div className="px-1 py-0.5 flex flex-col overflow-hidden">
                 {safeList.length === 0 ? (
-                  <div className={cn("text-center text-[11px] text-gray-400 font-medium", isCompact ? "py-2" : "py-4")}>
+                  <div className={cn("text-center text-[11px] text-gray-400 font-medium", isCompact ? "py-1" : "py-2")}>
                     なし
                   </div>
                 ) : (
@@ -1597,7 +1584,7 @@ function BoardPageContent() {
           <div className="flex flex-col w-full min-h-0">
             <div>
               {/* 印刷メインヘッダー */}
-              <div className="mb-1 border-b-2 border-gray-400 pb-0.5 flex justify-between items-end">
+              <div className="mb-0.5 border-b-2 border-gray-400 pb-0.5 flex justify-between items-end">
                 <div>
                   <div className="flex items-baseline gap-2.5">
                     <h1 className="text-[15px] font-bold leading-tight">
@@ -1605,18 +1592,18 @@ function BoardPageContent() {
                     </h1>
                     <span className="text-[12px] font-bold text-gray-800">{displayDate}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                    <p className="text-[10.5px] font-semibold text-gray-700">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 leading-tight">
+                    <p className="text-[10.5px] font-semibold text-gray-700 leading-tight">
                       利用者数: ぽっけ {countPokke}名 / ぽっけⅡ {countPokke2}名 / 日中一時 {countNichu}名 （合計 {totalPresentCount}名）
                     </p>
-                    <p className="text-[10px] font-medium text-gray-600">
+                    <p className="text-[10px] font-medium text-gray-600 leading-tight">
                       リーダー: [ぽっけ] {leaders.pokke} / [ぽっけⅡ] {leaders.pokke2} / [日中] {leaders.nichu}
                     </p>
                   </div>
                 </div>
-                <div className="text-right flex flex-col items-end gap-0.5 shrink-0">
-                  <p className="text-[8.5px] text-gray-500">出力日時: {new Date().toLocaleString("ja-JP")}</p>
-                  <div className="text-[10.5px] font-semibold text-gray-800 flex items-center">
+                <div className="text-right flex flex-col items-end gap-0.5 shrink-0 leading-tight">
+                  <p className="text-[8.5px] text-gray-500 leading-tight">出力日時: {new Date().toLocaleString("ja-JP")}</p>
+                  <div className="text-[10.5px] font-semibold text-gray-800 flex items-center leading-tight">
                     <span>作成者: </span>
                     {creatorName ? (
                       <span className="font-bold underline ml-1">{creatorName}</span>
@@ -1628,8 +1615,8 @@ function BoardPageContent() {
               </div>
 
               {/* 【上段: 迎え（来所）】 */}
-              <div className="flex flex-col mb-1 print-block print-section-pickup">
-                <div className="flex items-center justify-between mb-0.5 bg-blue-50/90 px-2 py-0.5 rounded border border-blue-200">
+              <div className="flex flex-col mb-0.5 print-block print-section-pickup">
+                <div className="flex items-center justify-between mb-0.5 bg-blue-50/90 px-1.5 py-0.5 rounded border border-blue-200">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[11px] text-blue-900">▼ 【迎え（来所）】送迎運行表</span>
                     <span className="text-[9.5px] text-blue-700 font-medium">
@@ -1654,7 +1641,7 @@ function BoardPageContent() {
 
               {/* 【下段: 送り（帰宅）】 */}
               <div className="flex flex-col mb-0.5 print-block print-section-dropoff">
-                <div className="flex items-center justify-between mb-0.5 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200">
+                <div className="flex items-center justify-between mb-0.5 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[11px] text-amber-900">▼ 【送り（帰宅）】送迎運行表</span>
                     <span className="text-[9.5px] text-amber-700 font-medium">
@@ -1690,7 +1677,7 @@ function BoardPageContent() {
             </div>
 
             {/* フッター（余白最小化） */}
-            <div className="pt-0.5 border-t border-gray-300 flex justify-between text-[8.5px] text-gray-400 mt-1 shrink-0">
+            <div className="pt-0.5 border-t border-gray-300 flex justify-between text-[8.5px] text-gray-400 mt-0.5 shrink-0">
               <span>放課後等デイサービス 送迎運行表（迎え・送り）</span>
               <span>{displayDate}</span>
             </div>
@@ -1796,7 +1783,7 @@ function BoardPageContent() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 8mm;
+            margin: 4mm 6mm; /* 上下4mm、左右6mmに引き締めて2ページ目押し出しを防止 */
           }
 
           /* Safariで下部が消える原因となる overflow: hidden を解除 */
@@ -1811,28 +1798,30 @@ function BoardPageContent() {
             print-color-adjust: exact !important;
           }
 
-          /* 印刷用コンテナ: Safariの強制カットを防止 */
+          /* 印刷用コンテナ: Safariの強制カットを防止し、A4縦1枚に確実に納める安全スケール */
+          .print-page,
           .print-container,
           .board-print-container {
             display: block !important;
             width: 100% !important;
             max-width: 100% !important;
             height: auto !important;
-            max-height: none !important; /* Safariの強制カットを防止 */
+            max-height: none !important;
             overflow: visible !important;
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
             box-sizing: border-box !important;
             padding: 0 !important;
+            transform: scale(0.96) !important;
+            transform-origin: top center !important;
           }
 
-          /* 各セクションが改ページで千切れないようにする */
-          .break-inside-avoid,
-          .print-block,
+          /* 改ページを物理的に禁止 */
+          .print-container,
+          .board-print-container,
+          .print-page,
           .print-section-pickup,
           .print-section-dropoff,
+          .break-inside-avoid,
+          .print-block,
           .staff-card,
           .family-card {
             page-break-inside: avoid !important;
@@ -1855,7 +1844,7 @@ function BoardPageContent() {
           .print-container td {
             box-sizing: border-box !important;
             padding: 1px 2px !important;
-            line-height: 1.15 !important;
+            line-height: 1.1 !important;
             vertical-align: middle !important;
           }
 
