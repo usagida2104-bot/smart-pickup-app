@@ -5,7 +5,7 @@ import {
   formatAttendanceBadge,
   getAttendanceDisplayParts,
   attendanceToStatus,
-} from "../app/schedule/page";
+} from "../lib/scheduleUtils";
 
 describe("schedule attendance & time parsing tests", () => {
   it("getCellData correctly parses hours and minutes without dropping minutes (:00 bug fix)", () => {

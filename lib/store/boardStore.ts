@@ -337,11 +337,14 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
                              String(t.tripIndex) === strTripId ||
                              idx === Number(tripId);
         if (isTargetTrip) {
+          const vId = vehicleId ? String(vehicleId) : null;
+          const vName = vId ? (vehicleName || null) : null;
+          const vCap = vId && capacity ? Number(capacity) : undefined;
           return {
             ...t,
-            vehicleId: vehicleId || null,
-            vehicleName: vehicleName || "車両未選択",
-            capacity: Number(capacity) || 6,
+            vehicleId: vId,
+            vehicleName: vName,
+            capacity: vCap,
           };
         }
         return t;
@@ -350,8 +353,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       return {
         ...col,
         // 1便目ならカラム全体の車両名・キャパシティも同期
-        capacity: newTrips[0]?.capacity || col.capacity,
-        vehicleName: newTrips[0]?.vehicleName || col.vehicleName,
+        capacity: newTrips[0]?.capacity,
+        vehicleName: newTrips[0]?.vehicleName,
+        vehicleId: newTrips[0]?.vehicleId,
         trips: newTrips,
       };
     });
@@ -477,9 +481,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
           tripIndex: nextIndex,
           departure_time: departureTime,
           time: departureTime,
-          vehicleId: lastTrip?.vehicleId || null,
-          vehicleName: lastTrip?.vehicleName || "車両未選択",
-          capacity: lastTrip?.capacity || col.capacity || 6,
+          vehicleId: null,
+          vehicleName: null,
+          capacity: undefined,
           children: [],
           isNew: true,
         };

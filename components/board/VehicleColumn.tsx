@@ -93,6 +93,11 @@ export function VehicleColumn({
 
   const handleVehicleChange = (tripId: string, vehicleId: string) => {
     if (readOnly) return;
+    if (!vehicleId) {
+      updateTripVehicle(mode, column.id, tripId, "", "", 0);
+      onUpdateTripVehicle && onUpdateTripVehicle();
+      return;
+    }
     const selected = availableVehicles.find(v => String(v.id) === String(vehicleId));
     if (!selected) return;
     updateTripVehicle(mode, column.id, tripId, selected.id, selected.name, selected.capacity);
@@ -187,10 +192,12 @@ export function VehicleColumn({
       {/* Trips Container */}
       <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-y-auto">
         {displayTrips.map((trip) => {
-          const capacity = trip?.capacity || column?.capacity || 6;
-          const isOverCapacity = (trip?.children || []).length > capacity;
-          const isFull = (trip?.children || []).length >= capacity;
-          const fillPct = Math.min(((trip?.children || []).length / capacity) * 100, 100);
+          const hasVehicle = Boolean(trip?.vehicleId);
+          const capacity = trip?.capacity || column?.capacity;
+          const childCount = (trip?.children || []).length;
+          const isOverCapacity = hasVehicle && capacity ? childCount > capacity : false;
+          const isFull = hasVehicle && capacity ? childCount >= capacity : false;
+          const fillPct = hasVehicle && capacity ? Math.min((childCount / capacity) * 100, 100) : 0;
           const vehicleTheme = getVehicleColorTheme(trip?.vehicleName);
           const timeSummary = getTripTimeSummary(trip?.children);
           
@@ -231,10 +238,15 @@ export function VehicleColumn({
                       </div>
                     )}
 
-                    {/* 車種カラータグ（薄いカラーバッジ） */}
-                    {trip?.vehicleName && (
-                      <span className={cn("text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0 hidden sm:inline-flex items-center gap-0.5", vehicleTheme.badgeBg, vehicleTheme.badgeText, vehicleTheme.badgeBorder)}>
-                        🚗 {vehicleTheme.label}
+                    {/* 車種カラータグ（薄いカラーバッジ）: 車両未選択時は非表示 */}
+                    {hasVehicle && trip?.vehicleName && trip.vehicleName !== "車両未選択" && trip.vehicleName !== "車未定" && (
+                      <span className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0 hidden sm:inline-flex items-center gap-0.5 transition-all duration-300 animate-in fade-in",
+                        vehicleTheme.badgeBg,
+                        vehicleTheme.badgeText,
+                        vehicleTheme.badgeBorder
+                      )}>
+                        🚙 {vehicleTheme.label}
                       </span>
                     )}
                     
@@ -250,7 +262,7 @@ export function VehicleColumn({
                       )}
                       title={trip.vehicleName || "使用車両を選択"}
                     >
-                      <option value="" disabled>車両を選択 ▼</option>
+                      <option value="">車両を選択...</option>
                       {availableVehicles.map((v) => {
                         const conflict = conflictingList.find((c: any) => String(c.vehicleId) === String(v.id));
                         return (
@@ -296,7 +308,7 @@ export function VehicleColumn({
                       <div
                         className={cn(
                           "h-full rounded-full transition-all duration-300",
-                          isOverCapacity ? "bg-red-500" : isFull ? "bg-amber-500" : "bg-blue-500"
+                          !hasVehicle ? "bg-gray-300" : isOverCapacity ? "bg-red-500" : isFull ? "bg-amber-500" : "bg-blue-500"
                         )}
                         style={{ width: `${fillPct}%` }}
                       />
@@ -306,10 +318,10 @@ export function VehicleColumn({
                       <span
                         className={cn(
                           "text-[10px] font-bold font-mono shrink-0",
-                          isOverCapacity ? "text-red-600" : "text-gray-600"
+                          isOverCapacity ? "text-red-600" : !hasVehicle ? "text-gray-400" : "text-gray-600"
                         )}
                       >
-                        {(trip.children || []).length}/{capacity}
+                        {hasVehicle && capacity ? `${childCount}/${capacity}` : `${childCount}/-`}
                       </span>
                     </div>
                   </div>

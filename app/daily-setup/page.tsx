@@ -21,7 +21,7 @@ import { reconcileBoardWithAttendances } from "@/lib/vehicleUtils";
 import { fetchDailyData, upsertDailyAttendance, upsertDailyStaff, upsertDailyVehicle, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { supabase } from "@/lib/supabase/client";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString } from "@/lib/store/dateStore";
-import { getCellData, attendanceToStatus } from "@/app/schedule/page";
+import { getCellData, attendanceToStatus } from "@/lib/scheduleUtils";
 
 const TIME_OPTIONS = Array.from({ length: 13 * 12 + 1 }).map((_, i) => {
   const h = Math.floor(i / 12) + 8;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateOptimizedSchedule, TARGET_ROLES } from "../lib/scheduleGenerator";
-import { getCellData, packCellData } from "../app/schedule/page";
+import { getCellData, packCellData } from "../lib/scheduleUtils";
 
 const STAFF_LIST = ["増子", "内山", "熊田", "逵", "大平"];
 

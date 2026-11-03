@@ -17,7 +17,7 @@ import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, Daily
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
-import { getCellData } from "@/app/schedule/page";
+import { getCellData } from "@/lib/scheduleUtils";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString, changeDateByDays } from "@/lib/store/dateStore";
 import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getVehicleBadgeColor, getTripTimeSummary, isPickupRequired, isDropoffRequired, isTransportRequired, reconcileBoardWithAttendances, sortTripsByTime } from "@/lib/vehicleUtils";
 
@@ -37,9 +37,12 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
   const availableTrips = (board?.columns || []).flatMap((col: any) => 
     (col.trips || []).map((t: any) => {
       const tripLabel = mode === "outbound" ? (t?.departure_time || t?.time || "17:00") : `${t?.tripIndex || 1}便`;
+      const vehiclePart = t?.vehicleId && t?.vehicleName && t.vehicleName !== "車両未選択" && t.vehicleName !== "車未定"
+        ? ` (${t.vehicleName})`
+        : "";
       return {
         id: t?.id,
-        label: `${col?.staffName || col?.driverName || 'スタッフ'} ${tripLabel} (${t?.vehicleName || '車未定'})`,
+        label: `${col?.staffName || col?.driverName || 'スタッフ'} ${tripLabel}${vehiclePart}`,
         isFull: (t?.children || []).length >= (t?.capacity || col?.capacity || 99)
       };
     })
@@ -574,7 +577,16 @@ function BoardPageContent() {
           };
           return {
             ...col,
-            trips: [{ ...firstTrip, children: [] }],
+            vehicleId: null,
+            vehicleName: null,
+            capacity: undefined,
+            trips: [{
+              ...firstTrip,
+              vehicleId: null,
+              vehicleName: null,
+              capacity: undefined,
+              children: [],
+            }],
           };
         }),
         unassigned: { id: "unassigned", children: inboundChildren },
@@ -589,7 +601,16 @@ function BoardPageContent() {
           };
           return {
             ...col,
-            trips: [{ ...firstTrip, children: [] }],
+            vehicleId: null,
+            vehicleName: null,
+            capacity: undefined,
+            trips: [{
+              ...firstTrip,
+              vehicleId: null,
+              vehicleName: null,
+              capacity: undefined,
+              children: [],
+            }],
           };
         }),
         unassigned: { id: "unassigned", children: outboundChildren },
@@ -769,33 +790,31 @@ function BoardPageContent() {
               c.driverName === staffName
             );
 
-            // デフォルトで使用する車両（スタッフごとに分散）
-            const defaultVehicle = availableVehiclesList[staffIdx % availableVehiclesList.length] || availableVehiclesList[0];
-
             let trips = savedCol?.trips || [];
             if (trips.length === 0) {
               trips = [
                 {
                   id: `${colId}-trip-1`,
                   tripIndex: 1,
-                  vehicleId: defaultVehicle?.id || null,
-                  vehicleName: defaultVehicle?.name || "車両未選択",
-                  capacity: defaultVehicle?.capacity || 6,
+                  vehicleId: null,
+                  vehicleName: null,
+                  capacity: undefined,
                   children: [],
                 }
               ];
             } else {
               trips = trips.map((t: any, idx: number) => {
-                const matchedV = availableVehiclesList.find((v: any) => String(v.id) === String(t.vehicleId))
-                  || masterVehicles.find((v: any) => String(v.id) === String(t.vehicleId))
-                  || defaultVehicle;
+                const matchedV = t.vehicleId
+                  ? (availableVehiclesList.find((v: any) => String(v.id) === String(t.vehicleId))
+                     || masterVehicles.find((v: any) => String(v.id) === String(t.vehicleId)))
+                  : null;
                 return {
                   ...t,
                   id: t.id || `${colId}-trip-${idx + 1}`,
                   tripIndex: t.tripIndex || (idx + 1),
-                  vehicleId: t.vehicleId || matchedV?.id || null,
-                  vehicleName: t.vehicleName || matchedV?.name || "車両未選択",
-                  capacity: t.capacity || matchedV?.capacity || 6,
+                  vehicleId: matchedV ? matchedV.id : (t.vehicleId || null),
+                  vehicleName: matchedV ? matchedV.name : (t.vehicleName || null),
+                  capacity: matchedV ? matchedV.capacity : t.capacity,
                   children: (t.children || []).map((c: any) => toMagnet(c.id, children, mergedAtts))
                 };
               });
@@ -811,7 +830,9 @@ function BoardPageContent() {
               driverStatus,
               driverStatusTime,
               staffRole,
-              capacity: trips[0]?.capacity || 6,
+              vehicleId: trips[0]?.vehicleId || null,
+              vehicleName: trips[0]?.vehicleName || null,
+              capacity: trips[0]?.capacity,
               trips,
             };
           });
@@ -1495,23 +1516,25 @@ function BoardPageContent() {
                         <span className="font-bold text-[11px] text-gray-900 shrink-0">
                           {tripLabel}
                         </span>
-                        <span
-                          className={cn(
-                            "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
-                            theme.badgeBg,
-                            theme.badgeText,
-                            theme.badgeBorder,
-                            theme.printBg,
-                            theme.printText,
-                            theme.printBorder
-                          )}
-                          style={{
-                            WebkitPrintColorAdjust: "exact",
-                            printColorAdjust: "exact",
-                          }}
-                        >
-                          🚗 {trip.vehicleName || "車未定"}
-                        </span>
+                        {trip?.vehicleId && (trip?.vehicleName || trip?.vehicle?.name) && (trip?.vehicleName || trip?.vehicle?.name) !== "車両未選択" && (trip?.vehicleName || trip?.vehicle?.name) !== "車未定" ? (
+                          <span
+                            className={cn(
+                              "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
+                              theme.badgeBg,
+                              theme.badgeText,
+                              theme.badgeBorder,
+                              theme.printBg,
+                              theme.printText,
+                              theme.printBorder
+                            )}
+                            style={{
+                              WebkitPrintColorAdjust: "exact",
+                              printColorAdjust: "exact",
+                            }}
+                          >
+                            🚙 {trip?.vehicleName || trip?.vehicle?.name}
+                          </span>
+                        ) : null}
                       </div>
 
                       {renderTripTable(sortedChildren, cardMode)}
