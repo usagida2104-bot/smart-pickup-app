@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { BoardState, ChildMagnet, VehicleColumn } from "@/types";
+import { sortTripsByTime } from "@/lib/vehicleUtils";
 
 interface BoardStore {
   inboundBoard: BoardState;
@@ -27,9 +28,15 @@ interface BoardStore {
     vehicleName: string,
     capacity: number
   ) => void;
+  updateTripTime: (
+    mode: "inbound" | "outbound",
+    columnId: string,
+    tripId: string,
+    newTime: string
+  ) => void;
   updateTripLocation: (mode: "inbound" | "outbound", tripId: string, locationType: "start" | "end", location: "office" | "home") => void;
   reorderChild: (mode: "inbound" | "outbound", tripId: string, childId: string, direction: -1 | 1) => void;
-  addTrip: (mode: "inbound" | "outbound", columnId: string) => void;
+  addTrip: (mode: "inbound" | "outbound", columnId: string, time?: string) => void;
   removeTrip: (mode: "inbound" | "outbound", columnId: string, tripId: string) => void;
 }
 
@@ -49,16 +56,25 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         {
           id: `${col.shiftId || col.id}-trip-1`,
           tripIndex: 1,
+          departure_time: mode === "outbound" ? "17:00" : undefined,
+          time: mode === "outbound" ? "17:00" : undefined,
           children: (col as any).children || []
         }
       ];
-      return {
-        ...col,
-        trips: trips.map((t: any, idx: number) => ({
+      const mappedTrips = trips.map((t: any, idx: number) => {
+        const depTime = t.departure_time || t.time || (mode === "outbound" ? "17:00" : undefined);
+        return {
           ...t,
           tripIndex: t.tripIndex || (idx + 1),
+          departure_time: depTime,
+          time: depTime,
           children: [...(t.children || [])]
-        }))
+        };
+      });
+      const sorted = sortTripsByTime(mappedTrips, mode);
+      return {
+        ...col,
+        trips: sorted.map((t, idx) => ({ ...t, tripIndex: idx + 1 }))
       };
     });
     const familyPickup = board?.familyPickup ?? { id: "family-pickup" as const, children: [] };
@@ -402,32 +418,83 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     });
   },
 
-  addTrip: (mode, columnId) => {
+  updateTripTime: (mode, columnId, tripId, newTime) => {
     const state = get();
-    const board = mode === "inbound" ? state.inboundBoard : state.outboundBoard;
+    const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
+    const board = state[boardKey];
     const newColumns = board.columns.map((col) => {
-      if (col.id === columnId || col.shiftId === columnId || col.staffId === columnId) {
-        const tripIndex = (col.trips || []).length + 1;
-        const lastTrip = col.trips && col.trips.length > 0 ? col.trips[col.trips.length - 1] : null;
+      if (
+        col.id === columnId ||
+        col.shiftId === columnId ||
+        col.staffId === columnId ||
+        (col.trips || []).some((t) => t.id === tripId)
+      ) {
+        const updatedTrips = (col.trips || []).map((t) => {
+          if (t.id === tripId) {
+            return {
+              ...t,
+              departure_time: newTime,
+              time: newTime,
+            };
+          }
+          return t;
+        });
+        const sorted = sortTripsByTime(updatedTrips, mode);
         return {
           ...col,
-          trips: [
-            ...(col.trips || []),
-            {
-              id: `${col.shiftId || col.id}-trip-${tripIndex}`,
-              tripIndex,
-              vehicleId: lastTrip?.vehicleId || null,
-              vehicleName: lastTrip?.vehicleName || "車両未選択",
-              capacity: lastTrip?.capacity || col.capacity || 6,
-              children: [],
-              isNew: true,
-            }
-          ]
+          trips: sorted.map((t, idx) => ({ ...t, tripIndex: idx + 1 })),
         };
       }
       return col;
     });
-    set({ [mode === "inbound" ? "inboundBoard" : "outboundBoard"]: { ...board, columns: newColumns } });
+    set({ [boardKey]: { ...board, columns: newColumns } });
+  },
+
+  addTrip: (mode, columnId, time) => {
+    const state = get();
+    const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
+    const board = state[boardKey];
+    const newColumns = board.columns.map((col) => {
+      if (col.id === columnId || col.shiftId === columnId || col.staffId === columnId) {
+        const existingTrips = col.trips || [];
+        const nextIndex = existingTrips.length + 1;
+        const lastTrip = existingTrips.length > 0 ? existingTrips[existingTrips.length - 1] : null;
+
+        let departureTime: string | undefined = undefined;
+        if (mode === "outbound") {
+          if (time) {
+            departureTime = time;
+          } else {
+            // 既存便と重複しない時刻をサジェスト（17:00, 17:30, 16:30, 18:00...）
+            const existingTimes = new Set(existingTrips.map((t) => t.departure_time || t.time || "17:00"));
+            const candidates = ["17:00", "17:30", "16:30", "18:00", "16:00", "18:30", "15:30", "19:00"];
+            departureTime = candidates.find((c) => !existingTimes.has(c)) || "17:30";
+          }
+        }
+
+        const newTrip = {
+          id: `${col.shiftId || col.id}-trip-${Date.now()}-${nextIndex}`,
+          tripIndex: nextIndex,
+          departure_time: departureTime,
+          time: departureTime,
+          vehicleId: lastTrip?.vehicleId || null,
+          vehicleName: lastTrip?.vehicleName || "車両未選択",
+          capacity: lastTrip?.capacity || col.capacity || 6,
+          children: [],
+          isNew: true,
+        };
+
+        const combinedTrips = [...existingTrips, newTrip];
+        const sorted = sortTripsByTime(combinedTrips, mode);
+
+        return {
+          ...col,
+          trips: sorted.map((t, idx) => ({ ...t, tripIndex: idx + 1 })),
+        };
+      }
+      return col;
+    });
+    set({ [boardKey]: { ...board, columns: newColumns } });
   },
 
   removeTrip: (mode, columnId, tripId) => {
@@ -448,8 +515,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         // 対象便を除外
         const filteredTrips = (col.trips || []).filter((t) => t.id !== tripId);
 
-        // 残った便を 1 からリナンバリング
-        const renumberedTrips = filteredTrips.map((t, idx) => ({
+        // 残った便をソート＆リナンバリング
+        const sortedTrips = sortTripsByTime(filteredTrips, mode);
+        const renumberedTrips = sortedTrips.map((t, idx) => ({
           ...t,
           tripIndex: idx + 1,
         }));

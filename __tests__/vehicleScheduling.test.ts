@@ -11,6 +11,10 @@ import {
   isDropoffRequired,
   isTransportRequired,
   reconcileBoardWithAttendances,
+  generateTimeOptions,
+  getTripDepartureTime,
+  sortTripsByTime,
+  getOutboundConflictingVehicles,
 } from "../lib/vehicleUtils";
 
 describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
@@ -654,6 +658,108 @@ describe("Vehicle Scheduling & Visual Enhancement Utilities", () => {
       expect(reconciled.columns[0].trips[0].children).toHaveLength(0);
       expect(reconciled.unassigned.children).toHaveLength(0);
       expect(reconciled.familyPickup.children).toHaveLength(0);
+    });
+  });
+
+  describe("Outbound Time-based Trip Management & Vehicle Conflict Prevention", () => {
+    describe("generateTimeOptions", () => {
+      it("generates 5-minute interval options between 15:00 and 19:00", () => {
+        const options = generateTimeOptions("15:00", "19:00", 5);
+        expect(options[0]).toBe("15:00");
+        expect(options[1]).toBe("15:05");
+        expect(options).toContain("16:30");
+        expect(options).toContain("17:00");
+        expect(options).toContain("17:30");
+        expect(options[options.length - 1]).toBe("19:00");
+        expect(options).toHaveLength(49); // (4 hours * 12) + 1 = 49
+      });
+    });
+
+    describe("getTripDepartureTime", () => {
+      it("returns departure_time or fallback to 17:00 for outbound mode", () => {
+        expect(getTripDepartureTime({ departure_time: "16:30" }, "outbound")).toBe("16:30");
+        expect(getTripDepartureTime({ time: "17:15" }, "outbound")).toBe("17:15");
+        expect(getTripDepartureTime({}, "outbound")).toBe("17:00");
+      });
+
+      it("returns sequential trip index for inbound mode", () => {
+        expect(getTripDepartureTime({ tripIndex: 1 }, "inbound")).toBe("1便");
+        expect(getTripDepartureTime({ tripIndex: 2 }, "inbound")).toBe("2便");
+      });
+    });
+
+    describe("sortTripsByTime", () => {
+      it("sorts trips in chronological order for outbound mode", () => {
+        const trips = [
+          { id: "trip-1", tripIndex: 1, departure_time: "17:00" },
+          { id: "trip-2", tripIndex: 2, departure_time: "16:30" },
+          { id: "trip-3", tripIndex: 3, departure_time: "17:30" },
+        ];
+
+        const sorted = sortTripsByTime(trips, "outbound");
+        expect(sorted[0].departure_time).toBe("16:30");
+        expect(sorted[1].departure_time).toBe("17:00");
+        expect(sorted[2].departure_time).toBe("17:30");
+      });
+
+      it("sorts trips by tripIndex for inbound mode", () => {
+        const trips = [
+          { id: "trip-2", tripIndex: 2, departure_time: "14:00" },
+          { id: "trip-1", tripIndex: 1, departure_time: "14:30" },
+        ];
+
+        const sorted = sortTripsByTime(trips, "inbound");
+        expect(sorted[0].tripIndex).toBe(1);
+        expect(sorted[1].tripIndex).toBe(2);
+      });
+    });
+
+    describe("getOutboundConflictingVehicles", () => {
+      const mockColumns = [
+        {
+          id: "col-staff-A",
+          staffName: "スタッフA",
+          trips: [
+            { id: "trip-A-1", departure_time: "17:00", vehicleId: "veh-sienta" },
+            { id: "trip-A-2", departure_time: "16:30", vehicleId: "veh-stepwgn" },
+          ],
+        },
+        {
+          id: "col-staff-B",
+          staffName: "スタッフB",
+          trips: [
+            { id: "trip-B-1", departure_time: "17:00", vehicleId: "veh-stepwgn" },
+          ],
+        },
+      ];
+
+      it("detects conflict when another staff uses the vehicle at the exact same departure time", () => {
+        // スタッフCの 17:00 の便でシエンタ（veh-sienta）を選ぼうとする場合 -> スタッフAと衝突
+        const conflictsAt1700 = getOutboundConflictingVehicles(mockColumns, "col-staff-C", "trip-C-1", "17:00");
+        const conflictedIds = conflictsAt1700.map((c) => c.vehicleId);
+
+        expect(conflictedIds).toContain("veh-sienta"); // スタッフAが17:00で使用中
+        expect(conflictedIds).toContain("veh-stepwgn"); // スタッフBが17:00で使用中
+        expect(conflictsAt1700.find((c) => c.vehicleId === "veh-sienta")?.conflictStaffName).toBe("スタッフA");
+      });
+
+      it("allows the same vehicle to be selected if the departure time is different", () => {
+        // スタッフCの 16:30 の便をチェック -> 16:30 で使用中のステップワゴンは衝突するが、シエンタ（17:00使用）は空いていて選択可能
+        const conflictsAt1630 = getOutboundConflictingVehicles(mockColumns, "col-staff-C", "trip-C-2", "16:30");
+        const conflictedIds = conflictsAt1630.map((c) => c.vehicleId);
+
+        expect(conflictedIds).toContain("veh-stepwgn"); // スタッフAが16:30で使用中
+        expect(conflictedIds).not.toContain("veh-sienta"); // 17:00使用のシエンタは16:30では利用可能！
+      });
+
+      it("excludes the target trip itself from conflict detection", () => {
+        // スタッフAの trip-A-1 (17:00, veh-sienta) 自身をチェックする場合、自身の割り当ては衝突とみなされない
+        const conflictsForSelf = getOutboundConflictingVehicles(mockColumns, "col-staff-A", "trip-A-1", "17:00");
+        const conflictedIds = conflictsForSelf.map((c) => c.vehicleId);
+
+        expect(conflictedIds).not.toContain("veh-sienta");
+        expect(conflictedIds).toContain("veh-stepwgn"); // スタッフBのステップワゴンのみ衝突
+      });
     });
   });
 });

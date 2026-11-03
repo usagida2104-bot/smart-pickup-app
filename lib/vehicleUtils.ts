@@ -715,3 +715,86 @@ export function assignVehiclesWithoutOverlap(
     };
   });
 }
+
+/**
+ * 放課後等デイサービスの送迎時間帯（15:00〜19:00等）の5分刻み時刻配列を生成
+ */
+export function generateTimeOptions(start = "15:00", end = "19:00", stepMinutes = 5): string[] {
+  const startMin = timeToMinutes(start) ?? 15 * 60;
+  const endMin = timeToMinutes(end) ?? 19 * 60;
+  const options: string[] = [];
+  for (let m = startMin; m <= endMin; m += stepMinutes) {
+    options.push(minutesToTimeString(m));
+  }
+  return options;
+}
+
+/**
+ * 送り運行時の便の出発時刻を取得（未設定時はデフォルト "17:00"）
+ */
+export function getTripDepartureTime(trip: any, mode: "inbound" | "outbound" = "outbound"): string {
+  if (mode === "inbound") {
+    return `${trip?.tripIndex || 1}便`;
+  }
+  return trip?.departure_time || trip?.time || "17:00";
+}
+
+/**
+ * 便リストを時系列昇順にソートする純粋関数
+ * - 送り（outbound）: departure_time（または "17:00"）の昇順（早い時刻が上）
+ * - 迎え（inbound）: tripIndex の昇順
+ */
+export function sortTripsByTime<T extends { tripIndex?: number; departure_time?: string; time?: string }>(
+  trips: T[],
+  mode: "inbound" | "outbound"
+): T[] {
+  if (!trips || trips.length <= 1) return trips || [];
+
+  return [...trips].sort((a, b) => {
+    if (mode === "outbound") {
+      const timeA = a.departure_time || a.time || "17:00";
+      const timeB = b.departure_time || b.time || "17:00";
+      const minA = timeToMinutes(timeA) ?? 17 * 60;
+      const minB = timeToMinutes(timeB) ?? 17 * 60;
+      if (minA !== minB) return minA - minB;
+    }
+    return (a.tripIndex || 1) - (b.tripIndex || 1);
+  });
+}
+
+/**
+ * 送りモードにおいて、同一時刻に他スタッフ（または同一スタッフの他便）で使用されている車両を検知
+ */
+export function getOutboundConflictingVehicles(
+  columns: any[],
+  targetColId: string,
+  targetTripId: string,
+  targetTime: string
+): { vehicleId: string; conflictStaffName: string; conflictTime: string }[] {
+  if (!targetTime) return [];
+
+  const conflicts: { vehicleId: string; conflictStaffName: string; conflictTime: string }[] = [];
+
+  for (const col of columns || []) {
+    const staffName = col.staffName || col.driverName || "他スタッフ";
+    for (const trip of col.trips || []) {
+      // 自便自身は除外
+      if (String(col.id) === String(targetColId) && String(trip.id) === String(targetTripId)) {
+        continue;
+      }
+      if (!trip.vehicleId) continue;
+
+      const tripTime = trip.departure_time || trip.time || "17:00";
+      // 同一時刻の場合のみ衝突
+      if (tripTime === targetTime) {
+        conflicts.push({
+          vehicleId: String(trip.vehicleId),
+          conflictStaffName: staffName,
+          conflictTime: tripTime,
+        });
+      }
+    }
+  }
+
+  return conflicts;
+}

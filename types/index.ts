@@ -134,6 +134,8 @@ export type LocationOption = "office" | "home";
 export interface Trip {
   id: string; // shiftId + "-trip-" + tripIndex
   tripIndex: number;
+  departure_time?: string;       // 出発時刻（送りモード用、例: "17:00"）
+  time?: string;                 // departure_time のエイリアス
   vehicleId?: string | null;     // この便で使用する車両ID
   vehicleName?: string | null;   // この便の車両名
   capacity?: number;             // この便の車両定員

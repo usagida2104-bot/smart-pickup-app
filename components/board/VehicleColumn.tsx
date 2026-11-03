@@ -1,11 +1,19 @@
 "use client";
 
+import { useState, useMemo, useEffect } from "react";
 import { AlertTriangle, User, Users, Plus, Trash2, Car, Clock } from "lucide-react";
 import { VehicleColumn as VehicleColumnType, ChildMagnet, Trip } from "@/types";
 import { ChildCard } from "./ChildCard";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/lib/store/boardStore";
-import { getVehicleColorTheme, getTripTimeSummary, getConflictingVehicleIds } from "@/lib/vehicleUtils";
+import {
+  getVehicleColorTheme,
+  getTripTimeSummary,
+  getConflictingVehicleIds,
+  generateTimeOptions,
+  getOutboundConflictingVehicles,
+  sortTripsByTime,
+} from "@/lib/vehicleUtils";
 
 interface VehicleColumnProps {
   column: VehicleColumnType;
@@ -17,6 +25,8 @@ interface VehicleColumnProps {
   onChangeLocation?: (mode: "inbound" | "outbound", columnId: string, type: "start" | "end", val: "office" | "home") => void;
   onDeleteTrip?: () => void;
   onUpdateTripVehicle?: () => void;
+  onUpdateTripTime?: () => void;
+  onShowToast?: (type: "success" | "error", text: string) => void;
   readOnly?: boolean;
   className?: string;
 }
@@ -31,26 +41,49 @@ export function VehicleColumn({
   onChangeLocation,
   onDeleteTrip,
   onUpdateTripVehicle,
+  onUpdateTripTime,
+  onShowToast,
   readOnly = false,
   className
 }: VehicleColumnProps) {
   const updateTripLocation = useBoardStore((state) => state.updateTripLocation);
   const updateTripVehicle = useBoardStore((state) => state.updateTripVehicle);
+  const updateTripTime = useBoardStore((state) => state.updateTripTime);
   const addTrip = useBoardStore((state) => state.addTrip);
   const removeTrip = useBoardStore((state) => state.removeTrip);
+
+  const timeOptions = useMemo(() => generateTimeOptions("15:00", "19:00", 5), []);
+
+  // 既存の便に含まれていない時刻をサジェスト
+  const existingTimes = useMemo(() => {
+    return new Set((column.trips || []).map((t) => t.departure_time || t.time || "17:00"));
+  }, [column.trips]);
+
+  const defaultNewTime = useMemo(() => {
+    const candidates = ["17:00", "17:30", "16:30", "18:00", "16:00", "18:30", "15:30", "19:00"];
+    return candidates.find((c) => !existingTimes.has(c)) || "17:30";
+  }, [existingTimes]);
+
+  const [selectedNewTripTime, setSelectedNewTripTime] = useState<string>(defaultNewTime);
+
+  useEffect(() => {
+    setSelectedNewTripTime(defaultNewTime);
+  }, [defaultNewTime]);
   
-  const handleAddTrip = () => {
+  const handleAddTrip = (customTime?: string) => {
     if (readOnly) return;
-    addTrip(mode, column.id);
+    const timeToAdd = mode === "outbound" ? (customTime || selectedNewTripTime) : undefined;
+    addTrip(mode, column.id, timeToAdd);
     onChangeLocation && onChangeLocation(mode, column.id, "start", "office");
   };
 
   const handleDeleteTrip = (trip: Trip) => {
     if (readOnly) return;
     const childCount = (trip?.children || []).length;
+    const tripLabel = mode === "outbound" ? (trip.departure_time || trip.time || "17:00") : `${trip.tripIndex}便目`;
     if (childCount > 0) {
       const ok = window.confirm(
-        `この便に乗っている児童（${childCount}名）を未割り当てに戻して、${trip.tripIndex}便目を削除しますか？`
+        `この便に乗っている児童（${childCount}名）を未割り当てに戻して、${tripLabel}を削除しますか？`
       );
       if (!ok) return;
     }
@@ -66,6 +99,30 @@ export function VehicleColumn({
     onUpdateTripVehicle && onUpdateTripVehicle();
   };
 
+  const handleTimeChange = (tripId: string, newTime: string) => {
+    if (readOnly) return;
+    const currentTrip = (column.trips || []).find((t) => t.id === tripId);
+    if (!currentTrip) return;
+
+    // 変更先の時刻ですでに他スタッフが同じ車両を使用していた場合の安全ガード
+    if (currentTrip.vehicleId) {
+      const conflicts = getOutboundConflictingVehicles(allColumns, column.id, tripId, newTime);
+      const isConflicting = conflicts.some((c) => String(c.vehicleId) === String(currentTrip.vehicleId));
+      if (isConflicting) {
+        updateTripVehicle(mode, column.id, tripId, "", "", 6);
+        if (onShowToast) {
+          onShowToast(
+            "error",
+            `⚠️ ${newTime} の便では別スタッフが同じ車両を使用中のため、車両選択を解除しました`
+          );
+        }
+      }
+    }
+
+    updateTripTime(mode, column.id, tripId, newTime);
+    onUpdateTripTime && onUpdateTripTime();
+  };
+
   const renderRouteInfo = (trip: Trip) => {
     let route = trip.routeInfo || "未設定";
     if (trip.endLocation === "home" && mode === "outbound") {
@@ -78,6 +135,12 @@ export function VehicleColumn({
 
   const totalChildrenCount = (column.trips || []).reduce((sum, t) => sum + (t.children || []).length, 0);
   const staffDisplayName = column.staffName || column.driverName || "担当スタッフ";
+
+  // 便を時系列昇順にソート（送りモード時は departure_time 昇順、迎えモード時は tripIndex 昇順）
+  const displayTrips = sortTripsByTime(
+    (column?.trips || []).filter(trip => trip?.tripIndex === 1 || (trip?.children || []).length > 0 || trip?.isNew),
+    mode
+  );
 
   return (
     <div
@@ -123,27 +186,50 @@ export function VehicleColumn({
 
       {/* Trips Container */}
       <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-y-auto">
-        {(column?.trips || [])
-          .filter(trip => trip?.tripIndex === 1 || (trip?.children || []).length > 0 || trip?.isNew)
-          .map((trip) => {
+        {displayTrips.map((trip) => {
           const capacity = trip?.capacity || column?.capacity || 6;
           const isOverCapacity = (trip?.children || []).length > capacity;
           const isFull = (trip?.children || []).length >= capacity;
           const fillPct = Math.min(((trip?.children || []).length / capacity) * 100, 100);
           const vehicleTheme = getVehicleColorTheme(trip?.vehicleName);
           const timeSummary = getTripTimeSummary(trip?.children);
-          const conflictingList = getConflictingVehicleIds(allColumns, column.id, trip?.id, trip?.children || []);
+          
+          const tripTime = trip.departure_time || trip.time || "17:00";
+          const conflictingList = mode === "outbound"
+            ? getOutboundConflictingVehicles(allColumns, column.id, trip?.id, tripTime)
+            : getConflictingVehicleIds(allColumns, column.id, trip?.id, trip?.children || []);
           
           return (
             <div key={trip?.id || Math.random().toString()} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
               {/* Trip Header (便・車種選択・定員バー) */}
               <div className="w-full px-2 py-1.5 border-b border-gray-100 flex flex-col gap-1 bg-gray-50/70">
                 <div className="flex items-center justify-between gap-1 overflow-hidden">
-                  {/* 便名 ＆ 車種選択ドロップダウン */}
+                  {/* 便名（迎えは連番便名、送りは時刻バッジ＆変更ドロップダウン）＆ 車種選択ドロップダウン */}
                   <div className="flex items-center gap-1 min-w-0 flex-1">
-                    <span className="font-bold text-[11px] text-gray-700 bg-gray-200 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
-                      【{trip?.tripIndex || 1}便】
-                    </span>
+                    {mode === "inbound" ? (
+                      <span className="font-bold text-[11px] text-gray-700 bg-gray-200 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                        【{trip?.tripIndex || 1}便】
+                      </span>
+                    ) : (
+                      <div className="flex items-center shrink-0">
+                        <select
+                          value={trip.departure_time || trip.time || "17:00"}
+                          disabled={readOnly}
+                          onChange={(e) => handleTimeChange(trip.id, e.target.value)}
+                          className={cn(
+                            "text-[11px] font-bold border rounded px-1 py-0.5 h-6 text-blue-900 bg-blue-50 border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-colors",
+                            readOnly && "opacity-90 cursor-default bg-gray-100 border-gray-300 text-gray-700"
+                          )}
+                          title="出発時刻を変更"
+                        >
+                          {timeOptions.map((t) => (
+                            <option key={t} value={t}>
+                              【{t}】
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                     {/* 車種カラータグ（薄いカラーバッジ） */}
                     {trip?.vehicleName && (
@@ -166,23 +252,30 @@ export function VehicleColumn({
                     >
                       <option value="" disabled>車両を選択 ▼</option>
                       {availableVehicles.map((v) => {
-                        const conflict = conflictingList.find((c) => c.vehicleId === String(v.id));
+                        const conflict = conflictingList.find((c: any) => String(c.vehicleId) === String(v.id));
                         return (
                           <option key={v.id} value={String(v.id)} disabled={Boolean(conflict)}>
-                            {v.name} (定員{v.capacity}人){conflict ? ` ⚠️ ${conflict.conflictStaffName}が${conflict.conflictTripIndex}便で使用中` : ""}
+                            {v.name} (定員{v.capacity}人)
+                            {conflict
+                              ? ` ⚠️ ${conflict.conflictStaffName}が${
+                                  mode === "outbound"
+                                    ? (conflict as any).conflictTime
+                                    : `${(conflict as any).conflictTripIndex}便`
+                                }で使用中`
+                              : ""}
                           </option>
                         );
                       })}
                     </select>
 
                     {/* 2便目以降の削除ボタン */}
-                    {(trip?.tripIndex > 1 || (column?.trips || []).length > 1) && trip?.tripIndex !== 1 && (
+                    {(displayTrips.length > 1) && (
                       <button
                         type="button"
                         onClick={() => handleDeleteTrip(trip)}
                         disabled={readOnly}
                         className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                        title={`${trip?.tripIndex || 1}便目を削除`}
+                        title={mode === "outbound" ? `【${tripTime}】の便を削除` : `${trip?.tripIndex || 1}便目を削除`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -315,16 +408,44 @@ export function VehicleColumn({
         })}
         
         {/* Add Trip Button */}
-        {(column.trips || []).length < 4 && (
-          <div className="p-1.5 bg-gray-50">
-            <button
-              onClick={handleAddTrip}
-              disabled={readOnly}
-              className="w-full py-1 flex items-center justify-center gap-1 text-[11px] font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-dashed border-gray-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-            >
-              <Plus className="w-3 h-3" />
-              便を追加
-            </button>
+        {(column.trips || []).length < 5 && (
+          <div className="p-1.5 bg-gray-50 border-t border-gray-100">
+            {mode === "outbound" ? (
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedNewTripTime}
+                  onChange={(e) => setSelectedNewTripTime(e.target.value)}
+                  disabled={readOnly}
+                  className="text-[11px] font-bold border border-gray-300 rounded px-1.5 py-0.5 bg-white text-gray-700 h-6.5 focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                  title="追加する便の時刻を選択"
+                >
+                  {timeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t} 便
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handleAddTrip(selectedNewTripTime)}
+                  disabled={readOnly}
+                  className="flex-1 py-1 flex items-center justify-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  便を追加
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleAddTrip()}
+                disabled={readOnly}
+                className="w-full py-1 flex items-center justify-center gap-1 text-[11px] font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-dashed border-gray-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+              >
+                <Plus className="w-3 h-3" />
+                便を追加
+              </button>
+            )}
           </div>
         )}
       </div>

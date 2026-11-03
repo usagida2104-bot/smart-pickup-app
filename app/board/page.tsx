@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { getCellData } from "@/app/schedule/page";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString, changeDateByDays } from "@/lib/store/dateStore";
-import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getVehicleBadgeColor, getTripTimeSummary, isPickupRequired, isDropoffRequired, isTransportRequired, reconcileBoardWithAttendances } from "@/lib/vehicleUtils";
+import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getVehicleBadgeColor, getTripTimeSummary, isPickupRequired, isDropoffRequired, isTransportRequired, reconcileBoardWithAttendances, sortTripsByTime } from "@/lib/vehicleUtils";
 
 function formatDate(date: Date) {
   return formatLocalDate(date);
@@ -35,11 +35,14 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
   const { inboundBoard, outboundBoard } = useBoardStore();
   const board = mode === "inbound" ? inboundBoard : outboundBoard;
   const availableTrips = (board?.columns || []).flatMap((col: any) => 
-    (col.trips || []).map((t: any) => ({
-      id: t?.id,
-      label: `${col?.staffName || col?.driverName || 'スタッフ'} ${t?.tripIndex || 1}便 (${t?.vehicleName || '車未定'})`,
-      isFull: (t?.children || []).length >= (t?.capacity || col?.capacity || 99)
-    }))
+    (col.trips || []).map((t: any) => {
+      const tripLabel = mode === "outbound" ? (t?.departure_time || t?.time || "17:00") : `${t?.tripIndex || 1}便`;
+      return {
+        id: t?.id,
+        label: `${col?.staffName || col?.driverName || 'スタッフ'} ${tripLabel} (${t?.vehicleName || '車未定'})`,
+        isFull: (t?.children || []).length >= (t?.capacity || col?.capacity || 99)
+      };
+    })
   ).filter((t: any) => t.id);
 
   return (
@@ -1271,6 +1274,8 @@ function BoardPageContent() {
                 onChangeLocation={async () => { await performAutoSave(); }}
                 onDeleteTrip={async () => { await performAutoSave(); }}
                 onUpdateTripVehicle={async () => { await performAutoSave(); }}
+                onUpdateTripTime={async () => { await performAutoSave(); }}
+                onShowToast={(type, text) => setToastMessage({ type, text })}
               />
             ))}
 
@@ -1412,30 +1417,14 @@ function BoardPageContent() {
         // スタッフごとの便カード描画関数
         const renderStaffCard = (col: any, cardMode: "inbound" | "outbound") => {
           const staffName = col.staffName || col.driverName || "担当スタッフ";
-          const trip1 = (col.trips || []).find((t: any) => t.tripIndex === 1);
-          const trip2 = (col.trips || []).find((t: any) => t.tripIndex === 2);
-          const additionalTrips = (col.trips || []).filter((t: any) => t.tripIndex > 2);
+          
+          // 児童がいる便のみ抽出し、時系列順（送りは departure_time 昇順、迎えは tripIndex 昇順）にソート
+          const activeTrips = sortTripsByTime(
+            (col.trips || []).filter((t: any) => (t.children || []).length > 0),
+            cardMode
+          );
 
-          const trip1Children = trip1?.children || [];
-          const trip2Children = trip2?.children || [];
-
-          const hasTrip1Children = trip1Children.length > 0;
-          const hasTrip2Children = trip2Children.length > 0;
-
-          const theme1 = getVehicleColorTheme(trip1?.vehicleName);
-          const theme2 = getVehicleColorTheme(trip2?.vehicleName);
-
-          const sortedTrip1 = [...trip1Children].sort((a: any, b: any) => {
-            const timeA = a.pickup_time || "99:99";
-            const timeB = b.pickup_time || "99:99";
-            return timeA.localeCompare(timeB);
-          });
-
-          const sortedTrip2 = [...trip2Children].sort((a: any, b: any) => {
-            const timeA = a.pickup_time || "99:99";
-            const timeB = b.pickup_time || "99:99";
-            return timeA.localeCompare(timeB);
-          });
+          if (activeTrips.length === 0) return null;
 
           return (
             <div key={col.id} className="staff-card break-inside-avoid border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none w-full box-border">
@@ -1456,103 +1445,59 @@ function BoardPageContent() {
                 )}
               </div>
 
-              {/* 運行便コンテナ（児童がいる便のみ出力、空の便は非表示） */}
+              {/* 運行便コンテナ（児童がいる便のみ時刻順に出力） */}
               <div className="flex flex-col divide-y divide-gray-200 flex-1 overflow-hidden">
-                {/* 【上段: 1便目】 */}
-                {hasTrip1Children && (
-                  <div className="p-1 flex flex-col overflow-hidden">
-                    <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
-                      <span className="font-bold text-[11px] text-gray-900 shrink-0">【1便】</span>
-                      <span
-                        className={cn(
-                          "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
-                          theme1.badgeBg,
-                          theme1.badgeText,
-                          theme1.badgeBorder,
-                          theme1.printBg,
-                          theme1.printText,
-                          theme1.printBorder
-                        )}
-                        style={{
-                          WebkitPrintColorAdjust: "exact",
-                          printColorAdjust: "exact",
-                        }}
-                      >
-                        🚗 {trip1?.vehicleName || "車未定"}
-                      </span>
-                    </div>
+                {activeTrips.map((trip: any, tIdx: number) => {
+                  const tripChildren = trip.children || [];
+                  const theme = getVehicleColorTheme(trip.vehicleName);
+                  const sortedChildren = [...tripChildren].sort((a: any, b: any) => {
+                    const timeA = a.pickup_time || "99:99";
+                    const timeB = b.pickup_time || "99:99";
+                    return timeA.localeCompare(timeB);
+                  });
 
-                    {renderTripTable(sortedTrip1, cardMode)}
-                  </div>
-                )}
+                  // ヘッダーラベル: 迎えは【1便】、送りは【17:00】等の時刻表記
+                  const tripLabel = cardMode === "outbound"
+                    ? `【${trip.departure_time || trip.time || "17:00"}】`
+                    : `【${trip.tripIndex || tIdx + 1}便】`;
 
-                {/* 【下段: 2便目】 */}
-                {hasTrip2Children && (
-                  <div className="p-1 flex flex-col bg-slate-50/50 overflow-hidden">
-                    <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
-                      <span className="font-bold text-[11px] text-gray-900 shrink-0">【2便】</span>
-                      <span
-                        className={cn(
-                          "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
-                          theme2.badgeBg,
-                          theme2.badgeText,
-                          theme2.badgeBorder,
-                          theme2.printBg,
-                          theme2.printText,
-                          theme2.printBorder
-                        )}
-                        style={{
-                          WebkitPrintColorAdjust: "exact",
-                          printColorAdjust: "exact",
-                        }}
-                      >
-                        🚗 {trip2?.vehicleName || "車未定"}
-                      </span>
-                    </div>
+                  const isSecondOrLater = tIdx > 0;
 
-                    {renderTripTable(sortedTrip2, cardMode)}
-                  </div>
-                )}
-
-                {/* 3便目以降 */}
-                {additionalTrips
-                  .filter((addTrip: any) => (addTrip?.children || []).length > 0)
-                  .map((addTrip: any) => {
-                    const addChildren = addTrip?.children || [];
-                    const addTheme = getVehicleColorTheme(addTrip?.vehicleName);
-                    const sortedAdd = [...addChildren].sort((a: any, b: any) => {
-                      const timeA = a.pickup_time || "99:99";
-                      const timeB = b.pickup_time || "99:99";
-                      return timeA.localeCompare(timeB);
-                    });
-
-                    return (
-                      <div key={addTrip.id} className="p-1 flex flex-col bg-slate-50/70 overflow-hidden">
-                        <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
-                          <span className="font-bold text-[11px] text-gray-900 shrink-0">【{addTrip.tripIndex}便】</span>
-                          <span
-                            className={cn(
-                              "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
-                              addTheme.badgeBg,
-                              addTheme.badgeText,
-                              addTheme.badgeBorder,
-                              addTheme.printBg,
-                              addTheme.printText,
-                              addTheme.printBorder
-                            )}
-                            style={{
-                              WebkitPrintColorAdjust: "exact",
-                              printColorAdjust: "exact",
-                            }}
-                          >
-                            🚗 {addTrip?.vehicleName || "車未定"}
-                          </span>
-                        </div>
-
-                        {renderTripTable(sortedAdd, cardMode)}
+                  return (
+                    <div
+                      key={trip.id}
+                      className={cn(
+                        "p-1 flex flex-col overflow-hidden",
+                        isSecondOrLater && "bg-slate-50/50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
+                        <span className="font-bold text-[11px] text-gray-900 shrink-0">
+                          {tripLabel}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
+                            theme.badgeBg,
+                            theme.badgeText,
+                            theme.badgeBorder,
+                            theme.printBg,
+                            theme.printText,
+                            theme.printBorder
+                          )}
+                          style={{
+                            WebkitPrintColorAdjust: "exact",
+                            printColorAdjust: "exact",
+                          }}
+                        >
+                          🚗 {trip.vehicleName || "車未定"}
+                        </span>
                       </div>
-                    );
-                  })}
+
+                      {renderTripTable(sortedChildren, cardMode)}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -1728,7 +1673,10 @@ function BoardPageContent() {
                   {displayColumns.flatMap((col) => 
                     (col.trips || []).map(trip => {
                       const isCurrent = trip.id === selectedChild.columnId;
-                      const isFull = (trip.children || []).length >= col.capacity;
+                      const isFull = (trip.children || []).length >= (trip.capacity || col.capacity || 6);
+                      const tripLabel = activeTab === "outbound"
+                        ? `【${trip.departure_time || trip.time || "17:00"}】`
+                        : ((col.trips || []).length > 1 ? `(${trip.tripIndex}便)` : "");
                       return (
                         <Button
                           key={trip.id}
@@ -1742,11 +1690,11 @@ function BoardPageContent() {
                         >
                           <div className="flex flex-col items-start gap-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold">{col.vehicleName} {(col.trips || []).length > 1 ? `(${trip.tripIndex}便)` : ""}</span>
+                              <span className="font-bold">{col.staffName || col.driverName || "スタッフ"} {tripLabel} - {trip.vehicleName || "車未定"}</span>
                               {isCurrent && <span className="text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">現在</span>}
                               {!isCurrent && isFull && <span className="text-xs text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded">満員</span>}
                             </div>
-                            <span className="text-xs text-gray-500">{col.driverName}</span>
+                            <span className="text-xs text-gray-500">{col.driverName || col.staffName}</span>
                           </div>
                         </Button>
                       );
