@@ -16,7 +16,7 @@ import { useMasterStore } from "@/lib/store/masterStore";
 import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, DailyStaff, DailyVehicle, BoardState } from "@/types";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
-import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
+import { fetchDailyData, saveBoardState, updateBoardCreator, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { getCellData } from "@/lib/scheduleUtils";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString, changeDateByDays } from "@/lib/store/dateStore";
 import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getVehicleBadgeColor, getTripTimeSummary, isPickupRequired, isDropoffRequired, isTransportRequired, reconcileBoardWithAttendances, sortTripsByTime } from "@/lib/vehicleUtils";
@@ -182,7 +182,7 @@ function BoardPageContent() {
   const [dailyStaff, setDailyStaff] = useState<any[]>([]);
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
 
-  // 作成者（localStorage保持）
+  // 作成者（日別永続化）
   const [creatorName, setCreatorName] = useState<string>("");
   // 当日の各リーダー（ぽっけ、ぽっけⅡ、日中）
   const [leaders, setLeaders] = useState<{ pokke: string; pokke2: string; nichu: string }>({
@@ -191,23 +191,18 @@ function BoardPageContent() {
     nichu: "-",
   });
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("board_creator_name");
-      if (saved) {
-        setCreatorName(saved);
-      }
-    } catch (e) {
-      console.warn("Failed to load creator name from localStorage", e);
-    }
-  }, []);
-
-  const handleCreatorChange = (name: string) => {
+  const handleCreatorChange = async (name: string) => {
     setCreatorName(name);
-    try {
-      localStorage.setItem("board_creator_name", name);
-    } catch (e) {
-      console.warn("Failed to save creator name to localStorage", e);
+    // 編集モードではない場合（通常時）は、即時 Supabase へ日別永続化
+    if (!isEditingRef.current) {
+      try {
+        const targetDateStr = formatDate(selectedDate);
+        await updateBoardCreator(targetDateStr, name || null);
+        showToast("success", name ? `作成者を「${name}」に設定しました` : "作成者を未選択にしました");
+      } catch (e) {
+        console.error("Failed to update creator", e);
+        showToast("error", "作成者の保存に失敗しました");
+      }
     }
   };
 
@@ -404,7 +399,7 @@ function BoardPageContent() {
     try {
       const targetDateStr = formatDate(selectedDate);
       const state = useBoardStore.getState();
-      await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
+      await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard, creatorName);
       return true;
     } catch (error) {
       console.error("Save failed", error);
@@ -641,6 +636,11 @@ function BoardPageContent() {
 
     const targetDateStr = currentDateStr;
 
+    // 日付切り替え時は前日の作成者を即時リセットし、遷移先データの取得に備える
+    if (prevLoadedDateRef.current !== targetDateStr) {
+      setCreatorName("");
+    }
+
     // 直前に読み込んだ日付と同じでリロード要求もない場合はスキップ（過剰な二重取得を防止）
     if (prevLoadedDateRef.current === targetDateStr && reloadKey === 0) {
       return;
@@ -655,6 +655,15 @@ function BoardPageContent() {
         if (!isMounted) return;
         // 編集中は下書き状態を DB の内容で上書きしない
         if (isEditingRef.current) return;
+
+        // 作成者の日別復元（DBカラムまたはJSONBメタデータから取得、未設定なら空文字）
+        const loadedCreator =
+          boardState?.creator_name ||
+          boardState?.author_name ||
+          boardState?.inbound_board?.creator_name ||
+          boardState?.outbound_board?.creator_name ||
+          "";
+        setCreatorName(loadedCreator);
 
         // Merge dailyStaff: masterStaff をベースに daily_staff の assigned_vehicle_id などを上書き
         const mergedStaff = masterStaff.map((s) => {
