@@ -64,7 +64,7 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
       </div>
       <div
         data-testid="unassigned-pool"
-        className="flex-1 p-1.5 md:p-2 min-h-[150px] overflow-y-auto overflow-x-hidden space-y-1 md:space-y-1.5 transition-colors"
+        className="flex-1 p-1.5 md:p-2 min-h-[150px] overflow-visible md:overflow-y-auto md:overflow-x-hidden space-y-1 md:space-y-1.5 transition-colors"
       >
         {(children || []).map((magnet) => {
           const isLocked = !isTransportRequired(mode, magnet.transportMode);
@@ -1065,7 +1065,10 @@ function BoardPageContent() {
 
   return (
     <>
-      <div className="p-2 sm:p-3 md:py-2.5 md:px-4 h-[calc(100vh-4rem)] flex flex-col overflow-x-hidden print:hidden">
+      <div
+        className="p-2 sm:p-3 md:py-2.5 md:px-4 flex-1 w-full min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col overflow-y-auto overflow-x-hidden pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-2.5 print:hidden"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
       {/* Page header */}
       <div className="flex flex-col gap-1 sm:gap-1.5 mb-1.5 md:mb-2 print:mb-4 shrink-0">
         
@@ -1217,12 +1220,15 @@ function BoardPageContent() {
       )}
 
       {/* ===== スマホ表示（モバイル・md未満）: 左右スワイプカンバン方式 ===== */}
-      <div className="flex md:hidden flex-1 overflow-x-auto overflow-y-hidden print:overflow-visible min-h-0 touch-pan-x">
-        <div className="flex flex-row gap-3 h-full min-h-full pb-2 items-start snap-x snap-mandatory">
+      <div
+        className="flex md:hidden flex-1 overflow-x-auto overflow-y-visible print:overflow-visible min-h-0 touch-pan-x touch-pan-y"
+        style={{ touchAction: "pan-x pan-y", WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="flex flex-row gap-3 h-auto items-start snap-x snap-mandatory pb-4">
           {/* 未割り当て列 */}
-          <div className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+          <div className="w-[78vw] max-w-[320px] min-w-[270px] shrink-0 snap-start h-auto flex flex-col print:hidden">
             <UnassignedPool 
-              className="w-full h-full max-h-full"
+              className="w-full h-auto"
               children={(board?.unassigned?.children || [])} 
               mode={activeTab} 
               readOnly={!isEditing}
@@ -1238,7 +1244,7 @@ function BoardPageContent() {
           {(displayColumns || []).map((col: any) => (
             <div
               key={col?.id || col?.vehicleId || col?.vehicleName}
-              className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:w-auto print:flex-1"
+              className="w-[78vw] max-w-[320px] min-w-[270px] shrink-0 snap-start h-auto flex flex-col print:w-auto print:flex-1"
             >
               <VehicleColumn
                 column={col}
@@ -1246,7 +1252,7 @@ function BoardPageContent() {
                 availableVehicles={availableVehiclesForSelect}
                 allColumns={displayColumns}
                 readOnly={!isEditing}
-                className="w-full h-full max-h-full"
+                className="w-full h-auto"
                 onChildClick={handleChildClick}
                 onReorderChild={handleDirectReorder}
                 onChangeLocation={async () => { await performAutoSave(); }}
@@ -1257,9 +1263,9 @@ function BoardPageContent() {
           ))}
 
           {/* 家族枠専用列（送り: 家族迎え / 迎え: 家族送迎・送迎なし） */}
-          <div className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+          <div className="w-[78vw] max-w-[320px] min-w-[270px] shrink-0 snap-start h-auto flex flex-col print:hidden">
             <FamilyPickupColumn
-              className="w-full h-full max-h-full"
+              className="w-full h-auto"
               children={board?.familyPickup?.children || []}
               mode={activeTab}
               onChildClick={handleChildClick}
@@ -1318,9 +1324,12 @@ function BoardPageContent() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-gray-500 border-t border-gray-200 pt-2 shrink-0">
-        <span className="font-medium">凡例:</span>
+      {/* Legend (スマホでは画面最下部に固定表示、PCではグリッド下部にインライン配置) */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-t border-gray-200 px-3 py-2 flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-gray-600 shadow-sm md:static md:bg-transparent md:border-t md:border-gray-200 md:px-0 md:py-1 md:mt-2 md:shadow-none shrink-0"
+        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}
+      >
+        <span className="font-medium text-gray-700">凡例:</span>
         <span className="flex items-center gap-1">
           <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-blue-500 rounded-full" /> 通常
         </span>

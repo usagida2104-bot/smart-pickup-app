@@ -190,7 +190,7 @@ export function VehicleColumn({
       </div>
 
       {/* Trips Container */}
-      <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-y-auto">
+      <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-visible md:overflow-y-auto">
         {displayTrips.map((trip) => {
           const hasVehicle = Boolean(trip?.vehicleId);
           const capacity = trip?.capacity || column?.capacity;
@@ -386,7 +386,7 @@ export function VehicleColumn({
               {/* Trip Drop zone (児童カード一覧) */}
               <div
                 className={cn(
-                  "p-1.5 min-h-[60px] max-h-[300px] overflow-y-auto overflow-x-hidden space-y-1 transition-colors duration-150 print:max-h-none print:overflow-visible"
+                  "p-1.5 min-h-[60px] max-h-none md:max-h-[300px] overflow-visible md:overflow-y-auto md:overflow-x-hidden space-y-1 transition-colors duration-150 print:max-h-none print:overflow-visible"
                 )}
               >
                 {(trip?.children || []).map((magnet, idx) => (

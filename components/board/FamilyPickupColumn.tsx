@@ -45,7 +45,7 @@ export function FamilyPickupColumn({ children, mode = "outbound", onChildClick, 
       {/* Children */}
       <div
         data-testid="family-pickup-pool"
-        className="flex-1 p-2 md:p-3 min-h-[120px] overflow-y-auto overflow-x-hidden space-y-1.5 md:space-y-2 transition-colors"
+        className="flex-1 p-2 md:p-3 min-h-[120px] overflow-visible md:overflow-y-auto md:overflow-x-hidden space-y-1.5 md:space-y-2 transition-colors"
       >
         {children.map((magnet) => (
           <ChildCard
