@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon, Printer, Sparkles, ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -321,8 +321,21 @@ export default function SchedulePage() {
     saveToSupabase(newData);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const isPrintingRef = useRef(false);
+  const handlePrint = (e?: React.MouseEvent<HTMLButtonElement>) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isPrintingRef.current) return;
+    isPrintingRef.current = true;
+    try {
+      window.print();
+    } finally {
+      setTimeout(() => {
+        isPrintingRef.current = false;
+      }, 1000);
+    }
   };
 
   if (!isLoaded) return null;
@@ -368,10 +381,14 @@ export default function SchedulePage() {
               <Sparkles className="w-4 h-4" />
               自動生成
             </Button>
-            <Button onClick={handlePrint} variant="outline" className="gap-1 md:gap-2 border-gray-300 text-xs md:text-sm px-2 md:px-4">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="gap-1 md:gap-2 border border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 text-xs md:text-sm px-2 md:px-4 h-9 rounded-md font-medium inline-flex items-center justify-center transition-colors select-none touch-manipulation cursor-pointer"
+            >
               <Printer className="w-4 h-4" />
               印刷
-            </Button>
+            </button>
           </div>
         </div>
 

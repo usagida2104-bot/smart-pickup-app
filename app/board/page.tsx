@@ -13,7 +13,7 @@ import { useBoardStore } from "@/lib/store/boardStore";
 import { autoAssignVehicles } from "@/lib/autoAssignVehicles";
 import { MOCK_WHITEBOARD_STATE, toMagnet, MOCK_STAFF, OFFICE_ADDRESS } from "@/lib/mockData";
 import { useMasterStore } from "@/lib/store/masterStore";
-import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, DailyStaff, DailyVehicle } from "@/types";
+import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, DailyStaff, DailyVehicle, BoardState } from "@/types";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
 import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
@@ -818,7 +818,7 @@ function BoardPageContent() {
         };
 
         // 迎えタブ：初期カラム・保存済み枠を構築後、最新の日別出欠フラグ（Single Source of Truth）で厳格にリコンシリエーション
-        const initialInboundBoard = {
+        const initialInboundBoard: BoardState = {
           columns: buildColumnsForBoard(boardState?.inbound_board),
           unassigned: {
             id: "unassigned",
@@ -832,7 +832,7 @@ function BoardPageContent() {
         const reconciledInbound = reconcileBoardWithAttendances(initialInboundBoard, mergedAtts, children, "inbound");
 
         // 送りタブ：初期カラム・保存済み枠を構築後、最新の日別出欠フラグ（Single Source of Truth）で厳格にリコンシリエーション
-        const initialOutboundBoard = {
+        const initialOutboundBoard: BoardState = {
           columns: buildColumnsForBoard(boardState?.outbound_board),
           unassigned: {
             id: "unassigned",
@@ -923,7 +923,7 @@ function BoardPageContent() {
 
       // 2. 最新出欠データ（Single Source of Truth）でボード全体をリコンシリエーション
       // 送迎フラグがONになった児童は家族枠から解放され未割り当てへ、OFFになった児童は家族枠へ即時再配置される
-      const boardToReconcile = {
+      const boardToReconcile: BoardState = {
         columns: updatedCols,
         unassigned: boardState.unassigned || { id: "unassigned", children: [] },
         familyPickup: boardState.familyPickup || { id: "family-pickup", children: [] },
@@ -1023,11 +1023,26 @@ function BoardPageContent() {
   const totalPresentCount = countPokke + countPokke2 + countNichu;
 
   const overCapacityCols = displayColumns.filter(
-    (col) => (col.trips || []).some((t: any) => (t.children || []).length > col.capacity)
+    (col) => (col.trips || []).some((t: any) => (t.children || []).length > (col.capacity || 0))
   );
 
-  const handlePrint = () => {
-    window.print();
+  // iOS Safari での「自動印刷禁止」警告を完全に防止するための同期印刷ハンドラ
+  // ユーザーのタップ操作から直接・同期的に window.print() を呼び出し、多重発火によるブロックを防止
+  const isPrintingRef = useRef(false);
+  const handlePrint = (e?: React.MouseEvent<HTMLButtonElement>) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isPrintingRef.current) return;
+    isPrintingRef.current = true;
+    try {
+      window.print();
+    } finally {
+      setTimeout(() => {
+        isPrintingRef.current = false;
+      }, 1000);
+    }
   };
 
   const handleDirectReorder = async (columnId: string, childId: string, direction: -1 | 1) => {
@@ -1110,10 +1125,15 @@ function BoardPageContent() {
         {/* 2行目: サブアクション（印刷, リセット, 自動配車, 超過警告） */}
         <div className="flex items-center justify-between gap-1 overflow-x-auto pb-0.5 print:hidden">
           <div className="flex items-center gap-1 sm:gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs shrink-0">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs shrink-0 inline-flex items-center justify-center font-bold border border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 rounded transition-colors select-none touch-manipulation cursor-pointer"
+              title="A4運行表を印刷"
+            >
               <Printer className="w-3 h-3" />
               印刷
-            </Button>
+            </button>
             {/* 作成者選択ドロップダウン */}
             <div className="flex items-center gap-1 bg-white border border-gray-300 rounded px-1.5 h-6 sm:h-7 shrink-0 text-gray-700">
               <span className="text-[10.5px] sm:text-xs font-bold text-gray-600 whitespace-nowrap">作成者:</span>

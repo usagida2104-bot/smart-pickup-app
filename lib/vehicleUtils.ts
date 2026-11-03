@@ -1,4 +1,5 @@
 import { toMagnet } from "./mockData";
+import { BoardState, VehicleColumn, UnassignedPool, FamilyPickupPool } from "@/types";
 
 /**
  * 車両および運行便に関するユーティリティ
@@ -298,8 +299,8 @@ export const getVehicleBadgeColor = getVehicleColorTheme;
 
 export interface BoardStateData {
   columns: any[];
-  unassigned: { id: string; children: any[] };
-  familyPickup: { id: string; children: any[] };
+  unassigned: { id?: string; children: any[] };
+  familyPickup?: { id?: string; children: any[] };
 }
 
 /**
@@ -319,7 +320,7 @@ export function reconcileBoardWithAttendances(
   attendances: any[],
   children: any[],
   mode: "inbound" | "outbound"
-): BoardStateData {
+): BoardState & { familyPickup: FamilyPickupPool } {
   const requiredChildIds = new Set<string>();
   const noTransportChildIds = new Set<string>();
   const absentChildIds = new Set<string>();
@@ -429,13 +430,13 @@ export function reconcileBoardWithAttendances(
   const newUnassignedChildren = Array.from(unassignedMap.values());
 
   return {
-    columns: newColumns,
+    columns: newColumns as VehicleColumn[],
     unassigned: {
-      id: currentBoard.unassigned?.id || "unassigned",
+      id: "unassigned" as const,
       children: newUnassignedChildren,
     },
     familyPickup: {
-      id: currentBoard.familyPickup?.id || "family-pickup",
+      id: "family-pickup" as const,
       children: newFamilyChildren,
     },
   };
