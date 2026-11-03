@@ -1350,24 +1350,27 @@ function BoardPageContent() {
     </div>
       
     {/* ===== 印刷用レイアウト（通常は非表示、印刷時のみA4縦1枚で表示） ===== */}
-    <div className="hidden print:flex flex-col font-sans text-black board-print-container print-container w-full h-full max-h-[285mm] justify-between overflow-hidden box-border">
+    <div className="hidden print:block font-sans text-black board-print-container print-container w-full box-border">
       {(() => {
         const inboundCols = inboundBoard?.columns || [];
         const outboundCols = outboundBoard?.columns || [];
 
-        const inboundActiveStaff = inboundCols.filter((col: any) =>
-          (col.trips || []).some((trip: any) => (trip.children || []).length > 0)
+        const inboundActiveStaff = (inboundCols || []).filter((col: any) =>
+          (col?.trips || []).some((trip: any) => (trip?.children || []).length > 0)
         );
-        const outboundActiveStaff = outboundCols.filter((col: any) =>
-          (col.trips || []).some((trip: any) => (trip.children || []).length > 0)
+        const outboundActiveStaff = (outboundCols || []).filter((col: any) =>
+          (col?.trips || []).some((trip: any) => (trip?.children || []).length > 0)
         );
 
         // 迎えの全スタッフ送迎車に乗っている児童ID
-        const inboundAssignedChildIds = new Set(
-          inboundCols.flatMap((c: any) =>
-            (c.trips || []).flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))
-          )
-        );
+        const inboundAssignedChildIds = new Set<string>();
+        (inboundCols || []).forEach((c: any) => {
+          (c?.trips || []).forEach((t: any) => {
+            (t?.children || []).forEach((ch: any) => {
+              if (ch?.id) inboundAssignedChildIds.add(String(ch.id));
+            });
+          });
+        });
 
         // 迎えの家族枠（送迎なし／家族送迎）
         const inboundFamilyChildrenMap = new Map<string, any>();
@@ -1375,6 +1378,7 @@ function BoardPageContent() {
           if (c && c.id) inboundFamilyChildrenMap.set(String(c.id), c);
         });
         (attendances || []).forEach((a: any) => {
+          if (!a) return;
           const isAbsent = a.attendance_status === "absent" || a.status === "absent";
           if (isAbsent) return;
           const isNoTransportInbound = a.status === "dropoff_only" || a.status === "no_transport";
@@ -1387,17 +1391,20 @@ function BoardPageContent() {
           }
         });
         const inboundFamilyChildren = Array.from(inboundFamilyChildrenMap.values()).sort((a: any, b: any) => {
-          const timeA = a.pickup_time || "99:99";
-          const timeB = b.pickup_time || "99:99";
+          const timeA = a?.pickup_time || "99:99";
+          const timeB = b?.pickup_time || "99:99";
           return timeA.localeCompare(timeB);
         });
 
         // 送りの全スタッフ送迎車に乗っている児童ID
-        const outboundAssignedChildIds = new Set(
-          outboundCols.flatMap((c: any) =>
-            (c.trips || []).flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))
-          )
-        );
+        const outboundAssignedChildIds = new Set<string>();
+        (outboundCols || []).forEach((c: any) => {
+          (c?.trips || []).forEach((t: any) => {
+            (t?.children || []).forEach((ch: any) => {
+              if (ch?.id) outboundAssignedChildIds.add(String(ch.id));
+            });
+          });
+        });
 
         // 送りの家族枠（送迎なし／家族送り・家族お迎え）
         const outboundFamilyChildrenMap = new Map<string, any>();
@@ -1405,6 +1412,7 @@ function BoardPageContent() {
           if (c && c.id) outboundFamilyChildrenMap.set(String(c.id), c);
         });
         (attendances || []).forEach((a: any) => {
+          if (!a) return;
           const isAbsent = a.attendance_status === "absent" || a.status === "absent";
           if (isAbsent) return;
           const isNoTransportOutbound = a.status === "pickup_only" || a.status === "no_transport";
@@ -1417,14 +1425,15 @@ function BoardPageContent() {
           }
         });
         const outboundFamilyChildren = Array.from(outboundFamilyChildrenMap.values()).sort((a: any, b: any) => {
-          const timeA = a.pickup_time || "99:99";
-          const timeB = b.pickup_time || "99:99";
+          const timeA = a?.pickup_time || "99:99";
+          const timeB = b?.pickup_time || "99:99";
           return timeA.localeCompare(timeB);
         });
 
         // 共通の便テーブル描画関数（送りは時刻列なしの2列構成、迎えは時刻列ありの3列構成）
-        const renderTripTable = (childrenList: any[], tripMode: "inbound" | "outbound") => {
+        const renderTripTable = (childrenList: any[] = [], tripMode: "inbound" | "outbound") => {
           const isOutbound = tripMode === "outbound";
+          const safeChildren = childrenList || [];
           return (
             <table className="w-full table-fixed border-collapse border border-gray-400 leading-tight box-border">
               <colgroup>
@@ -1433,23 +1442,26 @@ function BoardPageContent() {
                 {!isOutbound && <col style={{ width: "42px" }} />}
               </colgroup>
               <tbody>
-                {childrenList.map((child: any, idx: number) => (
-                  <tr key={child.id} className="border-b border-gray-300">
-                    <td className="w-[20px] max-w-[20px] border border-gray-400 px-0.5 py-[1.5px] text-center font-bold text-[11px] shrink-0">
-                      {idx + 1}
-                    </td>
-                    <td className="border border-gray-400 px-1.5 py-[1.5px] text-[12px] font-semibold tracking-tight truncate overflow-hidden">
-                      {child.name}
-                      {child.status === "late" && <span className="text-amber-700 text-[9px] ml-0.5 font-bold">遅</span>}
-                      {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-0.5 font-bold">早</span>}
-                    </td>
-                    {!isOutbound && (
-                      <td className="w-[42px] max-w-[42px] border border-gray-400 px-0.5 py-[1.5px] font-mono text-center font-medium text-[11.5px] text-gray-800 shrink-0">
-                        {child.pickup_time || "—"}
+                {safeChildren.map((child: any, idx: number) => {
+                  if (!child) return null;
+                  return (
+                    <tr key={child.id || idx} className="border-b border-gray-300">
+                      <td className="w-[20px] max-w-[20px] border border-gray-400 px-0.5 py-[1.5px] text-center font-bold text-[11px] shrink-0">
+                        {idx + 1}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="border border-gray-400 px-1.5 py-[1.5px] text-[12px] font-semibold tracking-tight truncate overflow-hidden">
+                        {child.name || "名前未設定"}
+                        {child.status === "late" && <span className="text-amber-700 text-[9px] ml-0.5 font-bold">遅</span>}
+                        {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-0.5 font-bold">早</span>}
+                      </td>
+                      {!isOutbound && (
+                        <td className="w-[42px] max-w-[42px] border border-gray-400 px-0.5 py-[1.5px] font-mono text-center font-medium text-[11.5px] text-gray-800 shrink-0">
+                          {child.pickup_time || "—"}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           );
@@ -1457,31 +1469,30 @@ function BoardPageContent() {
 
         // スタッフごとの便カード描画関数
         const renderStaffCard = (col: any, cardMode: "inbound" | "outbound") => {
-          const staffName = col.staffName || col.driverName || "担当スタッフ";
+          if (!col) return null;
+          const staffName = col?.staffName || col?.driverName || "担当スタッフ";
           
           // 児童がいる便のみ抽出し、時系列順（送りは departure_time 昇順、迎えは tripIndex 昇順）にソート
-          const activeTrips = sortTripsByTime(
-            (col.trips || []).filter((t: any) => (t.children || []).length > 0),
-            cardMode
-          );
+          const filteredTrips = (col?.trips || []).filter((t: any) => (t?.children || []).length > 0);
+          const activeTrips = sortTripsByTime(filteredTrips, cardMode) || [];
 
           if (activeTrips.length === 0) return null;
 
           return (
-            <div key={col.id} className="staff-card break-inside-avoid border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none w-full box-border">
+            <div key={col.id || col.shiftId || staffName} className="staff-card break-inside-avoid border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none w-full box-border">
               {/* スタッフヘッダー: 👤 スタッフ名 */}
               <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
                 <div className="flex items-center gap-1 min-w-0 overflow-hidden">
                   <span className="text-[13px] font-bold text-gray-900 truncate">👤 {staffName}</span>
-                  {col.staffRole && col.staffRole !== "一般スタッフ" && (
+                  {col?.staffRole && col?.staffRole !== "一般スタッフ" && (
                     <span className="text-[10px] font-medium text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
                       {col.staffRole}
                     </span>
                   )}
                 </div>
-                {col.driverStatus && col.driverStatus !== "present" && (
+                {col?.driverStatus && col?.driverStatus !== "present" && (
                   <span className="text-[8.5px] font-bold text-rose-800 bg-rose-50 border border-rose-300 px-1 py-0.2 rounded shrink-0">
-                    {col.driverStatus === "late" ? `遅刻 ${col.driverStatusTime}` : col.driverStatus === "early_leave" ? `早退 ${col.driverStatusTime}` : `中抜け ${col.driverStatusTime}`}
+                    {col.driverStatus === "late" ? `遅刻 ${col?.driverStatusTime || ""}` : col.driverStatus === "early_leave" ? `早退 ${col?.driverStatusTime || ""}` : `中抜け ${col?.driverStatusTime || ""}`}
                   </span>
                 )}
               </div>
@@ -1489,24 +1500,25 @@ function BoardPageContent() {
               {/* 運行便コンテナ（児童がいる便のみ時刻順に出力） */}
               <div className="flex flex-col divide-y divide-gray-200 flex-1 overflow-hidden">
                 {activeTrips.map((trip: any, tIdx: number) => {
-                  const tripChildren = trip.children || [];
-                  const theme = getVehicleColorTheme(trip.vehicleName);
+                  if (!trip) return null;
+                  const tripChildren = trip?.children || [];
+                  const theme = getVehicleColorTheme(trip?.vehicleName);
                   const sortedChildren = [...tripChildren].sort((a: any, b: any) => {
-                    const timeA = a.pickup_time || "99:99";
-                    const timeB = b.pickup_time || "99:99";
+                    const timeA = a?.pickup_time || "99:99";
+                    const timeB = b?.pickup_time || "99:99";
                     return timeA.localeCompare(timeB);
                   });
 
                   // ヘッダーラベル: 迎えは【1便】、送りは【17:00】等の時刻表記
                   const tripLabel = cardMode === "outbound"
-                    ? `【${trip.departure_time || trip.time || "17:00"}】`
-                    : `【${trip.tripIndex || tIdx + 1}便】`;
+                    ? `【${trip?.departure_time || trip?.time || "17:00"}】`
+                    : `【${trip?.tripIndex || tIdx + 1}便】`;
 
                   const isSecondOrLater = tIdx > 0;
 
                   return (
                     <div
-                      key={trip.id}
+                      key={trip?.id || tIdx}
                       className={cn(
                         "p-1 flex flex-col overflow-hidden",
                         isSecondOrLater && "bg-slate-50/50"
@@ -1520,12 +1532,12 @@ function BoardPageContent() {
                           <span
                             className={cn(
                               "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
-                              theme.badgeBg,
-                              theme.badgeText,
-                              theme.badgeBorder,
-                              theme.printBg,
-                              theme.printText,
-                              theme.printBorder
+                              theme?.badgeBg,
+                              theme?.badgeText,
+                              theme?.badgeBorder,
+                              theme?.printBg,
+                              theme?.printText,
+                              theme?.printBorder
                             )}
                             style={{
                               WebkitPrintColorAdjust: "exact",
@@ -1549,11 +1561,12 @@ function BoardPageContent() {
         // 家族枠（送迎なし）専用カード描画関数
         const renderFamilyBox = (
           title: string,
-          list: any[],
+          list: any[] = [],
           boxMode: "inbound" | "outbound",
           variant: "compact" | "fixed" = "fixed"
         ) => {
           const isCompact = variant === "compact";
+          const safeList = list || [];
           return (
             <div
               className={cn(
@@ -1564,16 +1577,16 @@ function BoardPageContent() {
               <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
                 <span className="text-[12px] font-bold text-gray-900 truncate">{title}</span>
                 <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
-                  {list.length}名
+                  {safeList.length}名
                 </span>
               </div>
               <div className="p-1 flex flex-col overflow-hidden">
-                {list.length === 0 ? (
+                {safeList.length === 0 ? (
                   <div className={cn("text-center text-[11px] text-gray-400 font-medium", isCompact ? "py-2" : "py-4")}>
                     なし
                   </div>
                 ) : (
-                  renderTripTable(list, boxMode)
+                  renderTripTable(safeList, boxMode)
                 )}
               </div>
             </div>
@@ -1581,7 +1594,7 @@ function BoardPageContent() {
         };
 
         return (
-          <div className="flex flex-col flex-1 justify-between min-h-0">
+          <div className="flex flex-col w-full min-h-0">
             <div>
               {/* 印刷メインヘッダー */}
               <div className="mb-1 border-b-2 border-gray-400 pb-0.5 flex justify-between items-end">
@@ -1615,20 +1628,20 @@ function BoardPageContent() {
               </div>
 
               {/* 【上段: 迎え（来所）】 */}
-              <div className="flex flex-col mb-1 print-block">
+              <div className="flex flex-col mb-1 print-block print-section-pickup">
                 <div className="flex items-center justify-between mb-0.5 bg-blue-50/90 px-2 py-0.5 rounded border border-blue-200">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[11px] text-blue-900">▼ 【迎え（来所）】送迎運行表</span>
                     <span className="text-[9.5px] text-blue-700 font-medium">
-                      （送迎運行スタッフ: {inboundActiveStaff.length}名 / 家族迎え: {inboundFamilyChildren.length}名）
+                      （送迎運行スタッフ: {(inboundActiveStaff || []).length}名 / 家族迎え: {(inboundFamilyChildren || []).length}名）
                     </span>
                   </div>
                 </div>
                 {/* 共通4列グリッド: 家族枠を第1マスに配置し、スタッフ便が隙間なく自然に回り込む */}
                 <div className="grid grid-cols-4 gap-1.5 items-start w-full">
                   {renderFamilyBox("🏠 家族迎え", inboundFamilyChildren, "inbound", "compact")}
-                  {inboundActiveStaff.map((col: any) => renderStaffCard(col, "inbound"))}
-                  {inboundActiveStaff.length === 0 && (
+                  {(inboundActiveStaff || []).map((col: any) => renderStaffCard(col, "inbound"))}
+                  {(inboundActiveStaff || []).length === 0 && (
                     <div className="col-span-3 p-3 text-center text-xs font-medium text-gray-500 border border-dashed border-gray-300 rounded bg-gray-50">
                       配車されている運行便がありません（送迎便なし）
                     </div>
@@ -1640,12 +1653,12 @@ function BoardPageContent() {
               <div className="border-t border-dashed border-gray-300 my-0.5" />
 
               {/* 【下段: 送り（帰宅）】 */}
-              <div className="flex flex-col mb-0.5 print-block">
+              <div className="flex flex-col mb-0.5 print-block print-section-dropoff">
                 <div className="flex items-center justify-between mb-0.5 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[11px] text-amber-900">▼ 【送り（帰宅）】送迎運行表</span>
                     <span className="text-[9.5px] text-amber-700 font-medium">
-                      （送迎運行スタッフ: {outboundActiveStaff.length}名 / 家族送り: {outboundFamilyChildren.length}名）
+                      （送迎運行スタッフ: {(outboundActiveStaff || []).length}名 / 家族送り: {(outboundFamilyChildren || []).length}名）
                     </span>
                   </div>
                 </div>
@@ -1653,7 +1666,7 @@ function BoardPageContent() {
                 <div className="flex gap-1.5 items-start w-full">
                   {renderFamilyBox("🏠 家族送り", outboundFamilyChildren, "outbound", "fixed")}
                   <div className="flex-1 min-w-0">
-                    {outboundActiveStaff.length === 0 ? (
+                    {(outboundActiveStaff || []).length === 0 ? (
                       <div className="p-3 text-center text-xs font-medium text-gray-500 border border-dashed border-gray-300 rounded my-1 bg-gray-50">
                         配車されている運行便がありません（送迎便なし）
                       </div>
@@ -1661,14 +1674,14 @@ function BoardPageContent() {
                       <div
                         className={cn(
                           "grid gap-1.5 items-start w-full",
-                          outboundActiveStaff.length === 1
+                          (outboundActiveStaff || []).length === 1
                             ? "grid-cols-1"
-                            : outboundActiveStaff.length === 2
+                            : (outboundActiveStaff || []).length === 2
                             ? "grid-cols-2"
                             : "grid-cols-3"
                         )}
                       >
-                        {outboundActiveStaff.map((col: any) => renderStaffCard(col, "outbound"))}
+                        {(outboundActiveStaff || []).map((col: any) => renderStaffCard(col, "outbound"))}
                       </div>
                     )}
                   </div>
@@ -1677,7 +1690,7 @@ function BoardPageContent() {
             </div>
 
             {/* フッター（余白最小化） */}
-            <div className="pt-0.5 border-t border-gray-300 flex justify-between text-[8.5px] text-gray-400 mt-auto shrink-0">
+            <div className="pt-0.5 border-t border-gray-300 flex justify-between text-[8.5px] text-gray-400 mt-1 shrink-0">
               <span>放課後等デイサービス 送迎運行表（迎え・送り）</span>
               <span>{displayDate}</span>
             </div>
@@ -1781,43 +1794,45 @@ function BoardPageContent() {
 
       <style jsx global>{`
         @media print {
-          /* 1. 用紙設定: A4縦向き、スマホ印刷時の改ページ溢れを防止するマージン（上下5mm、左右7mm） */
           @page {
             size: A4 portrait;
-            margin: 5mm 7mm;
+            margin: 6mm 8mm;
           }
 
+          /* Safariで下部が消える原因となる overflow: hidden を解除 */
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            height: 100% !important;
-            overflow: hidden !important;
+            height: auto !important;
+            min-height: 100% !important;
+            overflow: visible !important;
             background: #fff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
 
-          /* 2. 印刷画面のコンテナをA4縦1枚にフィット（改ページ絶対防止） */
+          /* 印刷用コンテナ: Safariの強制カットを防止 */
           .print-container,
           .board-print-container {
+            display: block !important;
             width: 100% !important;
-            max-width: 196mm !important;
-            height: 100% !important;
-            max-height: 285mm !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: none !important; /* Safariの強制カットを防止 */
+            overflow: visible !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             box-sizing: border-box !important;
-            overflow: hidden !important;
             padding: 0 !important;
           }
 
+          /* 各セクションが改ページで千切れないようにする */
           .break-inside-avoid,
           .print-block,
+          .print-section-pickup,
+          .print-section-dropoff,
           .staff-card,
           .family-card {
             page-break-inside: avoid !important;
