@@ -1337,7 +1337,7 @@ function BoardPageContent() {
     </div>
       
     {/* ===== 印刷用レイアウト（通常は非表示、印刷時のみA4縦1枚で表示） ===== */}
-    <div className="hidden print:flex flex-col font-sans text-black board-print-container print-container w-full max-h-[281mm] box-border">
+    <div className="hidden print:flex flex-col font-sans text-black board-print-container print-container w-full h-auto max-h-none box-border">
       {(() => {
         const inboundCols = inboundBoard?.columns || [];
         const outboundCols = outboundBoard?.columns || [];
@@ -1412,8 +1412,8 @@ function BoardPageContent() {
           }
         });
         const outboundFamilyChildren = Array.from(outboundFamilyChildrenMap.values()).sort((a: any, b: any) => {
-          const timeA = a?.pickup_time || "99:99";
-          const timeB = b?.pickup_time || "99:99";
+          const timeA = a?.departure_time || a?.pickup_time || "99:99";
+          const timeB = b?.departure_time || b?.pickup_time || "99:99";
           return timeA.localeCompare(timeB);
         });
 
@@ -1424,28 +1424,25 @@ function BoardPageContent() {
           return (
             <table className="w-full table-fixed border-collapse border border-gray-400 leading-tight box-border">
               <colgroup>
-                <col style={{ width: "20px" }} />
+                <col style={{ width: "18px" }} />
                 <col />
-                {!isOutbound && <col style={{ width: "44px" }} />}
+                {!isOutbound && <col style={{ width: "40px" }} />}
               </colgroup>
               <tbody>
                 {safeChildren.map((child: any, idx: number) => {
                   if (!child) return null;
                   return (
                     <tr key={child.id || idx} className="border-b border-gray-300">
-                      <td className="w-[20px] max-w-[20px] border border-gray-400 px-0.5 py-[2px] text-center font-bold text-[11.5px] shrink-0">
+                      <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-[1px] text-center font-bold text-[11px] shrink-0">
                         {idx + 1}
                       </td>
-                      <td className={cn(
-                        "border border-gray-400 px-1.5 py-[2px] font-bold tracking-tight truncate overflow-hidden",
-                        isFamily ? "text-[12px]" : "text-[12.5px]"
-                      )}>
+                      <td className="border border-gray-400 px-1.5 py-[1px] font-bold text-[11.5px] leading-tight truncate overflow-hidden tracking-tight">
                         {child.name || "名前未設定"}
-                        {child.status === "late" && <span className="text-amber-700 text-[9.5px] ml-0.5 font-bold">遅</span>}
-                        {child.status === "early_leave" && <span className="text-purple-700 text-[9.5px] ml-0.5 font-bold">早</span>}
+                        {child.status === "late" && <span className="text-amber-700 text-[9px] ml-0.5 font-bold">遅</span>}
+                        {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-0.5 font-bold">早</span>}
                       </td>
                       {!isOutbound && (
-                        <td className="w-[44px] max-w-[44px] border border-gray-400 px-0.5 py-[2px] font-mono text-center font-bold text-[12px] text-gray-800 shrink-0">
+                        <td className="w-[40px] max-w-[40px] border border-gray-400 px-0.5 py-[1px] font-mono text-center font-bold text-[11px] text-gray-800 shrink-0">
                           {child.pickup_time || "—"}
                         </td>
                       )}
@@ -1473,9 +1470,9 @@ function BoardPageContent() {
               {/* スタッフヘッダー: 👤 スタッフ名 */}
               <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
                 <div className="flex items-center gap-1 min-w-0 overflow-hidden">
-                  <span className="text-[13.5px] font-bold text-gray-900 truncate">👤 {staffName}</span>
+                  <span className="text-[12.5px] font-bold text-gray-900 truncate">👤 {staffName}</span>
                   {col?.staffRole && col?.staffRole !== "一般スタッフ" && (
-                    <span className="text-[10px] font-bold text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
+                    <span className="text-[9.5px] font-bold text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
                       {col.staffRole}
                     </span>
                   )}
@@ -1494,8 +1491,8 @@ function BoardPageContent() {
                   const tripChildren = trip?.children || [];
                   const theme = getVehicleColorTheme(trip?.vehicleName);
                   const sortedChildren = [...tripChildren].sort((a: any, b: any) => {
-                    const timeA = a?.pickup_time || "99:99";
-                    const timeB = b?.pickup_time || "99:99";
+                    const timeA = cardMode === "outbound" ? (a?.departure_time || a?.pickup_time || "99:99") : (a?.pickup_time || "99:99");
+                    const timeB = cardMode === "outbound" ? (b?.departure_time || b?.pickup_time || "99:99") : (b?.pickup_time || "99:99");
                     return timeA.localeCompare(timeB);
                   });
 
@@ -1510,18 +1507,18 @@ function BoardPageContent() {
                     <div
                       key={trip?.id || tIdx}
                       className={cn(
-                        "px-1 py-0.5 flex flex-col overflow-hidden",
+                        "p-1 flex flex-col overflow-hidden",
                         isSecondOrLater && "bg-slate-50/50"
                       )}
                     >
                       <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
-                        <span className="font-bold text-[11.5px] text-gray-900 shrink-0">
+                        <span className="font-bold text-[10.5px] text-gray-900 shrink-0">
                           {tripLabel}
                         </span>
                         {trip?.vehicleId && (trip?.vehicleName || trip?.vehicle?.name) && (trip?.vehicleName || trip?.vehicle?.name) !== "車両未選択" && (trip?.vehicleName || trip?.vehicle?.name) !== "車未定" ? (
                           <span
                             className={cn(
-                              "text-[11.5px] font-bold px-1.5 py-0.5 rounded border shrink min-w-0 max-w-[120px] truncate",
+                              "text-[10.5px] font-bold px-1.5 py-0.2 rounded border shrink min-w-0 max-w-[120px] truncate",
                               theme?.badgeBg,
                               theme?.badgeText,
                               theme?.badgeBorder,
@@ -1566,13 +1563,13 @@ function BoardPageContent() {
             >
               <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
                 <span className="text-[12.5px] font-bold text-gray-900 truncate">{title}</span>
-                <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
+                <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1.5 py-0.2 rounded shrink-0">
                   {safeList.length}名
                 </span>
               </div>
-              <div className="px-1 py-0.5 flex flex-col overflow-hidden">
+              <div className="p-1 flex flex-col overflow-hidden">
                 {safeList.length === 0 ? (
-                  <div className={cn("text-center text-[11px] text-gray-400 font-medium", isCompact ? "py-1" : "py-2")}>
+                  <div className={cn("text-center text-[10.5px] text-gray-400 font-medium", isCompact ? "py-1" : "py-2")}>
                     なし
                   </div>
                 ) : (
@@ -1621,7 +1618,7 @@ function BoardPageContent() {
               <div className="flex flex-col mb-0.5 print-block print-section-pickup">
                 <div className="flex items-center justify-between mb-0.5 bg-blue-50/90 px-1.5 py-0.5 rounded border border-blue-200">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[12.5px] text-blue-900">▼ 【迎え（来所）】送迎運行表</span>
+                    <span className="font-bold text-[11.5px] text-blue-900">▼ 【迎え（来所）】送迎運行表</span>
                     <span className="text-[10px] text-blue-700 font-medium">
                       （送迎運行スタッフ: {(inboundActiveStaff || []).length}名 / 家族迎え: {(inboundFamilyChildren || []).length}名）
                     </span>
@@ -1640,13 +1637,13 @@ function BoardPageContent() {
               </div>
 
               {/* 【中央区切り線（細い破線）】 */}
-              <div className="border-t border-dashed border-gray-300 my-1" />
+              <div className="border-t border-dashed border-gray-300 my-0.5" />
 
               {/* 【下段: 送り（帰宅）】 */}
               <div className="flex flex-col mb-0.5 print-block print-section-dropoff">
                 <div className="flex items-center justify-between mb-0.5 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[12.5px] text-amber-900">▼ 【送り（帰宅）】送迎運行表</span>
+                    <span className="font-bold text-[11.5px] text-amber-900">▼ 【送り（帰宅）】送迎運行表</span>
                     <span className="text-[10px] text-amber-700 font-medium">
                       （送迎運行スタッフ: {(outboundActiveStaff || []).length}名 / 家族送り: {(outboundFamilyChildren || []).length}名）
                     </span>
@@ -1786,8 +1783,8 @@ function BoardPageContent() {
         @media print {
           @page {
             size: A4 portrait;
-            /* 上8mm、左右8mm（保存用余白をキープ）、下6mm */
-            margin: 8mm 8mm 6mm 8mm;
+            /* 上下5mm、左右7mm（ファイル穴あけ余白を保ちつつ上下を確保） */
+            margin: 5mm 7mm;
           }
 
           /* Safariで下部が消える原因となる overflow: hidden を解除 */
@@ -1802,28 +1799,33 @@ function BoardPageContent() {
             print-color-adjust: exact !important;
           }
 
-          /* 印刷用コンテナ: 縮小(scale)を解除し、A4縦1枚ジャスト収容 */
+          /* 印刷用親コンテナ: 強制クリップ（上限カット）を完全撤廃 */
           .print-page,
           .print-container,
           .board-print-container {
             width: 100% !important;
             max-width: 100% !important;
-            max-height: 281mm !important; /* A4(297mm) - 上下マージン(14mm) - 余白(2mm) に収める */
+            height: auto !important;
+            max-height: none !important; /* ← 強制クリップ（上限カット）を完全撤廃 */
+            overflow: visible !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: flex-start !important;
             transform: none !important;
             box-sizing: border-box !important;
             padding: 0 !important;
-            overflow: visible !important;
           }
 
-          /* 改ページ完全防止 */
-          .print-container,
-          .board-print-container,
-          .print-page,
+          /* 上段・下段が消えずに確実に描画されるようにする */
           .print-section-pickup,
-          .print-section-dropoff,
+          .print-section-dropoff {
+            display: block !important;
+            width: 100% !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /* 改ページ防止（各カード・ブロック・行） */
           .break-inside-avoid,
           .print-block,
           .staff-card,
@@ -1847,7 +1849,7 @@ function BoardPageContent() {
           .print-container th,
           .print-container td {
             box-sizing: border-box !important;
-            padding: 2px 2px !important;
+            padding: 1px 2px !important;
             line-height: 1.15 !important;
             vertical-align: middle !important;
           }

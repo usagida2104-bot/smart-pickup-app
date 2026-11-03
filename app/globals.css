@@ -75,8 +75,8 @@
 @media print {
   @page {
     size: A4 portrait;
-    /* 上8mm、左右8mm（保存用余白をキープ）、下6mm */
-    margin: 8mm 8mm 6mm 8mm;
+    /* 上下5mm、左右7mm（ファイル穴あけ余白を保ちつつ上下を確保） */
+    margin: 5mm 7mm;
   }
 
   * {
@@ -107,12 +107,33 @@
     padding: 0 !important;
   }
 
-  /* 改ページ完全防止 */
-  .print-container,
-  .board-print-container,
+  /* 印刷用親コンテナ: 強制クリップ（上限カット）を完全撤廃 */
   .print-page,
+  .print-container,
+  .board-print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important; /* ← 強制クリップ（上限カット）を完全撤廃 */
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    transform: none !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+  }
+
+  /* 上段・下段が消えずに確実に描画されるようにする */
   .print-section-pickup,
-  .print-section-dropoff,
+  .print-section-dropoff {
+    display: block !important;
+    width: 100% !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* 改ページ防止（各カード・ブロック・行） */
   .break-inside-avoid,
   .print-block,
   .staff-card,
@@ -121,22 +142,6 @@
     break-inside: avoid !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
-  }
-  
-  /* 印刷用コンテナ: 縮小(scale)を解除し、A4縦1枚ジャスト収容 */
-  .print-page,
-  .print-container,
-  .board-print-container {
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: 281mm !important; /* A4(297mm) - 上下マージン(14mm) - 余白(2mm) に収める */
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: flex-start !important;
-    transform: none !important;
-    box-sizing: border-box !important;
-    padding: 0 !important;
-    overflow: visible !important;
   }
 
   .board-print-container table,
@@ -152,7 +157,7 @@
   .print-container th,
   .print-container td {
     box-sizing: border-box !important;
-    padding: 2px 2px !important;
+    padding: 1px 2px !important;
     line-height: 1.15 !important;
     vertical-align: middle !important;
   }
