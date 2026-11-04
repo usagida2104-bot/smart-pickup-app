@@ -60,8 +60,8 @@ export function VehicleColumn({
   }, [column.trips]);
 
   const defaultNewTime = useMemo(() => {
-    const candidates = ["17:00", "17:30", "16:30", "18:00", "16:00", "18:30", "15:30", "19:00"];
-    return candidates.find((c) => !existingTimes.has(c)) || "17:30";
+    const candidates = ["16:30", "17:30", "16:00", "18:00", "17:00", "18:30", "15:30", "19:00"];
+    return candidates.find((c) => !existingTimes.has(c)) || "16:30";
   }, [existingTimes]);
 
   const [selectedNewTripTime, setSelectedNewTripTime] = useState<string>(defaultNewTime);

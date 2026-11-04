@@ -469,10 +469,10 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
           if (time) {
             departureTime = time;
           } else {
-            // 既存便と重複しない時刻をサジェスト（17:00, 17:30, 16:30, 18:00...）
+            // 既存便と重複しない時刻をサジェスト（16:30, 17:30, 16:00, 18:00...）
             const existingTimes = new Set(existingTrips.map((t) => t.departure_time || t.time || "17:00"));
-            const candidates = ["17:00", "17:30", "16:30", "18:00", "16:00", "18:30", "15:30", "19:00"];
-            departureTime = candidates.find((c) => !existingTimes.has(c)) || "17:30";
+            const candidates = ["16:30", "17:30", "16:00", "18:00", "17:00", "18:30", "15:30", "19:00"];
+            departureTime = candidates.find((c) => !existingTimes.has(c)) || "16:30";
           }
         }
 
