@@ -1265,6 +1265,9 @@ function BoardPageContent() {
                 onChangeLocation={async () => { await performAutoSave(); }}
                 onDeleteTrip={async () => { await performAutoSave(); }}
                 onUpdateTripVehicle={async () => { await performAutoSave(); }}
+                onUpdateTripTime={async () => { await performAutoSave(); }}
+                onSwapStaffTrips={async () => { await performAutoSave(); }}
+                onShowToast={showToast}
               />
             </div>
           ))}
@@ -1316,7 +1319,8 @@ function BoardPageContent() {
                 onDeleteTrip={async () => { await performAutoSave(); }}
                 onUpdateTripVehicle={async () => { await performAutoSave(); }}
                 onUpdateTripTime={async () => { await performAutoSave(); }}
-                onShowToast={(type, text) => setToastMessage({ type, text })}
+                onSwapStaffTrips={async () => { await performAutoSave(); }}
+                onShowToast={showToast}
               />
             ))}
 

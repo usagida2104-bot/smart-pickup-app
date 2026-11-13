@@ -1,6 +1,50 @@
 import { create } from "zustand";
-import { BoardState, ChildMagnet, VehicleColumn } from "@/types";
+import { BoardState, ChildMagnet, Trip, VehicleColumn } from "@/types";
 import { sortTripsByTime } from "@/lib/vehicleUtils";
+
+/**
+ * 便配列を複製し、新しい担当スタッフカラムのID体系に合わせて便ID・ソート順・スタッフIDを再構築する
+ */
+function rebindTripsToColumn(
+  trips: Trip[],
+  targetCol: VehicleColumn,
+  mode: "inbound" | "outbound"
+): Trip[] {
+  const basePrefix = targetCol.shiftId || targetCol.id;
+  const sourceTrips = (trips && trips.length > 0)
+    ? trips
+    : [
+        {
+          id: `${basePrefix}-trip-1`,
+          tripIndex: 1,
+          departure_time: mode === "outbound" ? "17:00" : undefined,
+          time: mode === "outbound" ? "17:00" : undefined,
+          vehicleId: null,
+          vehicleName: null,
+          capacity: undefined,
+          children: [],
+        },
+      ];
+
+  const cloned = sourceTrips.map((t, idx) => {
+    const updatedTrip: Trip & { staff_id?: string; staffId?: string } = {
+      ...t,
+      id: `${basePrefix}-trip-${idx + 1}`,
+      tripIndex: t.tripIndex || idx + 1,
+      children: [...(t.children || [])],
+    };
+    if ("staff_id" in updatedTrip) {
+      updatedTrip.staff_id = targetCol.staffId || targetCol.id;
+    }
+    if ("staffId" in updatedTrip) {
+      updatedTrip.staffId = targetCol.staffId || targetCol.id;
+    }
+    return updatedTrip;
+  });
+
+  const sorted = sortTripsByTime(cloned, mode);
+  return sorted.map((t, idx) => ({ ...t, tripIndex: idx + 1 }));
+}
 
 interface BoardStore {
   inboundBoard: BoardState;
@@ -38,6 +82,7 @@ interface BoardStore {
   reorderChild: (mode: "inbound" | "outbound", tripId: string, childId: string, direction: -1 | 1) => void;
   addTrip: (mode: "inbound" | "outbound", columnId: string, time?: string) => void;
   removeTrip: (mode: "inbound" | "outbound", columnId: string, tripId: string) => void;
+  swapStaffTrips: (mode: "inbound" | "outbound", sourceColId: string, targetColId: string) => void;
 }
 
 const emptyBoard: BoardState = {
@@ -555,6 +600,56 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
           id: "unassigned",
           children: newUnassigned,
         },
+      },
+    });
+  },
+
+  swapStaffTrips: (mode, sourceColId, targetColId) => {
+    const strSourceId = String(sourceColId);
+    const strTargetId = String(targetColId);
+    if (!strSourceId || !strTargetId || strSourceId === strTargetId) return;
+
+    const state = get();
+    const boardKey = mode === "inbound" ? "inboundBoard" : "outboundBoard";
+    const board = state[boardKey];
+    const columns = board?.columns || [];
+
+    const matchesCol = (col: VehicleColumn, id: string) =>
+      String(col.id) === id || String(col.shiftId) === id || String(col.staffId) === id;
+
+    const sourceCol = columns.find((col) => matchesCol(col, strSourceId));
+    const targetCol = columns.find((col) => matchesCol(col, strTargetId));
+    if (!sourceCol || !targetCol || sourceCol === targetCol) return;
+
+    const newTripsForSource = rebindTripsToColumn(targetCol.trips || [], sourceCol, mode);
+    const newTripsForTarget = rebindTripsToColumn(sourceCol.trips || [], targetCol, mode);
+
+    const newColumns = columns.map((col) => {
+      if (col === sourceCol) {
+        return {
+          ...col,
+          vehicleId: newTripsForSource[0]?.vehicleId ?? null,
+          vehicleName: newTripsForSource[0]?.vehicleName ?? null,
+          capacity: newTripsForSource[0]?.capacity,
+          trips: newTripsForSource,
+        };
+      }
+      if (col === targetCol) {
+        return {
+          ...col,
+          vehicleId: newTripsForTarget[0]?.vehicleId ?? null,
+          vehicleName: newTripsForTarget[0]?.vehicleName ?? null,
+          capacity: newTripsForTarget[0]?.capacity,
+          trips: newTripsForTarget,
+        };
+      }
+      return col;
+    });
+
+    set({
+      [boardKey]: {
+        ...board,
+        columns: newColumns,
       },
     });
   },

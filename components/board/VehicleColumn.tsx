@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { AlertTriangle, User, Users, Plus, Trash2, Car, Clock } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { AlertTriangle, User, Users, Plus, Trash2, Car, Clock, ArrowLeftRight } from "lucide-react";
 import { VehicleColumn as VehicleColumnType, ChildMagnet, Trip } from "@/types";
 import { ChildCard } from "./ChildCard";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ interface VehicleColumnProps {
   onDeleteTrip?: () => void;
   onUpdateTripVehicle?: () => void;
   onUpdateTripTime?: () => void;
+  onSwapStaffTrips?: () => void;
   onShowToast?: (type: "success" | "error", text: string) => void;
   readOnly?: boolean;
   className?: string;
@@ -42,6 +43,7 @@ export function VehicleColumn({
   onDeleteTrip,
   onUpdateTripVehicle,
   onUpdateTripTime,
+  onSwapStaffTrips,
   onShowToast,
   readOnly = false,
   className
@@ -51,6 +53,36 @@ export function VehicleColumn({
   const updateTripTime = useBoardStore((state) => state.updateTripTime);
   const addTrip = useBoardStore((state) => state.addTrip);
   const removeTrip = useBoardStore((state) => state.removeTrip);
+  const swapStaffTrips = useBoardStore((state) => state.swapStaffTrips);
+
+  const [isSwapMenuOpen, setIsSwapMenuOpen] = useState(false);
+  const swapMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isSwapMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (swapMenuRef.current && !swapMenuRef.current.contains(event.target as Node)) {
+        setIsSwapMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsSwapMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSwapMenuOpen]);
+
+  useEffect(() => {
+    if (readOnly && isSwapMenuOpen) {
+      setIsSwapMenuOpen(false);
+    }
+  }, [readOnly, isSwapMenuOpen]);
 
   const timeOptions = useMemo(() => generateTimeOptions("15:00", "19:00", 5), []);
 
@@ -141,6 +173,22 @@ export function VehicleColumn({
   const totalChildrenCount = (column.trips || []).reduce((sum, t) => sum + (t.children || []).length, 0);
   const staffDisplayName = column.staffName || column.driverName || "担当スタッフ";
 
+  const otherColumns = useMemo(
+    () => (allColumns || []).filter((c) => String(c.id) !== String(column.id)),
+    [allColumns, column.id]
+  );
+
+  const handleSwapWith = (targetCol: VehicleColumnType) => {
+    if (readOnly) return;
+    swapStaffTrips(mode, column.id, targetCol.id);
+    setIsSwapMenuOpen(false);
+    onSwapStaffTrips && onSwapStaffTrips();
+    const targetName = targetCol.staffName || targetCol.driverName || "担当スタッフ";
+    if (onShowToast) {
+      onShowToast("success", `${staffDisplayName}さんと${targetName}さんの担当便を入れ替えました`);
+    }
+  };
+
   // 便を時系列昇順にソート（送りモード時は departure_time 昇順、迎えモード時は tripIndex 昇順）
   const displayTrips = sortTripsByTime(
     (column?.trips || []).filter(trip => trip?.tripIndex === 1 || (trip?.children || []).length > 0 || trip?.isNew),
@@ -153,12 +201,13 @@ export function VehicleColumn({
       data-staff-name={staffDisplayName}
       data-count={totalChildrenCount}
       className={cn(
-        "vehicle-column flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm min-w-0",
+        "vehicle-column flex flex-col rounded-xl border-2 transition-all duration-200 print:w-auto print:flex-1 print:border-gray-300 print:shadow-none print:break-inside-avoid border-gray-200 bg-white shadow-sm min-w-0",
+        isSwapMenuOpen ? "overflow-visible z-30 relative" : "overflow-hidden",
         className || "w-72 shrink-0"
       )}
     >
       {/* Column Header (スタッフ人ベース見出し) */}
-      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-2 relative z-20 rounded-t-[10px]">
         <div className="flex flex-col gap-0.5 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-base shrink-0">👤</span>
@@ -187,6 +236,65 @@ export function VehicleColumn({
             )}
           </div>
         </div>
+
+        {/* 右側: スタッフ間担当便入れ替えボタン＆ドロップダウン */}
+        {!readOnly && otherColumns.length > 0 && (
+          <div className="relative shrink-0 print:hidden" ref={swapMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsSwapMenuOpen((prev) => !prev)}
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold border transition-colors cursor-pointer whitespace-nowrap",
+                isSwapMenuOpen
+                  ? "bg-indigo-100 text-indigo-800 border-indigo-300"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300"
+              )}
+              title="他のスタッフと担当便を丸ごと入れ替え"
+              data-testid={`swap-button-${column.id}`}
+            >
+              <ArrowLeftRight className="w-3 h-3 shrink-0" />
+              <span>入れ替え</span>
+            </button>
+
+            {isSwapMenuOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 text-left animate-in fade-in duration-150"
+                data-testid={`swap-menu-${column.id}`}
+              >
+                <div className="px-3 py-1.5 text-[11px] font-bold text-gray-500 border-b border-gray-100 bg-gray-50/70">
+                  誰と入れ替えますか？
+                </div>
+                <div className="max-h-60 overflow-y-auto divide-y divide-gray-50">
+                  {otherColumns.map((targetCol) => {
+                    const targetName = targetCol.staffName || targetCol.driverName || "スタッフ";
+                    const targetTripsCount = (targetCol.trips || []).length;
+                    const targetChildCount = (targetCol.trips || []).reduce(
+                      (sum, t) => sum + (t.children || []).length,
+                      0
+                    );
+                    return (
+                      <button
+                        key={targetCol.id}
+                        type="button"
+                        onClick={() => handleSwapWith(targetCol)}
+                        className="w-full px-3 py-2 text-left hover:bg-indigo-50 flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                        data-testid={`swap-option-${column.id}-to-${targetCol.id}`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs shrink-0">👤</span>
+                          <span className="text-xs font-bold text-gray-800 truncate">{targetName}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-500 shrink-0 font-mono">
+                          {targetTripsCount}便・{targetChildCount}名
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Trips Container */}
