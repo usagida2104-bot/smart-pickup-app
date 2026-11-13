@@ -305,7 +305,8 @@ export function VehicleColumn({
           const isOverCapacity = hasVehicle && capacity ? childCount > capacity : false;
           const isFull = hasVehicle && capacity ? childCount >= capacity : false;
           const fillPct = hasVehicle && capacity ? Math.min((childCount / capacity) * 100, 100) : 0;
-          const vehicleTheme = getVehicleColorTheme(trip?.vehicleName);
+          const tripVehicleName = trip?.vehicleName || (trip as any)?.vehicle?.name || "";
+          const vehicleTheme = getVehicleColorTheme(tripVehicleName);
           
           const tripTime = trip.departure_time || trip.time || "17:00";
           const conflictingList = mode === "outbound"
@@ -345,7 +346,7 @@ export function VehicleColumn({
                     )}
 
                     {/* 車種カラータグ（薄いカラーバッジ）: 車両未選択時は非表示 */}
-                    {hasVehicle && trip?.vehicleName && trip.vehicleName !== "車両未選択" && trip.vehicleName !== "車未定" && (
+                    {hasVehicle && tripVehicleName && tripVehicleName !== "車両未選択" && tripVehicleName !== "車未定" && (
                       <span className={cn(
                         "text-[10px] font-bold px-1.5 py-0.2 rounded border shrink-0 hidden sm:inline-flex items-center gap-0.5 transition-all duration-300 animate-in fade-in",
                         vehicleTheme.badgeBg,

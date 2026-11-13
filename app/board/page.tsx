@@ -1511,7 +1511,8 @@ function BoardPageContent() {
                 {activeTrips.map((trip: any, tIdx: number) => {
                   if (!trip) return null;
                   const tripChildren = trip?.children || [];
-                  const theme = getVehicleColorTheme(trip?.vehicleName);
+                  const tripVehicleName = trip?.vehicleName || trip?.vehicle?.name || "";
+                  const theme = getVehicleColorTheme(tripVehicleName);
                   const sortedChildren = [...tripChildren].sort((a: any, b: any) => {
                     const timeA = cardMode === "outbound" ? (a?.departure_time || a?.pickup_time || "99:99") : (a?.pickup_time || "99:99");
                     const timeB = cardMode === "outbound" ? (b?.departure_time || b?.pickup_time || "99:99") : (b?.pickup_time || "99:99");
@@ -1537,7 +1538,7 @@ function BoardPageContent() {
                         <span className="font-bold text-[10.5px] text-gray-900 shrink-0">
                           {tripLabel}
                         </span>
-                        {trip?.vehicleId && (trip?.vehicleName || trip?.vehicle?.name) && (trip?.vehicleName || trip?.vehicle?.name) !== "車両未選択" && (trip?.vehicleName || trip?.vehicle?.name) !== "車未定" ? (
+                        {trip?.vehicleId && tripVehicleName && tripVehicleName !== "車両未選択" && tripVehicleName !== "車未定" ? (
                           <span
                             className={cn(
                               "text-[10.5px] font-bold px-1.5 py-0.2 rounded border shrink min-w-0 max-w-[120px] truncate",
@@ -1553,7 +1554,7 @@ function BoardPageContent() {
                               printColorAdjust: "exact",
                             }}
                           >
-                            🚙 {trip?.vehicleName || trip?.vehicle?.name}
+                            🚙 {theme.label}
                           </span>
                         ) : null}
                       </div>

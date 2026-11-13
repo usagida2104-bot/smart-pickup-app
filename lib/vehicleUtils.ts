@@ -133,136 +133,64 @@ const FALLBACK_COLOR_PALETTES: Omit<VehicleColorTheme, "label">[] = [
 ];
 
 /**
- * 車両・車種名から固有の識別カラーパレットを取得
- * - アイシス: スカイブルー系 (bg-sky-100 text-sky-800 border-sky-300)
- * - シエンタ: アンバー/オレンジ系 (bg-amber-100 text-amber-800 border-amber-300)
- * - ノート: パープル系 (bg-purple-100 text-purple-800 border-purple-300)
- * - ムーブ: ピンク/ローズ系 (bg-pink-100 text-pink-800 border-pink-300)
- * - ボクシー / ヴォクシー: インディゴ/ブルー系 (bg-indigo-100 text-indigo-800 border-indigo-300)
- * - ステップワゴン: エメラルド/グリーン系 (bg-emerald-100 text-emerald-800 border-emerald-300)
- * - エブリィ: イエロー系 (bg-yellow-100 text-yellow-800 border-yellow-300)
- * - スペーシア: ティール系 (bg-teal-100 text-teal-800 border-teal-300)
- * - その他登録外車両: 文字列ハッシュにより一貫してパレットから自動選択
+ * 車種名に応じた識別カラーパレット（背景色・文字色・枠線）を取得
  */
-export function getVehicleColorTheme(vehicleName?: string | null): VehicleColorTheme {
-  const name = (vehicleName || "").trim().toLowerCase();
-
+function getVehicleColorPalette(name: string): Omit<VehicleColorTheme, "label"> {
   // 1. アイシス (スカイブルー系)
   if (name.includes("アイシス") || name.includes("isis")) {
-    return {
-      badgeBg: "bg-sky-100",
-      badgeText: "text-sky-800",
-      badgeBorder: "border-sky-300",
-      printBg: "print:bg-sky-100",
-      printText: "print:text-sky-900",
-      printBorder: "print:border-sky-400",
-      label: "アイシス",
-    };
+    return FALLBACK_COLOR_PALETTES[0];
   }
-
   // 2. シエンタ (アンバー/オレンジ系)
   if (name.includes("シエンタ") || name.includes("sienta")) {
-    return {
-      badgeBg: "bg-amber-100",
-      badgeText: "text-amber-800",
-      badgeBorder: "border-amber-300",
-      printBg: "print:bg-amber-100",
-      printText: "print:text-amber-900",
-      printBorder: "print:border-amber-400",
-      label: "シエンタ",
-    };
+    return FALLBACK_COLOR_PALETTES[1];
   }
-
   // 3. ノート (パープル系)
   if (name.includes("ノート") || name.includes("note")) {
-    return {
-      badgeBg: "bg-purple-100",
-      badgeText: "text-purple-800",
-      badgeBorder: "border-purple-300",
-      printBg: "print:bg-purple-100",
-      printText: "print:text-purple-900",
-      printBorder: "print:border-purple-400",
-      label: "ノート",
-    };
+    return FALLBACK_COLOR_PALETTES[2];
   }
-
   // 4. ムーブ / ムーヴ (ピンク/ローズ系)
   if (name.includes("ムーブ") || name.includes("ムーヴ") || name.includes("move")) {
-    return {
-      badgeBg: "bg-pink-100",
-      badgeText: "text-pink-800",
-      badgeBorder: "border-pink-300",
-      printBg: "print:bg-pink-100",
-      printText: "print:text-pink-900",
-      printBorder: "print:border-pink-400",
-      label: "ムーブ",
-    };
+    return FALLBACK_COLOR_PALETTES[3];
   }
-
   // 5. ボクシー / ヴォクシー (インディゴ/ブルー系)
   if (name.includes("ボクシー") || name.includes("ヴォクシー") || name.includes("voxy")) {
-    return {
-      badgeBg: "bg-indigo-100",
-      badgeText: "text-indigo-800",
-      badgeBorder: "border-indigo-300",
-      printBg: "print:bg-indigo-100",
-      printText: "print:text-indigo-900",
-      printBorder: "print:border-indigo-400",
-      label: "ボクシー",
-    };
+    return FALLBACK_COLOR_PALETTES[4];
   }
-
   // 6. ステップワゴン (エメラルド/グリーン系)
   if (name.includes("ステップワゴン") || name.includes("stepwgn") || name.includes("step")) {
-    return {
-      badgeBg: "bg-emerald-100",
-      badgeText: "text-emerald-800",
-      badgeBorder: "border-emerald-300",
-      printBg: "print:bg-emerald-100",
-      printText: "print:text-emerald-900",
-      printBorder: "print:border-emerald-400",
-      label: "ステップワゴン",
-    };
+    return FALLBACK_COLOR_PALETTES[5];
   }
-
   // 7. エブリィ / エブリー (イエロー系)
   if (name.includes("エブリィ") || name.includes("エブリー") || name.includes("every")) {
-    return {
-      badgeBg: "bg-yellow-100",
-      badgeText: "text-yellow-800",
-      badgeBorder: "border-yellow-300",
-      printBg: "print:bg-yellow-100",
-      printText: "print:text-yellow-900",
-      printBorder: "print:border-yellow-400",
-      label: "エブリィ",
-    };
+    return FALLBACK_COLOR_PALETTES[6];
   }
-
   // 8. スペーシア (ティール系)
   if (name.includes("スペーシア") || name.includes("spacia")) {
-    return {
-      badgeBg: "bg-teal-100",
-      badgeText: "text-teal-800",
-      badgeBorder: "border-teal-300",
-      printBg: "print:bg-teal-100",
-      printText: "print:text-teal-900",
-      printBorder: "print:border-teal-400",
-      label: "スペーシア",
-    };
+    return FALLBACK_COLOR_PALETTES[7];
+  }
+  // 9. ブーン / タント / 軽自動車 (ピンク/ローズ系)
+  if (name.includes("ブーン") || name.includes("boon") || name.includes("タント") || name.includes("tanto") || name.includes("軽")) {
+    return FALLBACK_COLOR_PALETTES[3];
   }
 
-  // ブーン / タント / 軽自動車フォールバック
-  if (name.includes("ブーン") || name.includes("boon") || name.includes("タント") || name.includes("tanto") || name.includes("軽")) {
-    return {
-      badgeBg: "bg-pink-100",
-      badgeText: "text-pink-800",
-      badgeBorder: "border-pink-300",
-      printBg: "print:bg-pink-100",
-      printText: "print:text-pink-900",
-      printBorder: "print:border-pink-400",
-      label: "軽自動車",
-    };
+  // その他登録車両：文字列ハッシュでパレットから一貫して自動選択
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
   }
+  const index = Math.abs(hash) % FALLBACK_COLOR_PALETTES.length;
+  return FALLBACK_COLOR_PALETTES[index];
+}
+
+/**
+ * 車両・車種名から固有の識別カラーパレットと表示ラベルを取得
+ * - 表示ラベルは原則として車両マスタの車種名（vehicleName）をそのまま返す
+ * - 車両未指定・空文字の場合のみフォールバック文字列を返す
+ */
+export function getVehicleColorTheme(vehicleName?: string | null): VehicleColorTheme {
+  const trimmedName = (vehicleName || "").trim();
+  const name = trimmedName.toLowerCase();
 
   // 車両未定または未指定
   if (!name || name === "車未定" || name === "車両未定" || name === "車両未選択") {
@@ -273,22 +201,13 @@ export function getVehicleColorTheme(vehicleName?: string | null): VehicleColorT
       printBg: "print:bg-slate-100",
       printText: "print:text-slate-800",
       printBorder: "print:border-slate-400",
-      label: "車未定",
+      label: trimmedName || "車未定",
     };
   }
 
-  // その他登録外車両：文字列ハッシュでパレットから一貫して自動選択
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash << 5) - hash + name.charCodeAt(i);
-    hash |= 0;
-  }
-  const index = Math.abs(hash) % FALLBACK_COLOR_PALETTES.length;
-  const palette = FALLBACK_COLOR_PALETTES[index];
-
   return {
-    ...palette,
-    label: vehicleName || "車両",
+    ...getVehicleColorPalette(name),
+    label: trimmedName || "車両",
   };
 }
 
