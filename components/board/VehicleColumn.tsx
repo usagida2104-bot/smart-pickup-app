@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { AlertTriangle, User, Users, Plus, Trash2, Car, Clock, ArrowLeftRight } from "lucide-react";
+import { AlertTriangle, User, Users, Plus, Trash2, Car, ArrowLeftRight } from "lucide-react";
 import { VehicleColumn as VehicleColumnType, ChildMagnet, Trip } from "@/types";
 import { ChildCard } from "./ChildCard";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/lib/store/boardStore";
 import {
   getVehicleColorTheme,
-  getTripTimeSummary,
-  getConflictingVehicleIds,
+  getInboundConflictingVehicles,
   generateTimeOptions,
   getOutboundConflictingVehicles,
   sortTripsByTime,
@@ -307,12 +306,11 @@ export function VehicleColumn({
           const isFull = hasVehicle && capacity ? childCount >= capacity : false;
           const fillPct = hasVehicle && capacity ? Math.min((childCount / capacity) * 100, 100) : 0;
           const vehicleTheme = getVehicleColorTheme(trip?.vehicleName);
-          const timeSummary = getTripTimeSummary(trip?.children);
           
           const tripTime = trip.departure_time || trip.time || "17:00";
           const conflictingList = mode === "outbound"
             ? getOutboundConflictingVehicles(allColumns, column.id, trip?.id, tripTime)
-            : getConflictingVehicleIds(allColumns, column.id, trip?.id, trip?.children || []);
+            : getInboundConflictingVehicles(allColumns, column.id, trip?.id, trip?.tripIndex || 1);
           
           return (
             <div key={trip?.id || Math.random().toString()} className={cn("flex flex-col", isOverCapacity ? "bg-red-50" : "bg-white")}>
@@ -435,17 +433,10 @@ export function VehicleColumn({
                   </div>
                 </div>
 
-                {/* 運行時間サマリー表示（迎え運行のみ表示、送り運行では非表示） */}
-                {mode === "inbound" && timeSummary && (
-                  <div className="flex items-center gap-1 px-1 text-[10px] text-gray-600">
-                    <Clock className="w-3 h-3 text-gray-400 shrink-0" />
-                    <span className="font-mono font-semibold">運行時間: {timeSummary}</span>
-                  </div>
-                )}
               </div>
 
               {/* Trip settings (出発地・到着地) */}
-              <div className="px-2.5 pt-1 pb-1 border-b border-gray-100">
+              <div className="px-2.5 py-1.5 border-b border-gray-100">
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="text-[9px] text-gray-400 block mb-0.5">出発地</label>

@@ -548,9 +548,45 @@ export function getConflictingVehicleIds(
 }
 
 /**
- * 自動配車後のカラム各便に対して、時間重複（ダブルブッキング）を完全排除して車両を最適割り当てする
- * - 1便目同士はすべて異なる車両を割り当て（完全重複禁止）
- * - 2便目は1便目が終了した後の車両または待機車両を割り当て
+ * 迎えモードにおいて、同じ便番号（1便、2便、3便...）の他便で既に使用されている車両一覧を取得
+ * - 同じ便番号内（例: 全スタッフの1便同士）では重複禁止
+ * - 異なる便番号間（例: 1便と2便）では同一スタッフ・別スタッフ問わず同一車両の使用を許可
+ */
+export function getInboundConflictingVehicles(
+  columns: any[],
+  targetColId: string,
+  targetTripId: string,
+  targetTripIndex: number
+): { vehicleId: string; conflictStaffName: string; conflictTripIndex: number }[] {
+  const conflicts: { vehicleId: string; conflictStaffName: string; conflictTripIndex: number }[] = [];
+
+  for (const col of columns || []) {
+    const staffName = col.staffName || col.driverName || "他スタッフ";
+    for (const trip of col.trips || []) {
+      // 自便自身は除外
+      if (String(col.id) === String(targetColId) && String(trip.id) === String(targetTripId)) {
+        continue;
+      }
+      if (!trip.vehicleId) continue;
+
+      const tripIdx = trip.tripIndex || 1;
+      if (tripIdx === targetTripIndex) {
+        conflicts.push({
+          vehicleId: String(trip.vehicleId),
+          conflictStaffName: staffName,
+          conflictTripIndex: tripIdx,
+        });
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+/**
+ * 自動配車後のカラム各便に対して、同じ便番号内での車両重複（ダブルブッキング）を完全排除して車両を最適割り当てする
+ * - 同じ便番号（1便目同士、2便目同士…）内ではすべて異なる車両を割り当て（重複禁止）
+ * - 異なる便番号間（1便目と2便目）では、同じスタッフ・別スタッフ問わず同一車両の再利用を許可
  * - 児童数に応じた定員適合（大人数には大型車を優先）
  */
 export function assignVehiclesWithoutOverlap(
@@ -565,25 +601,32 @@ export function assignVehiclesWithoutOverlap(
   // 便ごとの割当結果マップ: key: `${colId}-${tripIndex}` -> vehicle
   const assignmentMap = new Map<string, { id: string; name: string; capacity: number }>();
 
-  // 運行スケジュール履歴: { vehicleId, range, colId, tripIndex }
-  const vehicleSchedule: { vehicleId: string; range: [number, number]; colId: string; tripIndex: number }[] = [];
+  // 便番号ごとの使用済み車両IDセット（同一便番号内でのみ重複禁止）
+  const usedVehiclesByTripIndex = new Map<number, Set<string>>();
+  const getUsedSet = (tripIdx: number) => {
+    let set = usedVehiclesByTripIndex.get(tripIdx);
+    if (!set) {
+      set = new Set<string>();
+      usedVehiclesByTripIndex.set(tripIdx, set);
+    }
+    return set;
+  };
 
   // フェーズ1: 1便目（tripIndex === 1）で児童がいる便への割り当て
-  // 1便目同士は同時刻運行のため、それぞれ完全にユニークな別々の車両を割り当てる
+  // 1便目同士はそれぞれ完全にユニークな別々の車両を割り当てる
   const firstTripsWithChildren = columns.map((col) => {
     const t1 = (col.trips || []).find((t: any) => t.tripIndex === 1);
     return {
       colId: col.id,
       trip: t1,
       childCount: (t1?.children || []).length,
-      range: getTripTimeRange(t1?.children || []),
     };
   }).filter((item) => item.trip && item.childCount > 0);
 
   // 乗車児童数が多い順にソート（人数の多い便に大型車を優先）
   firstTripsWithChildren.sort((a, b) => b.childCount - a.childCount);
 
-  const usedVehiclesInFirstTrips = new Set<string>();
+  const usedVehiclesInFirstTrips = getUsedSet(1);
 
   for (const item of firstTripsWithChildren) {
     // 定員を満たし、まだ1便目で使われていない車両
@@ -599,14 +642,6 @@ export function assignVehiclesWithoutOverlap(
 
     usedVehiclesInFirstTrips.add(selectedV.id);
     assignmentMap.set(`${item.colId}-1`, selectedV);
-    if (item.range) {
-      vehicleSchedule.push({
-        vehicleId: selectedV.id,
-        range: item.range,
-        colId: item.colId,
-        tripIndex: 1,
-      });
-    }
   }
 
   // 1便目で児童がいないスタッフにも、まだ1便目で使われていない車両を優先セット
@@ -620,54 +655,48 @@ export function assignVehiclesWithoutOverlap(
   });
 
   // フェーズ2: 2便目以降（tripIndex >= 2）で児童がいる便への割り当て
-  const secondTripsWithChildren: { colId: string; tripIndex: number; childCount: number; range: [number, number] | null }[] = [];
+  const laterTripsWithChildren: { colId: string; tripIndex: number; childCount: number; startMin: number }[] = [];
   columns.forEach((col) => {
     (col.trips || []).forEach((t: any) => {
       if (t.tripIndex >= 2 && (t.children || []).length > 0) {
-        secondTripsWithChildren.push({
+        const range = getTripTimeRange(t.children);
+        laterTripsWithChildren.push({
           colId: col.id,
           tripIndex: t.tripIndex,
           childCount: t.children.length,
-          range: getTripTimeRange(t.children),
+          startMin: range ? range[0] : 9999,
         });
       }
     });
   });
 
-  // 開始時刻が早い順 → 児童数が多い順にソート
-  secondTripsWithChildren.sort((a, b) => {
-    const timeA = a.range ? a.range[0] : 9999;
-    const timeB = b.range ? b.range[0] : 9999;
-    if (timeA !== timeB) return timeA - timeB;
+  // 便番号が小さい順 → 開始時刻が早い順 → 児童数が多い順にソート
+  laterTripsWithChildren.sort((a, b) => {
+    if (a.tripIndex !== b.tripIndex) return a.tripIndex - b.tripIndex;
+    if (a.startMin !== b.startMin) return a.startMin - b.startMin;
     return b.childCount - a.childCount;
   });
 
-  for (const item of secondTripsWithChildren) {
-    const tripRange = item.range;
+  for (const item of laterTripsWithChildren) {
+    const usedInSameTripIndex = getUsedSet(item.tripIndex);
+    const isVehicleAvailableInTripIndex = (vId: string) => !usedInSameTripIndex.has(vId);
 
-    // 時間衝突しない車両かどうかの判定
-    const isVehicleAvailable = (vId: string) => {
-      if (!tripRange) return true;
-      const conflicts = vehicleSchedule.filter((s) => s.vehicleId === vId && isTimeRangeOverlapping(s.range, tripRange));
-      return conflicts.length === 0;
-    };
-
-    // 優先度1: 1便目と同じスタッフの車両が、時間が終わっていて空いているならその車（乗り換えの手間削減）
+    // 優先度1: 1便目と同じスタッフの車両が、同じ便番号内で未割り当てならその車（乗り換えの手間削減）
     const staffTrip1V = assignmentMap.get(`${item.colId}-1`);
     let selectedV: { id: string; name: string; capacity: number } | undefined;
 
-    if (staffTrip1V && isVehicleAvailable(staffTrip1V.id) && staffTrip1V.capacity >= item.childCount) {
+    if (staffTrip1V && isVehicleAvailableInTripIndex(staffTrip1V.id) && staffTrip1V.capacity >= item.childCount) {
       selectedV = staffTrip1V;
     }
 
-    // 優先度2: 定員を満たし、時間重複しない他の空き車両
+    // 優先度2: 定員を満たし、同じ便番号内で未使用の車両
     if (!selectedV) {
-      selectedV = sortedVehicles.find((v) => isVehicleAvailable(v.id) && v.capacity >= item.childCount);
+      selectedV = sortedVehicles.find((v) => isVehicleAvailableInTripIndex(v.id) && v.capacity >= item.childCount);
     }
 
-    // 優先度3: 時間重複しない任意の空き車両
+    // 優先度3: 同じ便番号内で未使用の任意の車両
     if (!selectedV) {
-      selectedV = sortedVehicles.find((v) => isVehicleAvailable(v.id));
+      selectedV = sortedVehicles.find((v) => isVehicleAvailableInTripIndex(v.id));
     }
 
     // フォールバック（どうしても空きがない場合）
@@ -675,15 +704,8 @@ export function assignVehiclesWithoutOverlap(
       selectedV = staffTrip1V || sortedVehicles[0];
     }
 
+    usedInSameTripIndex.add(selectedV.id);
     assignmentMap.set(`${item.colId}-${item.tripIndex}`, selectedV);
-    if (tripRange) {
-      vehicleSchedule.push({
-        vehicleId: selectedV.id,
-        range: tripRange,
-        colId: item.colId,
-        tripIndex: item.tripIndex,
-      });
-    }
   }
 
   // 2便目以降で児童0人の便には、1便目と同じ車両をセット
