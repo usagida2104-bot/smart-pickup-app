@@ -16,7 +16,7 @@ import { useMasterStore } from "@/lib/store/masterStore";
 import { ChildMagnet, VehicleColumn as VehicleColumnType, DailyAttendance, DailyStaff, DailyVehicle, BoardState } from "@/types";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
-import { fetchDailyData, saveBoardState, fetchMonthlySchedule } from "@/lib/supabase/service";
+import { fetchDailyData, saveBoardState, updateBoardCreator, fetchMonthlySchedule } from "@/lib/supabase/service";
 import { getCellData } from "@/lib/scheduleUtils";
 import { useDateStore, formatLocalDate, getTodayDateString, isValidDateString, parseDateString, changeDateByDays } from "@/lib/store/dateStore";
 import { assignVehiclesWithoutOverlap, getVehicleColorTheme, getVehicleBadgeColor, getTripTimeSummary, isPickupRequired, isDropoffRequired, isTransportRequired, reconcileBoardWithAttendances, sortTripsByTime } from "@/lib/vehicleUtils";
@@ -64,7 +64,7 @@ function UnassignedPool({ children = [], mode, onChildClick, onAssignTo, readOnl
       </div>
       <div
         data-testid="unassigned-pool"
-        className="flex-1 p-1.5 md:p-2 min-h-[150px] overflow-y-auto overflow-x-hidden space-y-1 md:space-y-1.5 transition-colors"
+        className="flex-1 p-1.5 md:p-2 min-h-[150px] overflow-visible md:overflow-y-auto md:overflow-x-hidden space-y-1 md:space-y-1.5 transition-colors"
       >
         {(children || []).map((magnet) => {
           const isLocked = !isTransportRequired(mode, magnet.transportMode);
@@ -182,7 +182,7 @@ function BoardPageContent() {
   const [dailyStaff, setDailyStaff] = useState<any[]>([]);
   const [dailyVehicles, setDailyVehicles] = useState<any[]>([]);
 
-  // 作成者（localStorage保持）
+  // 作成者（日別永続化）
   const [creatorName, setCreatorName] = useState<string>("");
   // 当日の各リーダー（ぽっけ、ぽっけⅡ、日中）
   const [leaders, setLeaders] = useState<{ pokke: string; pokke2: string; nichu: string }>({
@@ -191,23 +191,18 @@ function BoardPageContent() {
     nichu: "-",
   });
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("board_creator_name");
-      if (saved) {
-        setCreatorName(saved);
-      }
-    } catch (e) {
-      console.warn("Failed to load creator name from localStorage", e);
-    }
-  }, []);
-
-  const handleCreatorChange = (name: string) => {
+  const handleCreatorChange = async (name: string) => {
     setCreatorName(name);
-    try {
-      localStorage.setItem("board_creator_name", name);
-    } catch (e) {
-      console.warn("Failed to save creator name to localStorage", e);
+    // 編集モードではない場合（通常時）は、即時 Supabase へ日別永続化
+    if (!isEditingRef.current) {
+      try {
+        const targetDateStr = formatDate(selectedDate);
+        await updateBoardCreator(targetDateStr, name || null);
+        showToast("success", name ? `作成者を「${name}」に設定しました` : "作成者を未選択にしました");
+      } catch (e) {
+        console.error("Failed to update creator", e);
+        showToast("error", "作成者の保存に失敗しました");
+      }
     }
   };
 
@@ -404,7 +399,7 @@ function BoardPageContent() {
     try {
       const targetDateStr = formatDate(selectedDate);
       const state = useBoardStore.getState();
-      await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard);
+      await saveBoardState(targetDateStr, state.inboundBoard, state.outboundBoard, creatorName);
       return true;
     } catch (error) {
       console.error("Save failed", error);
@@ -641,6 +636,11 @@ function BoardPageContent() {
 
     const targetDateStr = currentDateStr;
 
+    // 日付切り替え時は前日の作成者を即時リセットし、遷移先データの取得に備える
+    if (prevLoadedDateRef.current !== targetDateStr) {
+      setCreatorName("");
+    }
+
     // 直前に読み込んだ日付と同じでリロード要求もない場合はスキップ（過剰な二重取得を防止）
     if (prevLoadedDateRef.current === targetDateStr && reloadKey === 0) {
       return;
@@ -655,6 +655,15 @@ function BoardPageContent() {
         if (!isMounted) return;
         // 編集中は下書き状態を DB の内容で上書きしない
         if (isEditingRef.current) return;
+
+        // 作成者の日別復元（DBカラムまたはJSONBメタデータから取得、未設定なら空文字）
+        const loadedCreator =
+          boardState?.creator_name ||
+          boardState?.author_name ||
+          boardState?.inbound_board?.creator_name ||
+          boardState?.outbound_board?.creator_name ||
+          "";
+        setCreatorName(loadedCreator);
 
         // Merge dailyStaff: masterStaff をベースに daily_staff の assigned_vehicle_id などを上書き
         const mergedStaff = masterStaff.map((s) => {
@@ -1047,23 +1056,10 @@ function BoardPageContent() {
     (col) => (col.trips || []).some((t: any) => (t.children || []).length > (col.capacity || 0))
   );
 
-  // iOS Safari での「自動印刷禁止」警告を完全に防止するための同期印刷ハンドラ
-  // ユーザーのタップ操作から直接・同期的に window.print() を呼び出し、多重発火によるブロックを防止
-  const isPrintingRef = useRef(false);
-  const handlePrint = (e?: React.MouseEvent<HTMLButtonElement>) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (isPrintingRef.current) return;
-    isPrintingRef.current = true;
-    try {
-      window.print();
-    } finally {
-      setTimeout(() => {
-        isPrintingRef.current = false;
-      }, 1000);
-    }
+  // iOS Safari での「自動印刷禁止」警告を完全防止するための直接同期的印刷
+  // ユーザーのタップ操作イベントスタック内で直接 window.print() を同期実行
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleDirectReorder = async (columnId: string, childId: string, direction: -1 | 1) => {
@@ -1078,7 +1074,10 @@ function BoardPageContent() {
 
   return (
     <>
-      <div className="p-2 sm:p-3 md:py-2.5 md:px-4 h-[calc(100vh-4rem)] flex flex-col overflow-x-hidden print:hidden">
+      <div
+        className="p-2 sm:p-3 md:py-2.5 md:px-4 flex-1 w-full min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col overflow-y-auto overflow-x-hidden pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-2.5 print:hidden"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
       {/* Page header */}
       <div className="flex flex-col gap-1 sm:gap-1.5 mb-1.5 md:mb-2 print:mb-4 shrink-0">
         
@@ -1148,7 +1147,7 @@ function BoardPageContent() {
           <div className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={() => window.print()}
               className="gap-1 h-6 sm:h-7 px-2 text-[11px] sm:text-xs shrink-0 inline-flex items-center justify-center font-bold border border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 rounded transition-colors select-none touch-manipulation cursor-pointer"
               title="A4運行表を印刷"
             >
@@ -1230,12 +1229,15 @@ function BoardPageContent() {
       )}
 
       {/* ===== スマホ表示（モバイル・md未満）: 左右スワイプカンバン方式 ===== */}
-      <div className="flex md:hidden flex-1 overflow-x-auto overflow-y-hidden print:overflow-visible min-h-0 touch-pan-x">
-        <div className="flex flex-row gap-3 h-full min-h-full pb-2 items-start snap-x snap-mandatory">
+      <div
+        className="flex md:hidden flex-1 overflow-x-auto overflow-y-visible print:overflow-visible min-h-0 touch-pan-x touch-pan-y"
+        style={{ touchAction: "pan-x pan-y", WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="flex flex-row gap-3 h-auto items-start snap-x snap-mandatory pb-4">
           {/* 未割り当て列 */}
-          <div className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+          <div className="w-[78vw] max-w-[320px] min-w-[270px] shrink-0 snap-start h-auto flex flex-col print:hidden">
             <UnassignedPool 
-              className="w-full h-full max-h-full"
+              className="w-full h-auto"
               children={(board?.unassigned?.children || [])} 
               mode={activeTab} 
               readOnly={!isEditing}
@@ -1251,7 +1253,7 @@ function BoardPageContent() {
           {(displayColumns || []).map((col: any) => (
             <div
               key={col?.id || col?.vehicleId || col?.vehicleName}
-              className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:w-auto print:flex-1"
+              className="w-[78vw] max-w-[320px] min-w-[270px] shrink-0 snap-start h-auto flex flex-col print:w-auto print:flex-1"
             >
               <VehicleColumn
                 column={col}
@@ -1259,7 +1261,7 @@ function BoardPageContent() {
                 availableVehicles={availableVehiclesForSelect}
                 allColumns={displayColumns}
                 readOnly={!isEditing}
-                className="w-full h-full max-h-full"
+                className="w-full h-auto"
                 onChildClick={handleChildClick}
                 onReorderChild={handleDirectReorder}
                 onChangeLocation={async () => { await performAutoSave(); }}
@@ -1273,9 +1275,9 @@ function BoardPageContent() {
           ))}
 
           {/* 家族枠専用列（送り: 家族迎え / 迎え: 家族送迎・送迎なし） */}
-          <div className="w-[72vw] max-w-[310px] min-w-[270px] shrink-0 snap-start h-full max-h-full flex flex-col print:hidden">
+          <div className="w-[78vw] max-w-[320px] min-w-[270px] shrink-0 snap-start h-auto flex flex-col print:hidden">
             <FamilyPickupColumn
-              className="w-full h-full max-h-full"
+              className="w-full h-auto"
               children={board?.familyPickup?.children || []}
               mode={activeTab}
               onChildClick={handleChildClick}
@@ -1335,9 +1337,12 @@ function BoardPageContent() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-gray-500 border-t border-gray-200 pt-2 shrink-0">
-        <span className="font-medium">凡例:</span>
+      {/* Legend (スマホでは画面最下部に固定表示、PCではグリッド下部にインライン配置) */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-t border-gray-200 px-3 py-2 flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-gray-600 shadow-sm md:static md:bg-transparent md:border-t md:border-gray-200 md:px-0 md:py-1 md:mt-2 md:shadow-none shrink-0"
+        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}
+      >
+        <span className="font-medium text-gray-700">凡例:</span>
         <span className="flex items-center gap-1">
           <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-blue-500 rounded-full" /> 通常
         </span>
@@ -1354,24 +1359,27 @@ function BoardPageContent() {
     </div>
       
     {/* ===== 印刷用レイアウト（通常は非表示、印刷時のみA4縦1枚で表示） ===== */}
-    <div className="hidden print:flex flex-col font-sans text-black board-print-container print-container w-full h-full max-h-[285mm] justify-between overflow-hidden box-border">
+    <div className="hidden print:flex flex-col font-sans text-black board-print-container print-container w-full h-auto max-h-none box-border">
       {(() => {
         const inboundCols = inboundBoard?.columns || [];
         const outboundCols = outboundBoard?.columns || [];
 
-        const inboundActiveStaff = inboundCols.filter((col: any) =>
-          (col.trips || []).some((trip: any) => (trip.children || []).length > 0)
+        const inboundActiveStaff = (inboundCols || []).filter((col: any) =>
+          (col?.trips || []).some((trip: any) => (trip?.children || []).length > 0)
         );
-        const outboundActiveStaff = outboundCols.filter((col: any) =>
-          (col.trips || []).some((trip: any) => (trip.children || []).length > 0)
+        const outboundActiveStaff = (outboundCols || []).filter((col: any) =>
+          (col?.trips || []).some((trip: any) => (trip?.children || []).length > 0)
         );
 
         // 迎えの全スタッフ送迎車に乗っている児童ID
-        const inboundAssignedChildIds = new Set(
-          inboundCols.flatMap((c: any) =>
-            (c.trips || []).flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))
-          )
-        );
+        const inboundAssignedChildIds = new Set<string>();
+        (inboundCols || []).forEach((c: any) => {
+          (c?.trips || []).forEach((t: any) => {
+            (t?.children || []).forEach((ch: any) => {
+              if (ch?.id) inboundAssignedChildIds.add(String(ch.id));
+            });
+          });
+        });
 
         // 迎えの家族枠（送迎なし／家族送迎）
         const inboundFamilyChildrenMap = new Map<string, any>();
@@ -1379,6 +1387,7 @@ function BoardPageContent() {
           if (c && c.id) inboundFamilyChildrenMap.set(String(c.id), c);
         });
         (attendances || []).forEach((a: any) => {
+          if (!a) return;
           const isAbsent = a.attendance_status === "absent" || a.status === "absent";
           if (isAbsent) return;
           const isNoTransportInbound = a.status === "dropoff_only" || a.status === "no_transport";
@@ -1391,17 +1400,20 @@ function BoardPageContent() {
           }
         });
         const inboundFamilyChildren = Array.from(inboundFamilyChildrenMap.values()).sort((a: any, b: any) => {
-          const timeA = a.pickup_time || "99:99";
-          const timeB = b.pickup_time || "99:99";
+          const timeA = a?.pickup_time || "99:99";
+          const timeB = b?.pickup_time || "99:99";
           return timeA.localeCompare(timeB);
         });
 
         // 送りの全スタッフ送迎車に乗っている児童ID
-        const outboundAssignedChildIds = new Set(
-          outboundCols.flatMap((c: any) =>
-            (c.trips || []).flatMap((t: any) => (t.children || []).map((ch: any) => String(ch.id)))
-          )
-        );
+        const outboundAssignedChildIds = new Set<string>();
+        (outboundCols || []).forEach((c: any) => {
+          (c?.trips || []).forEach((t: any) => {
+            (t?.children || []).forEach((ch: any) => {
+              if (ch?.id) outboundAssignedChildIds.add(String(ch.id));
+            });
+          });
+        });
 
         // 送りの家族枠（送迎なし／家族送り・家族お迎え）
         const outboundFamilyChildrenMap = new Map<string, any>();
@@ -1409,6 +1421,7 @@ function BoardPageContent() {
           if (c && c.id) outboundFamilyChildrenMap.set(String(c.id), c);
         });
         (attendances || []).forEach((a: any) => {
+          if (!a) return;
           const isAbsent = a.attendance_status === "absent" || a.status === "absent";
           if (isAbsent) return;
           const isNoTransportOutbound = a.status === "pickup_only" || a.status === "no_transport";
@@ -1421,39 +1434,43 @@ function BoardPageContent() {
           }
         });
         const outboundFamilyChildren = Array.from(outboundFamilyChildrenMap.values()).sort((a: any, b: any) => {
-          const timeA = a.pickup_time || "99:99";
-          const timeB = b.pickup_time || "99:99";
+          const timeA = a?.departure_time || a?.pickup_time || "99:99";
+          const timeB = b?.departure_time || b?.pickup_time || "99:99";
           return timeA.localeCompare(timeB);
         });
 
         // 共通の便テーブル描画関数（送りは時刻列なしの2列構成、迎えは時刻列ありの3列構成）
-        const renderTripTable = (childrenList: any[], tripMode: "inbound" | "outbound") => {
+        const renderTripTable = (childrenList: any[] = [], tripMode: "inbound" | "outbound", isFamily: boolean = false) => {
           const isOutbound = tripMode === "outbound";
+          const safeChildren = childrenList || [];
           return (
             <table className="w-full table-fixed border-collapse border border-gray-400 leading-tight box-border">
               <colgroup>
-                <col style={{ width: "20px" }} />
+                <col style={{ width: "18px" }} />
                 <col />
-                {!isOutbound && <col style={{ width: "42px" }} />}
+                {!isOutbound && <col style={{ width: "40px" }} />}
               </colgroup>
               <tbody>
-                {childrenList.map((child: any, idx: number) => (
-                  <tr key={child.id} className="border-b border-gray-300">
-                    <td className="w-[20px] max-w-[20px] border border-gray-400 px-0.5 py-[1.5px] text-center font-bold text-[11px] shrink-0">
-                      {idx + 1}
-                    </td>
-                    <td className="border border-gray-400 px-1.5 py-[1.5px] text-[12px] font-semibold tracking-tight truncate overflow-hidden">
-                      {child.name}
-                      {child.status === "late" && <span className="text-amber-700 text-[9px] ml-0.5 font-bold">遅</span>}
-                      {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-0.5 font-bold">早</span>}
-                    </td>
-                    {!isOutbound && (
-                      <td className="w-[42px] max-w-[42px] border border-gray-400 px-0.5 py-[1.5px] font-mono text-center font-medium text-[11.5px] text-gray-800 shrink-0">
-                        {child.pickup_time || "—"}
+                {safeChildren.map((child: any, idx: number) => {
+                  if (!child) return null;
+                  return (
+                    <tr key={child.id || idx} className="border-b border-gray-300">
+                      <td className="w-[18px] max-w-[18px] border border-gray-400 px-0.5 py-[1px] text-center font-bold text-[11px] shrink-0">
+                        {idx + 1}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="border border-gray-400 px-1.5 py-[1px] font-bold text-[11.5px] leading-tight truncate overflow-hidden tracking-tight">
+                        {child.name || "名前未設定"}
+                        {child.status === "late" && <span className="text-amber-700 text-[9px] ml-0.5 font-bold">遅</span>}
+                        {child.status === "early_leave" && <span className="text-purple-700 text-[9px] ml-0.5 font-bold">早</span>}
+                      </td>
+                      {!isOutbound && (
+                        <td className="w-[40px] max-w-[40px] border border-gray-400 px-0.5 py-[1px] font-mono text-center font-bold text-[11px] text-gray-800 shrink-0">
+                          {child.pickup_time || "—"}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           );
@@ -1461,31 +1478,30 @@ function BoardPageContent() {
 
         // スタッフごとの便カード描画関数
         const renderStaffCard = (col: any, cardMode: "inbound" | "outbound") => {
-          const staffName = col.staffName || col.driverName || "担当スタッフ";
+          if (!col) return null;
+          const staffName = col?.staffName || col?.driverName || "担当スタッフ";
           
           // 児童がいる便のみ抽出し、時系列順（送りは departure_time 昇順、迎えは tripIndex 昇順）にソート
-          const activeTrips = sortTripsByTime(
-            (col.trips || []).filter((t: any) => (t.children || []).length > 0),
-            cardMode
-          );
+          const filteredTrips = (col?.trips || []).filter((t: any) => (t?.children || []).length > 0);
+          const activeTrips = sortTripsByTime(filteredTrips, cardMode) || [];
 
           if (activeTrips.length === 0) return null;
 
           return (
-            <div key={col.id} className="staff-card break-inside-avoid border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none w-full box-border">
+            <div key={col.id || col.shiftId || staffName} className="staff-card break-inside-avoid border border-gray-400 rounded bg-white flex flex-col overflow-hidden text-black shadow-none w-full box-border">
               {/* スタッフヘッダー: 👤 スタッフ名 */}
               <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
                 <div className="flex items-center gap-1 min-w-0 overflow-hidden">
-                  <span className="text-[13px] font-bold text-gray-900 truncate">👤 {staffName}</span>
-                  {col.staffRole && col.staffRole !== "一般スタッフ" && (
-                    <span className="text-[10px] font-medium text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
+                  <span className="text-[12.5px] font-bold text-gray-900 truncate">👤 {staffName}</span>
+                  {col?.staffRole && col?.staffRole !== "一般スタッフ" && (
+                    <span className="text-[9.5px] font-bold text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
                       {col.staffRole}
                     </span>
                   )}
                 </div>
-                {col.driverStatus && col.driverStatus !== "present" && (
+                {col?.driverStatus && col?.driverStatus !== "present" && (
                   <span className="text-[8.5px] font-bold text-rose-800 bg-rose-50 border border-rose-300 px-1 py-0.2 rounded shrink-0">
-                    {col.driverStatus === "late" ? `遅刻 ${col.driverStatusTime}` : col.driverStatus === "early_leave" ? `早退 ${col.driverStatusTime}` : `中抜け ${col.driverStatusTime}`}
+                    {col.driverStatus === "late" ? `遅刻 ${col?.driverStatusTime || ""}` : col.driverStatus === "early_leave" ? `早退 ${col?.driverStatusTime || ""}` : `中抜け ${col?.driverStatusTime || ""}`}
                   </span>
                 )}
               </div>
@@ -1493,43 +1509,44 @@ function BoardPageContent() {
               {/* 運行便コンテナ（児童がいる便のみ時刻順に出力） */}
               <div className="flex flex-col divide-y divide-gray-200 flex-1 overflow-hidden">
                 {activeTrips.map((trip: any, tIdx: number) => {
-                  const tripChildren = trip.children || [];
-                  const theme = getVehicleColorTheme(trip.vehicleName);
+                  if (!trip) return null;
+                  const tripChildren = trip?.children || [];
+                  const theme = getVehicleColorTheme(trip?.vehicleName);
                   const sortedChildren = [...tripChildren].sort((a: any, b: any) => {
-                    const timeA = a.pickup_time || "99:99";
-                    const timeB = b.pickup_time || "99:99";
+                    const timeA = cardMode === "outbound" ? (a?.departure_time || a?.pickup_time || "99:99") : (a?.pickup_time || "99:99");
+                    const timeB = cardMode === "outbound" ? (b?.departure_time || b?.pickup_time || "99:99") : (b?.pickup_time || "99:99");
                     return timeA.localeCompare(timeB);
                   });
 
                   // ヘッダーラベル: 迎えは【1便】、送りは【17:00】等の時刻表記
                   const tripLabel = cardMode === "outbound"
-                    ? `【${trip.departure_time || trip.time || "17:00"}】`
-                    : `【${trip.tripIndex || tIdx + 1}便】`;
+                    ? `【${trip?.departure_time || trip?.time || "17:00"}】`
+                    : `【${trip?.tripIndex || tIdx + 1}便】`;
 
                   const isSecondOrLater = tIdx > 0;
 
                   return (
                     <div
-                      key={trip.id}
+                      key={trip?.id || tIdx}
                       className={cn(
                         "p-1 flex flex-col overflow-hidden",
                         isSecondOrLater && "bg-slate-50/50"
                       )}
                     >
                       <div className="flex items-center justify-between gap-1 mb-0.5 pb-0.5 border-b border-gray-200 bg-gray-50 px-1 py-0.2 rounded-sm overflow-hidden min-w-0">
-                        <span className="font-bold text-[11px] text-gray-900 shrink-0">
+                        <span className="font-bold text-[10.5px] text-gray-900 shrink-0">
                           {tripLabel}
                         </span>
                         {trip?.vehicleId && (trip?.vehicleName || trip?.vehicle?.name) && (trip?.vehicleName || trip?.vehicle?.name) !== "車両未選択" && (trip?.vehicleName || trip?.vehicle?.name) !== "車未定" ? (
                           <span
                             className={cn(
-                              "text-[11px] font-semibold px-1 py-0.2 rounded border shrink min-w-0 max-w-[110px] truncate",
-                              theme.badgeBg,
-                              theme.badgeText,
-                              theme.badgeBorder,
-                              theme.printBg,
-                              theme.printText,
-                              theme.printBorder
+                              "text-[10.5px] font-bold px-1.5 py-0.2 rounded border shrink min-w-0 max-w-[120px] truncate",
+                              theme?.badgeBg,
+                              theme?.badgeText,
+                              theme?.badgeBorder,
+                              theme?.printBg,
+                              theme?.printText,
+                              theme?.printBorder
                             )}
                             style={{
                               WebkitPrintColorAdjust: "exact",
@@ -1553,11 +1570,12 @@ function BoardPageContent() {
         // 家族枠（送迎なし）専用カード描画関数
         const renderFamilyBox = (
           title: string,
-          list: any[],
+          list: any[] = [],
           boxMode: "inbound" | "outbound",
           variant: "compact" | "fixed" = "fixed"
         ) => {
           const isCompact = variant === "compact";
+          const safeList = list || [];
           return (
             <div
               className={cn(
@@ -1566,18 +1584,18 @@ function BoardPageContent() {
               )}
             >
               <div className="px-1.5 py-0.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between overflow-hidden">
-                <span className="text-[12px] font-bold text-gray-900 truncate">{title}</span>
-                <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1 py-0.2 rounded shrink-0">
-                  {list.length}名
+                <span className="text-[12.5px] font-bold text-gray-900 truncate">{title}</span>
+                <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1.5 py-0.2 rounded shrink-0">
+                  {safeList.length}名
                 </span>
               </div>
               <div className="p-1 flex flex-col overflow-hidden">
-                {list.length === 0 ? (
-                  <div className={cn("text-center text-[11px] text-gray-400 font-medium", isCompact ? "py-2" : "py-4")}>
+                {safeList.length === 0 ? (
+                  <div className={cn("text-center text-[10.5px] text-gray-400 font-medium", isCompact ? "py-1" : "py-2")}>
                     なし
                   </div>
                 ) : (
-                  renderTripTable(list, boxMode)
+                  renderTripTable(safeList, boxMode, true)
                 )}
               </div>
             </div>
@@ -1585,10 +1603,10 @@ function BoardPageContent() {
         };
 
         return (
-          <div className="flex flex-col flex-1 justify-between min-h-0">
+          <div className="flex flex-col w-full min-h-0">
             <div>
               {/* 印刷メインヘッダー */}
-              <div className="mb-1 border-b-2 border-gray-400 pb-0.5 flex justify-between items-end">
+              <div className="mb-0.5 border-b-2 border-gray-400 pb-0.5 flex justify-between items-end">
                 <div>
                   <div className="flex items-baseline gap-2.5">
                     <h1 className="text-[15px] font-bold leading-tight">
@@ -1596,18 +1614,18 @@ function BoardPageContent() {
                     </h1>
                     <span className="text-[12px] font-bold text-gray-800">{displayDate}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                    <p className="text-[10.5px] font-semibold text-gray-700">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 leading-tight">
+                    <p className="text-[10.5px] font-semibold text-gray-700 leading-tight">
                       利用者数: ぽっけ {countPokke}名 / ぽっけⅡ {countPokke2}名 / 日中一時 {countNichu}名 （合計 {totalPresentCount}名）
                     </p>
-                    <p className="text-[10px] font-medium text-gray-600">
+                    <p className="text-[10px] font-medium text-gray-600 leading-tight">
                       リーダー: [ぽっけ] {leaders.pokke} / [ぽっけⅡ] {leaders.pokke2} / [日中] {leaders.nichu}
                     </p>
                   </div>
                 </div>
-                <div className="text-right flex flex-col items-end gap-0.5 shrink-0">
-                  <p className="text-[8.5px] text-gray-500">出力日時: {new Date().toLocaleString("ja-JP")}</p>
-                  <div className="text-[10.5px] font-semibold text-gray-800 flex items-center">
+                <div className="text-right flex flex-col items-end gap-0.5 shrink-0 leading-tight">
+                  <p className="text-[8.5px] text-gray-500 leading-tight">出力日時: {new Date().toLocaleString("ja-JP")}</p>
+                  <div className="text-[10.5px] font-semibold text-gray-800 flex items-center leading-tight">
                     <span>作成者: </span>
                     {creatorName ? (
                       <span className="font-bold underline ml-1">{creatorName}</span>
@@ -1619,20 +1637,20 @@ function BoardPageContent() {
               </div>
 
               {/* 【上段: 迎え（来所）】 */}
-              <div className="flex flex-col mb-1 print-block">
-                <div className="flex items-center justify-between mb-0.5 bg-blue-50/90 px-2 py-0.5 rounded border border-blue-200">
+              <div className="flex flex-col mb-0.5 print-block print-section-pickup">
+                <div className="flex items-center justify-between mb-0.5 bg-blue-50/90 px-1.5 py-0.5 rounded border border-blue-200">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[11px] text-blue-900">▼ 【迎え（来所）】送迎運行表</span>
-                    <span className="text-[9.5px] text-blue-700 font-medium">
-                      （送迎運行スタッフ: {inboundActiveStaff.length}名 / 家族迎え: {inboundFamilyChildren.length}名）
+                    <span className="font-bold text-[11.5px] text-blue-900">▼ 【迎え（来所）】送迎運行表</span>
+                    <span className="text-[10px] text-blue-700 font-medium">
+                      （送迎運行スタッフ: {(inboundActiveStaff || []).length}名 / 家族迎え: {(inboundFamilyChildren || []).length}名）
                     </span>
                   </div>
                 </div>
                 {/* 共通4列グリッド: 家族枠を第1マスに配置し、スタッフ便が隙間なく自然に回り込む */}
                 <div className="grid grid-cols-4 gap-1.5 items-start w-full">
                   {renderFamilyBox("🏠 家族迎え", inboundFamilyChildren, "inbound", "compact")}
-                  {inboundActiveStaff.map((col: any) => renderStaffCard(col, "inbound"))}
-                  {inboundActiveStaff.length === 0 && (
+                  {(inboundActiveStaff || []).map((col: any) => renderStaffCard(col, "inbound"))}
+                  {(inboundActiveStaff || []).length === 0 && (
                     <div className="col-span-3 p-3 text-center text-xs font-medium text-gray-500 border border-dashed border-gray-300 rounded bg-gray-50">
                       配車されている運行便がありません（送迎便なし）
                     </div>
@@ -1644,12 +1662,12 @@ function BoardPageContent() {
               <div className="border-t border-dashed border-gray-300 my-0.5" />
 
               {/* 【下段: 送り（帰宅）】 */}
-              <div className="flex flex-col mb-0.5 print-block">
-                <div className="flex items-center justify-between mb-0.5 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200">
+              <div className="flex flex-col mb-0.5 print-block print-section-dropoff">
+                <div className="flex items-center justify-between mb-0.5 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[11px] text-amber-900">▼ 【送り（帰宅）】送迎運行表</span>
-                    <span className="text-[9.5px] text-amber-700 font-medium">
-                      （送迎運行スタッフ: {outboundActiveStaff.length}名 / 家族送り: {outboundFamilyChildren.length}名）
+                    <span className="font-bold text-[11.5px] text-amber-900">▼ 【送り（帰宅）】送迎運行表</span>
+                    <span className="text-[10px] text-amber-700 font-medium">
+                      （送迎運行スタッフ: {(outboundActiveStaff || []).length}名 / 家族送り: {(outboundFamilyChildren || []).length}名）
                     </span>
                   </div>
                 </div>
@@ -1657,7 +1675,7 @@ function BoardPageContent() {
                 <div className="flex gap-1.5 items-start w-full">
                   {renderFamilyBox("🏠 家族送り", outboundFamilyChildren, "outbound", "fixed")}
                   <div className="flex-1 min-w-0">
-                    {outboundActiveStaff.length === 0 ? (
+                    {(outboundActiveStaff || []).length === 0 ? (
                       <div className="p-3 text-center text-xs font-medium text-gray-500 border border-dashed border-gray-300 rounded my-1 bg-gray-50">
                         配車されている運行便がありません（送迎便なし）
                       </div>
@@ -1665,14 +1683,14 @@ function BoardPageContent() {
                       <div
                         className={cn(
                           "grid gap-1.5 items-start w-full",
-                          outboundActiveStaff.length === 1
+                          (outboundActiveStaff || []).length === 1
                             ? "grid-cols-1"
-                            : outboundActiveStaff.length === 2
+                            : (outboundActiveStaff || []).length === 2
                             ? "grid-cols-2"
                             : "grid-cols-3"
                         )}
                       >
-                        {outboundActiveStaff.map((col: any) => renderStaffCard(col, "outbound"))}
+                        {(outboundActiveStaff || []).map((col: any) => renderStaffCard(col, "outbound"))}
                       </div>
                     )}
                   </div>
@@ -1681,7 +1699,7 @@ function BoardPageContent() {
             </div>
 
             {/* フッター（余白最小化） */}
-            <div className="pt-0.5 border-t border-gray-300 flex justify-between text-[8.5px] text-gray-400 mt-auto shrink-0">
+            <div className="pt-0.5 border-t border-gray-300 flex justify-between text-[8.5px] text-gray-400 mt-0.5 shrink-0">
               <span>放課後等デイサービス 送迎運行表（迎え・送り）</span>
               <span>{displayDate}</span>
             </div>
@@ -1785,41 +1803,51 @@ function BoardPageContent() {
 
       <style jsx global>{`
         @media print {
-          /* 1. 用紙設定: A4縦向き、スマホ印刷時の改ページ溢れを防止するマージン（上下5mm、左右7mm） */
           @page {
             size: A4 portrait;
+            /* 上下5mm、左右7mm（ファイル穴あけ余白を保ちつつ上下を確保） */
             margin: 5mm 7mm;
           }
 
+          /* Safariで下部が消える原因となる overflow: hidden を解除 */
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            height: 100% !important;
-            overflow: hidden !important;
+            height: auto !important;
+            min-height: 100% !important;
+            overflow: visible !important;
             background: #fff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
 
-          /* 2. 印刷画面のコンテナをA4縦1枚にフィット（改ページ絶対防止） */
+          /* 印刷用親コンテナ: 強制クリップ（上限カット）を完全撤廃 */
+          .print-page,
           .print-container,
           .board-print-container {
             width: 100% !important;
-            max-width: 196mm !important;
-            height: 100% !important;
-            max-height: 285mm !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: none !important; /* ← 強制クリップ（上限カット）を完全撤廃 */
+            overflow: visible !important;
             display: flex !important;
             flex-direction: column !important;
-            justify-content: space-between !important;
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
+            justify-content: flex-start !important;
+            transform: none !important;
             box-sizing: border-box !important;
-            overflow: hidden !important;
             padding: 0 !important;
           }
 
+          /* 上段・下段が消えずに確実に描画されるようにする */
+          .print-section-pickup,
+          .print-section-dropoff {
+            display: block !important;
+            width: 100% !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /* 改ページ防止（各カード・ブロック・行） */
           .break-inside-avoid,
           .print-block,
           .staff-card,

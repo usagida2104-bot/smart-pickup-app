@@ -92,8 +92,8 @@ export function VehicleColumn({
   }, [column.trips]);
 
   const defaultNewTime = useMemo(() => {
-    const candidates = ["17:00", "17:30", "16:30", "18:00", "16:00", "18:30", "15:30", "19:00"];
-    return candidates.find((c) => !existingTimes.has(c)) || "17:30";
+    const candidates = ["16:30", "17:30", "16:00", "18:00", "17:00", "18:30", "15:30", "19:00"];
+    return candidates.find((c) => !existingTimes.has(c)) || "16:30";
   }, [existingTimes]);
 
   const [selectedNewTripTime, setSelectedNewTripTime] = useState<string>(defaultNewTime);
@@ -298,7 +298,7 @@ export function VehicleColumn({
       </div>
 
       {/* Trips Container */}
-      <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-y-auto">
+      <div className="flex flex-col flex-1 bg-gray-50 divide-y divide-gray-200 min-h-min overflow-visible md:overflow-y-auto">
         {displayTrips.map((trip) => {
           const hasVehicle = Boolean(trip?.vehicleId);
           const capacity = trip?.capacity || column?.capacity;
@@ -494,7 +494,7 @@ export function VehicleColumn({
               {/* Trip Drop zone (児童カード一覧) */}
               <div
                 className={cn(
-                  "p-1.5 min-h-[60px] max-h-[300px] overflow-y-auto overflow-x-hidden space-y-1 transition-colors duration-150 print:max-h-none print:overflow-visible"
+                  "p-1.5 min-h-[60px] max-h-none md:max-h-[300px] overflow-visible md:overflow-y-auto md:overflow-x-hidden space-y-1 transition-colors duration-150 print:max-h-none print:overflow-visible"
                 )}
               >
                 {(trip?.children || []).map((magnet, idx) => (

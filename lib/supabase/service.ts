@@ -205,28 +205,69 @@ export async function upsertDailyAttendance(attendance: DailyAttendance) {
   if (error) throw error;
 }
 
-export async function saveBoardState(target_date: string, inbound_board: any, outbound_board: any) {
-  let res = await supabase.from("board_states").upsert({
+export async function saveBoardState(
+  target_date: string,
+  inbound_board: any,
+  outbound_board: any,
+  creator_name?: string | null
+) {
+  const safeCreator = creator_name !== undefined ? (creator_name || null) : undefined;
+  const inboundWithCreator = inbound_board
+    ? {
+        ...inbound_board,
+        ...(safeCreator !== undefined ? { creator_name: safeCreator } : {}),
+      }
+    : inbound_board;
+  const outboundWithCreator = outbound_board
+    ? {
+        ...outbound_board,
+        ...(safeCreator !== undefined ? { creator_name: safeCreator } : {}),
+      }
+    : outbound_board;
+
+  const payload: any = {
     target_date,
-    inbound_board,
-    outbound_board,
+    inbound_board: inboundWithCreator,
+    outbound_board: outboundWithCreator,
     updated_at: new Date().toISOString(),
-  }, { onConflict: "target_date" });
+  };
+  if (safeCreator !== undefined) {
+    payload.creator_name = safeCreator;
+    payload.author_name = safeCreator;
+  }
+
+  let res = await supabase.from('board_states').upsert(payload, { onConflict: 'target_date' });
 
   if (res.error) {
-    console.warn("First upsert failed, retrying without onConflict:", res.error);
-    res = await supabase.from("board_states").upsert({
+    console.warn('First upsert failed, retrying fallback without extra columns:', res.error);
+    const fallbackPayload: any = {
       target_date,
-      inbound_board,
-      outbound_board,
+      inbound_board: inboundWithCreator,
+      outbound_board: outboundWithCreator,
       updated_at: new Date().toISOString(),
-    });
+    };
+    res = await supabase.from('board_states').upsert(fallbackPayload, { onConflict: 'target_date' });
+    if (res.error) {
+      res = await supabase.from('board_states').upsert(fallbackPayload);
+    }
   }
-  
+
   if (res.error) {
-    console.error("Supabase Save Error:", res.error);
+    console.error('Supabase Save Error:', res.error);
     throw res.error;
   }
+}
+
+export async function updateBoardCreator(target_date: string, creator_name: string | null) {
+  const { data: existing } = await supabase
+    .from('board_states')
+    .select('*')
+    .eq('target_date', target_date)
+    .maybeSingle();
+
+  const inbound = existing?.inbound_board || {};
+  const outbound = existing?.outbound_board || {};
+  return saveBoardState(target_date, inbound, outbound, creator_name);
 }
 
 export async function upsertDailyStaff(ds: {
